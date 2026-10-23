@@ -1,0 +1,13 @@
+{"ingredients": [
+  {"id": "lavash",   "name": "Лаваш",     "kind": "base",  "color": "#f3d39b", "unlock_day": 1},
+  {"id": "meat",     "name": "Мясо",      "kind": "meat",  "color": "#b5652d", "unlock_day": 1},
+  {"id": "tomato",   "name": "Помидор",   "kind": "veg",   "color": "#e8443a", "unlock_day": 1},
+  {"id": "cucumber", "name": "Огурец",    "kind": "veg",   "color": "#6cc24a", "unlock_day": 1},
+  {"id": "cabbage",  "name": "Капуста",   "kind": "veg",   "color": "#cfe8a9", "unlock_day": 1},
+  {"id": "onion",    "name": "Лук",       "kind": "veg",   "color": "#c99ad6", "unlock_day": 1},
+  {"id": "fries",    "name": "Картошка",  "kind": "veg",   "color": "#ffcf4a", "unlock_day": 2},
+  {"id": "cheese",   "name": "Сыр",       "kind": "veg",   "color": "#ffd84d", "unlock_day": 3},
+  {"id": "jalapeno", "name": "Халапеньо", "kind": "veg",   "color": "#3fa34d", "unlock_day": 4},
+  {"id": "garlic",   "name": "Чесночный", "kind": "sauce", "color": "#fff8e6", "unlock_day": 1},
+  {"id": "hot",      "name": "Острый",    "kind": "sauce", "color": "#ff5a2a", "unlock_day": 1}
+]}
