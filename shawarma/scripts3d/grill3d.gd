@@ -10,6 +10,7 @@ const SLOT_Z := [-0.36, 0.0, 0.36]
 const BAR_LEN := 0.3
 
 var unlocked := 2
+var speed := 1.0
 var slots: Array = [null, null, null]   # {"made", "t", "rang", "mesh"}
 var bal: Dictionary
 var bars: Array = []                    # per slot: {"root", "marker"}
@@ -157,7 +158,7 @@ func _process(delta: float) -> void:
 		var s = slots[i]
 		if s == null:
 			continue
-		s["t"] += delta * Bal.tune["grill"]
+		s["t"] += delta * Bal.tune["grill"] * speed
 		M3.set_toast(s["mesh"], s["t"], bal)
 		var f := clampf(s["t"] / burnt_at, 0.0, 1.0)
 		bars[i]["marker"].position.z = -BAR_LEN / 2.0 + f * BAR_LEN

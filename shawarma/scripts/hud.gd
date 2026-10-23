@@ -8,6 +8,11 @@ signal menu_pressed
 signal resume_pressed
 signal pause_pressed
 signal sound_toggled
+signal shop_pressed
+signal shop_closed
+signal buy_pressed(id: String)
+signal endless_pressed
+signal new_game_pressed
 
 var bar: Bar
 var pause_btn: Button
@@ -24,10 +29,14 @@ class Bar extends Node2D:
 	var rush := false
 	var bump := 0.0
 	var width := 720.0
+	var combo := 0
+	var combo_mult := 1.0
+	var combo_bump := 0.0
 
 	func _process(delta: float) -> void:
 		shown = move_toward(shown, money, maxf(40.0, absf(money - shown) * 6.0) * delta)
 		bump = maxf(0.0, bump - delta * 4.0)
+		combo_bump = maxf(0.0, combo_bump - delta * 3.0)
 		queue_redraw()
 
 	func _draw() -> void:
@@ -51,6 +60,14 @@ class Bar extends Node2D:
 		DU.rect(self, rr, 26.0, DU.CREAM, 4.0, 5.0)
 		DU.star(self, Vector2(rr.position.x + 30, rr.get_center().y), 17.0, DU.GOLD, 3.0)
 		DU.text(self, rr.get_center() + Vector2(16, -1), "—" if rating <= 0.0 else "%.1f" % rating, 28, DU.INK, 0)
+		if combo >= 2:
+			var cs := 1.0 + sin(combo_bump * PI) * 0.25
+			draw_set_transform(Vector2(119, 92), sin(combo_bump * 12.0) * 0.08 * combo_bump, Vector2(cs, cs))
+			DU.rect(self, Rect2(-95, -20, 190, 40), 20.0, Color("#ff5a2a"), 4.0, 4.0)
+			var fl := PackedVector2Array([Vector2(-72, 12), Vector2(-82, -2), Vector2(-74, -6), Vector2(-76, -16), Vector2(-64, -4), Vector2(-62, -12), Vector2(-56, 4), Vector2(-60, 12)])
+			DU.poly(self, fl, DU.GOLD, 2.5)
+			DU.text(self, Vector2(14, -1), "КОМБО ×%s" % str(snappedf(combo_mult, 0.01)), 22, Color.WHITE, 6)
+			draw_set_transform(Vector2.ZERO)
 
 
 class Logo extends Control:
@@ -156,13 +173,13 @@ func _panel(box: VBoxContainer) -> VBoxContainer:
 	return v
 
 
-func _label(parent: Control, text: String, size := 28, color := DU.INK, center := true) -> Label:
+func _label(parent: Control, text: String, size := 28, color := DU.INK, center := true, width := 520.0) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(520, 0)
+	l.custom_minimum_size = Vector2(width, 0)
 	if center:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	parent.add_child(l)
@@ -189,28 +206,38 @@ func _button(parent: Control, text: String, cb: Callable, primary := true) -> Bu
 	return b
 
 
-func show_menu(day: int, bank: int, sound_on: bool) -> void:
+func show_menu(day: int, bank: int, sound_on: bool, has_shop := false) -> void:
 	set_bar_visible(false)
 	var box := _new_screen(0.35)
 	var logo := Logo.new()
-	logo.custom_minimum_size = Vector2(640, 300)
+	logo.custom_minimum_size = Vector2(640, 270)
 	box.add_child(logo)
-	_label(box, "День %d из 15   ·   В кассе: %d ₽" % [day, bank], 28, DU.CREAM).add_theme_constant_override("outline_size", 8)
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 30)
-	box.add_child(sp)
+	var day_text := "День %d из 15" % day if day <= 15 else "День %d · без конца" % day
+	_label(box, "%s   ·   В кассе: %d ₽" % [day_text, bank], 28, DU.CREAM).add_theme_constant_override("outline_size", 8)
 	_button(box, "Начать смену", func(): start_pressed.emit())
-	_button(box, "Звук: вкл" if sound_on else "Звук: выкл", func(): sound_toggled.emit(), false)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(row)
+	if has_shop:
+		var shop_b := _button(row, "Магазин", func(): shop_pressed.emit(), false)
+		shop_b.custom_minimum_size = Vector2(260, 76)
+	var snd := _button(row, "Звук: вкл" if sound_on else "Звук: выкл", func(): sound_toggled.emit(), false)
+	snd.custom_minimum_size = Vector2(260, 76)
 
 
-func show_note(day: int, note: String, goal: int, new_items: Array) -> void:
+func show_note(day: int, note: String, goal: int, new_items: Array, event := {}) -> void:
 	set_bar_visible(false)
 	var v := _panel(_new_screen())
-	_label(v, "День %d" % day, 44, DU.ORANGE.darkened(0.2))
-	_label(v, "Записка от дяди Ромы", 24, Color("#7a6d96"))
-	_label(v, note, 27, DU.INK)
+	var panel: Control = v.get_parent()
+	panel.custom_minimum_size = Vector2(760, 0)
+	_label(v, "День %d" % day, 42, DU.ORANGE.darkened(0.2))
+	_label(v, "Записка от дяди Ромы", 22, Color("#7a6d96"))
+	_label(v, note, 26, DU.INK, true, 680.0)
 	if not new_items.is_empty():
 		_label(v, "Новое: " + ", ".join(new_items), 26, Color("#2a9d5c"))
+	if not event.is_empty():
+		_label(v, "Событие дня: %s — %s" % [event["title"], event["desc"]], 25, Color("#7b4fd6"), true, 680.0)
 	_label(v, "Цель смены: %d ₽" % goal, 30, DU.INK)
 	_button(v, "Открываемся!", func(): note_closed.emit())
 
@@ -251,6 +278,85 @@ func show_summary(st: Dictionary) -> void:
 	_label(v, "Итого за день: %d ₽  (цель %d)" % [st["total"], st["goal"]], 28, Color("#2a9d5c") if st["total"] >= st["goal"] else DU.RED)
 	_button(v, "Следующий день", func(): next_day_pressed.emit())
 	_button(v, "В меню", func(): menu_pressed.emit(), false)
+
+
+## items: [{id, name, desc, level, max, price}] — price < 0 when maxed out.
+func show_shop(bank: int, items: Array) -> void:
+	set_bar_visible(false)
+	var box := _new_screen(0.62)
+	box.add_theme_constant_override("separation", 10)
+	var title := _label(box, "Магазин дяди Ромы", 42, DU.CREAM)
+	title.add_theme_constant_override("outline_size", 12)
+	var cash := _label(box, "В кассе: %d ₽" % bank, 28, DU.GOLD)
+	cash.add_theme_constant_override("outline_size", 8)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 10)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(grid)
+	for it in items:
+		var card := PanelContainer.new()
+		var sb := _box(DU.CREAM, 20)
+		sb.content_margin_left = 16
+		sb.content_margin_right = 12
+		sb.content_margin_top = 8
+		sb.content_margin_bottom = 10
+		card.add_theme_stylebox_override("panel", sb)
+		card.custom_minimum_size = Vector2(580, 0)
+		grid.add_child(card)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		card.add_child(row)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 0)
+		row.add_child(col)
+		var name_l := Label.new()
+		name_l.text = it["name"] if int(it["max"]) == 1 else "%s  (%d/%d)" % [it["name"], it["level"], it["max"]]
+		name_l.add_theme_font_size_override("font_size", 23)
+		name_l.add_theme_color_override("font_color", DU.INK)
+		col.add_child(name_l)
+		var desc_l := Label.new()
+		desc_l.text = it["desc"]
+		desc_l.add_theme_font_size_override("font_size", 18)
+		desc_l.add_theme_color_override("font_color", Color("#6b5a7a"))
+		desc_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_l.custom_minimum_size = Vector2(340, 0)
+		col.add_child(desc_l)
+		var price: int = it["price"]
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(176, 64)
+		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn.add_theme_font_size_override("font_size", 24)
+		btn.text = "Куплено" if price < 0 else "%d ₽" % price
+		btn.disabled = price < 0 or price > bank
+		var id: String = it["id"]
+		btn.pressed.connect(func():
+			Sfx.play("cash", 0.02)
+			Sfx.buzz(25)
+			buy_pressed.emit(id)
+		)
+		row.add_child(btn)
+	var next_b := _button(box, "Дальше", func(): shop_closed.emit())
+	next_b.custom_minimum_size = Vector2(360, 80)
+
+
+func show_finale(stars: int, max_stars: int, title: String, text: String) -> void:
+	set_bar_visible(false)
+	var v := _panel(_new_screen(0.65))
+	var panel: Control = v.get_parent()
+	panel.custom_minimum_size = Vector2(760, 0)
+	_label(v, "Дядя Рома вернулся!", 42, DU.ORANGE.darkened(0.2))
+	var st := Stars.new()
+	st.count = 3 if stars >= max_stars * 0.8 else (2 if stars >= max_stars * 0.5 else 1)
+	st.custom_minimum_size = Vector2(520, 96)
+	v.add_child(st)
+	_label(v, "Звёзд за 15 дней: %d из %d" % [stars, max_stars], 26, Color("#6b5a7a"))
+	_label(v, title, 36, DU.INK)
+	_label(v, text, 25, DU.INK, true, 680.0)
+	_button(v, "Играть дальше", func(): endless_pressed.emit())
+	_button(v, "Новая игра", func(): new_game_pressed.emit(), false)
 
 
 func show_pause() -> void:
@@ -315,6 +421,8 @@ func _make_theme() -> Theme:
 	pressed.shadow_offset = Vector2(0, 2)
 	th.set_stylebox("pressed", "Button", pressed)
 	th.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	th.set_stylebox("disabled", "Button", _box(Color("#c9c2d6"), 28))
+	th.set_color("font_disabled_color", "Button", Color("#f4f0fa"))
 	th.set_color("font_color", "Button", Color.WHITE)
 	th.set_color("font_hover_color", "Button", Color.WHITE)
 	th.set_color("font_pressed_color", "Button", DU.CREAM)

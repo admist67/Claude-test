@@ -15,6 +15,7 @@ var held: Dictionary = {}
 var held_mesh: MeshInstance3D
 var hand: Node3D
 var bob := 0.0
+var speed_mult := 1.0
 
 
 func _ready() -> void:
@@ -84,7 +85,7 @@ func _physics_process(delta: float) -> void:
 		inp = kb.limit_length(1.0)
 	var dir := (transform.basis * Vector3(inp.x, 0, inp.y))
 	dir.y = 0.0
-	var target := dir * SPEED
+	var target := dir * SPEED * speed_mult
 	velocity.x = move_toward(velocity.x, target.x, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, target.z, ACCEL * delta)
 	velocity.y = 0.0 if is_on_floor() else velocity.y - 9.8 * delta

@@ -1,6 +1,6 @@
 extends Node3D
-## A 3D customer outside the window: Kenney character with animations, an order bubble
-## (2D drawn into a SubViewport, shown as a billboard), a speech line and patience.
+## A 3D customer outside the window: Kenney character with animations, a speech line and
+## patience. The order bubble is drawn in screen space by orders_ui.gd.
 ## Tappable kind: "customer" (its StaticBody's parent is this node).
 
 signal gave_up(c)
@@ -18,8 +18,7 @@ var patience_max := 40.0
 var slot := 0
 var model: Node3D
 var anim: AnimationPlayer
-var bubble: Node2D
-var bubble_sprite: Sprite3D
+var bubble_pop := 0.0      # order bubble scale, drawn in screen space by orders_ui.gd
 var say_label: Label3D
 var say_t := 0.0
 
@@ -36,23 +35,6 @@ func setup(type_def: Dictionary, o: Order, patience_s: float, slot_i: int, model
 		for a in ["idle", "walk"]:
 			if anim.has_animation(a):
 				anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
-	var vp := SubViewport.new()
-	vp.size = Vector2i(300, 240)
-	vp.transparent_bg = true
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	add_child(vp)
-	bubble = preload("res://scripts3d/bubble2d.gd").new()
-	bubble.order = o
-	bubble.type_id = type_def.get("type_id", "")
-	vp.add_child(bubble)
-	bubble_sprite = Sprite3D.new()
-	bubble_sprite.texture = vp.get_texture()
-	bubble_sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	bubble_sprite.pixel_size = 0.0026
-	bubble_sprite.shaded = false
-	bubble_sprite.position = Vector3(0, 1.98, 0)
-	bubble_sprite.visible = false
-	add_child(bubble_sprite)
 	say_label = M3.label(self, "", Vector3(0, 2.42, 0), 56, DU.CREAM, 16, 0.0032)
 	say_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	say_label.visible = false
@@ -89,9 +71,8 @@ func _on_arrived() -> void:
 	st = St.WAIT
 	_face(Vector3(0, 0, 1))
 	_play("idle")
-	bubble_sprite.visible = true
-	bubble_sprite.scale = Vector3.ONE * 0.2
-	create_tween().tween_property(bubble_sprite, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	bubble_pop = 0.0
+	create_tween().tween_property(self, "bubble_pop", 1.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_say(say_label.text, 2.4)
 	Sfx.play("bell", 0.05, -6.0)
 
@@ -105,7 +86,7 @@ func _say(text: String, dur: float) -> void:
 ## mood: "happy" / "meh" / "angry"
 func leave(exit_x: float, phrase: String, mood: String) -> void:
 	st = St.LEAVE
-	bubble_sprite.visible = false
+	bubble_pop = 0.0
 	_say(phrase, 2.0)
 	_play("emote-no" if mood == "angry" else ("emote-yes" if mood == "happy" else "idle"))
 	var back := Vector3(position.x, 0, position.z - 0.8)
@@ -137,6 +118,5 @@ func _process(delta: float) -> void:
 			say_label.visible = false
 	if st == St.WAIT:
 		patience -= delta
-		bubble.patience = patience_frac()
 		if patience <= 0.0:
 			gave_up.emit(self)

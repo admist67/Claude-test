@@ -8,6 +8,10 @@ const K := "res://assets/models/"
 var neon: Label3D
 var street_lights: Array[OmniLight3D] = []
 var env: Environment
+var decor := {}                          # upgrade id -> Node3D
+var bulb_mats: Array[StandardMaterial3D] = []
+var rain: CPUParticles3D
+var t := 0.0
 
 
 func _ready() -> void:
@@ -15,6 +19,93 @@ func _ready() -> void:
 	_kiosk()
 	_decor()
 	_street()
+
+
+func _process(delta: float) -> void:
+	t += delta
+	for i in bulb_mats.size():
+		bulb_mats[i].emission_energy_multiplier = 1.4 + 1.2 * maxf(0.0, sin(t * 3.0 + i * 1.6))
+
+
+## Shows the visible upgrades in the kiosk: levels = {"garland": 2, "neon": 1, "tipjar": 1}.
+func set_decor(levels: Dictionary) -> void:
+	for id in decor:
+		decor[id].queue_free()
+	decor.clear()
+	bulb_mats.clear()
+	var g := int(levels.get("garland", 0))
+	if g >= 1:
+		var n := Node3D.new()
+		add_child(n)
+		decor["garland"] = n
+		for col in [Color("#ff4fa3"), Color("#ffc93c"), Color("#4ff0ff"), Color("#7dff6a")]:
+			var m := StandardMaterial3D.new()
+			m.albedo_color = col
+			m.emission_enabled = true
+			m.emission = col
+			m.emission_energy_multiplier = 2.0
+			bulb_mats.append(m)
+		_garland(n, Vector3(-1.8, 2.3, -0.96), Vector3(1.8, 2.3, -0.96), 0.1, 26)
+		if g >= 2:
+			_garland(n, Vector3(-1.95, 2.62, 1.95), Vector3(1.95, 2.62, 1.95), 0.12, 28)
+			_garland(n, Vector3(-1.97, 2.62, -0.9), Vector3(-1.97, 2.62, 1.9), 0.1, 20)
+			_garland(n, Vector3(1.97, 2.62, -0.9), Vector3(1.97, 2.62, 1.9), 0.1, 20)
+	if int(levels.get("neon", 0)) >= 1:
+		var n := Node3D.new()
+		add_child(n)
+		decor["neon"] = n
+		M3.box(n, Vector3(3.62, 0.03, 0.03), Vector3(0, 2.31, -0.97), M3.glow(Color(1.0, 0.31, 0.64), 2.2))
+		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(-1.81, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
+		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(1.81, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
+		var l := OmniLight3D.new()
+		l.position = Vector3(0, 1.9, -0.7)
+		l.light_color = Color("#ff7ad9")
+		l.light_energy = 0.7
+		l.omni_range = 2.2
+		n.add_child(l)
+	if int(levels.get("tipjar", 0)) >= 1:
+		var n := Node3D.new()
+		n.position = Vector3(0.95, 1.0, -0.62)
+		add_child(n)
+		decor["tipjar"] = n
+		var glass := StandardMaterial3D.new()
+		glass.albedo_color = Color(0.8, 0.95, 1.0, 0.35)
+		glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glass.roughness = 0.05
+		M3.cyl(n, 0.07, 0.065, 0.17, Vector3(0, 0.085, 0), glass, 16)
+		for k in 7:
+			M3.cyl(n, 0.022, 0.022, 0.006, Vector3(-0.03 + (k % 3) * 0.03, 0.01 + (k / 3) * 0.007, -0.015 + (k % 2) * 0.03), M3.mat(DU.GOLD, 0.3, 0.8), 10)
+		M3.label(n, "ЧАЕВЫЕ", Vector3(0, 0.22, 0), 28, DU.GOLD, 8, 0.002)
+
+
+func _garland(n: Node3D, a: Vector3, b: Vector3, sag: float, count: int) -> void:
+	for i in count:
+		var u := i / float(count - 1)
+		var p := a.lerp(b, u) + Vector3(0, -sag * sin(u * PI), 0)
+		M3.sphere(n, 0.022, p, bulb_mats[i % bulb_mats.size()])
+
+
+func set_rain(on: bool) -> void:
+	if rain == null:
+		rain = CPUParticles3D.new()
+		rain.position = Vector3(0, 7, -8)
+		rain.amount = 700
+		rain.lifetime = 0.9
+		rain.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		rain.emission_box_extents = Vector3(18, 0.5, 7)
+		rain.direction = Vector3(0.05, -1, 0)
+		rain.spread = 2.0
+		rain.initial_velocity_min = 8.0
+		rain.initial_velocity_max = 10.0
+		rain.gravity = Vector3(0, -6, 0)
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.012, 0.32, 0.012)
+		rain.mesh = bm
+		rain.material_override = M3.flat(Color(0.75, 0.85, 1.0, 0.45))
+		add_child(rain)
+	rain.emitting = on
+	rain.visible = on
+	env.fog_density = 0.03 if on else 0.012
 
 
 func set_rush(k: float) -> void:

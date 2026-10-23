@@ -32,6 +32,17 @@ static func generate(rng: RandomNumberGenerator, defs: Array, ctype: Dictionary,
 	return o
 
 
+## True if `made` has exactly this order's fillings (toast is not checked).
+func matches(made: Dictionary) -> bool:
+	var made_items: Array = made["items"]
+	if int(made["meat"]) != meat or made_items.size() != items.size():
+		return false
+	for id in items:
+		if not made_items.has(id):
+			return false
+	return true
+
+
 func price(bal: Dictionary) -> int:
 	return int(bal["price_base"]) + int(bal["price_per_item"]) * items.size() \
 		+ int(bal["price_extra_meat"]) * (meat - 1)

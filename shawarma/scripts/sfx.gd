@@ -8,6 +8,7 @@ var streams := {}
 var pool: Array[AudioStreamPlayer] = []
 var music: AudioStreamPlayer
 var sizzle: AudioStreamPlayer
+var rain: AudioStreamPlayer
 var enabled := true
 
 
@@ -32,6 +33,22 @@ func _ready() -> void:
 	s.loop_end = int(s.get_length() * s.mix_rate)
 	sizzle.stream = s
 	add_child(sizzle)
+	rain = AudioStreamPlayer.new()
+	var r: AudioStreamWAV = load("res://assets/sfx/rain.wav")
+	r.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	r.loop_begin = 0
+	r.loop_end = int(r.get_length() * r.mix_rate)
+	rain.stream = r
+	rain.volume_db = -14.0
+	add_child(rain)
+
+
+func set_rain(on: bool) -> void:
+	if on and enabled:
+		if not rain.playing:
+			rain.play()
+	else:
+		rain.stop()
 
 
 func play(sound: String, jitter := 0.07, vol_db := 0.0) -> void:

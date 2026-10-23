@@ -10,7 +10,7 @@ const VIEWS := {
 	"grill": [Vector3(0.85, 0, 0.3), -PI / 2.0, -0.5],
 	"overview": [Vector3(-1.15, 0, 1.15), -PI / 4.0, -0.2],
 }
-const SHOTS := [[6.0, "spit"], [11.0, "window"], [14.0, "back"], [19.0, "grill"], [24.0, "overview"],
+const SHOTS := [[6.0, "spit"], [11.5, "window"], [14.0, "back"], [19.0, "grill"], [24.0, "overview"],
 	[40.0, "window"], [60.0, "back"], [121.0, "window"], [150.0, "grill"]]
 
 var out_dir := ".studioigor/captures/bot3d"
@@ -18,6 +18,8 @@ var shot_i := 0
 var act_t := 0.0
 var real_t := 0.0
 var phase := 0
+var days_to_play := 1
+var day_i := 1
 
 
 func _ready() -> void:
@@ -28,8 +30,21 @@ func _ready() -> void:
 			out_dir = args[i + 1]
 		if args[i] == "--speed":
 			speed = float(args[i + 1])
+		if args[i] == "--days":
+			days_to_play = int(args[i + 1])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://" + out_dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	var start_day := 1
+	for i in args.size():
+		if args[i] == "--start-day":
+			start_day = int(args[i + 1])
+	if start_day > 1:
+		var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+		var hist: Array = []
+		for k in start_day - 1:
+			hist.append(2 + k % 2)
+		f.store_string(JSON.stringify({"day": start_day, "bank": 9000, "sound": true, "stars": hist}))
+		f.close()
 	super()
 	Engine.time_scale = speed
 
@@ -53,11 +68,20 @@ func _process(delta: float) -> void:
 	match phase:
 		0:
 			if real_t > 1.0:
-				_shot("00_menu")
+				phase = 10
+				await _shot("00_menu")
 				phase = 1
 		1:
 			if real_t > 1.4:
+				phase = 10
+				if day > 1:
+					_show_shop()
+					await _shot("01a_shop")
+					for id in ["garland", "garland", "neon", "tipjar", "grill3", "spit"]:
+						_buy(id)
+					await _shot("01b_shop_bought")
 				_show_note()
+				real_t = 1.4
 				phase = 2
 		2:
 			if real_t > 2.0:
@@ -81,10 +105,22 @@ func _process(delta: float) -> void:
 				phase = 5
 				real_t = 0.0
 		5:
-			if real_t > 1.5:
+			if real_t > 1.5 and day_i < days_to_play:
+				await _shot("99_summary_day%d" % day_i)
+				day_i += 1
+				shot_i = 0
+				_show_note()
+				_start_shift()
+				phase = 4
+				out_dir = out_dir + "_d%d" % day_i
+				DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://" + out_dir))
+			elif real_t > 1.5:
 				phase = 6
 				print("BOT3D stats: ", stats, " money: ", money_today, " rating: ", _rating())
 				await _shot("99_summary")
+				_after_summary()
+				await get_tree().create_timer(0.6 * Engine.time_scale).timeout
+				await _shot("99z_after_summary")
 				get_tree().quit()
 
 

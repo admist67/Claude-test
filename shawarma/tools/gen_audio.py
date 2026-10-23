@@ -106,9 +106,14 @@ def sfx():
     loop[:fade] *= np.linspace(0, 1, fade)
     loop[-fade:] *= np.linspace(1, 0, fade)
     s["sizzle"] = loop
+    rain = lowpass(noise(3.0), 0.35) * 0.5 + highpass(noise(3.0), 0.9) * 0.15
+    fade = int(SR * 0.08)
+    rain[:fade] *= np.linspace(0, 1, fade)
+    rain[-fade:] *= np.linspace(1, 0, fade)
+    s["rain"] = rain
     os.makedirs(SFX_DIR, exist_ok=True)
     for name, x in s.items():
-        write_wav(os.path.join(SFX_DIR, name + ".wav"), norm(x, 0.7 if name != "sizzle" else 0.5))
+        write_wav(os.path.join(SFX_DIR, name + ".wav"), norm(x, 0.5 if name in ("sizzle", "rain") else 0.7))
 
 
 def music():

@@ -26,7 +26,7 @@
   "price_base": 120,
   "price_per_item": 25,
   "price_extra_meat": 60,
-  "tip_max_share": 0.4,
+  "tip_max_share": 0.3,
   "penalty_missing": 0.25,
   "penalty_extra": 0.15,
   "penalty_meat_count": 0.15,

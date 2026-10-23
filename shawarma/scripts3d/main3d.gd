@@ -25,6 +25,8 @@ const TouchS := preload("res://scripts3d/touch.gd")
 const FxS := preload("res://scripts/fx.gd")
 const HintsS := preload("res://scripts/hints.gd")
 const HudS := preload("res://scripts/hud.gd")
+const OrdersS := preload("res://scripts3d/orders_ui.gd")
+const LAST_DAY := 15
 
 var g := G.MENU
 var rng := RandomNumberGenerator.new()
@@ -39,10 +41,13 @@ var touch: CanvasLayer
 var fx: Node2D
 var hints: Node2D
 var hud: CanvasLayer
+var orders: Node2D
 
 var day := 1
 var bank := 0
 var sound_on := true
+var up := {}              # upgrade id -> level
+var stars_hist: Array = []
 
 var shift_t := 0.0
 var is_open := false
@@ -57,6 +62,9 @@ var goal := 1500
 var money_today := 0
 var unlocked: Array = []
 var tutorial_left := 0
+var combo := 0
+var event := {}
+var mods := {"patience": 1.0, "spawn": 1.0, "tips": 1.0}
 
 
 func _ready() -> void:
@@ -89,6 +97,9 @@ func _ready() -> void:
 	var fx_layer := CanvasLayer.new()
 	fx_layer.layer = 4
 	add_child(fx_layer)
+	orders = OrdersS.new()
+	orders.cam = player.cam
+	fx_layer.add_child(orders)
 	fx = FxS.new()
 	fx_layer.add_child(fx)
 	hints = HintsS.new()
@@ -103,7 +114,12 @@ func _ready() -> void:
 	add_child(hud)
 	hud.start_pressed.connect(_show_note)
 	hud.note_closed.connect(_start_shift)
-	hud.next_day_pressed.connect(_show_note)
+	hud.next_day_pressed.connect(_after_summary)
+	hud.shop_pressed.connect(_show_shop)
+	hud.shop_closed.connect(_shop_closed)
+	hud.buy_pressed.connect(_buy)
+	hud.endless_pressed.connect(_show_shop)
+	hud.new_game_pressed.connect(_new_game)
 	hud.menu_pressed.connect(_to_menu)
 	hud.pause_pressed.connect(_pause)
 	hud.resume_pressed.connect(_resume)
@@ -119,12 +135,14 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	Sfx.set_enabled(sound_on)
+	world.set_decor(up)
 	_to_menu()
 
 
 func _layout() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	hud.set_width(vs.x)
+	orders.screen_w = vs.x
 	fx.screen_w = vs.x
 	hints.screen_w = vs.x
 	hints.screen_h = vs.y
@@ -140,7 +158,7 @@ func _to_menu() -> void:
 	player.position = Vector3(0, 0, 0.35)
 	player.yaw = 0.0
 	player.pitch = -0.08
-	hud.show_menu(day, bank, sound_on)
+	hud.show_menu(day, bank, sound_on, day > 1)
 
 
 func _show_note() -> void:
@@ -153,7 +171,7 @@ func _show_note() -> void:
 		for ing in Bal.ingredients:
 			if int(ing["unlock_day"]) == day:
 				fresh.append(ing["name"])
-	hud.show_note(day, Bal.note_for(day), goal, fresh)
+	hud.show_note(day, Bal.note_for(day), goal, fresh, Bal.event_for(day))
 
 
 func _start_shift() -> void:
@@ -161,8 +179,14 @@ func _start_shift() -> void:
 	hud.set_bar_visible(true)
 	_clear_table()
 	bins.set_unlocked(unlocked)
-	grill.set_unlocked(int(Bal.f("grill_slots")))
-	spit.setup(int(Bal.f("spit_capacity")), Bal.f("spit_regen_seconds"))
+	_apply_upgrades()
+	event = Bal.event_for(day)
+	mods["patience"] *= float(event.get("patience", 1.0))
+	mods["spawn"] *= float(event.get("spawn", 1.0))
+	world.set_rain(event.get("rain", false))
+	Sfx.set_rain(event.get("rain", false))
+	combo = 0
+	hud.bar.combo = 0
 	stats = {"served": 0, "lost": 0, "revenue": 0, "tips": 0}
 	ratings.clear()
 	money_today = 0
@@ -179,7 +203,10 @@ func _start_shift() -> void:
 	touch.reset()
 	touch.enabled = true
 	Sfx.start_music()
-	fx.banner("Смена началась!", "Цель: %d ₽   ·   слева джойстик, справа — обзор" % goal, DU.ORANGE, 200.0)
+	var sub := "Цель: %d ₽   ·   слева джойстик, справа — обзор" % goal
+	if not event.is_empty():
+		sub = "Цель: %d ₽   ·   %s" % [goal, event["title"]]
+	fx.banner("День %d — смена началась!" % day, sub, DU.ORANGE, 200.0)
 
 
 func _close() -> void:
@@ -209,6 +236,9 @@ func _end_shift() -> void:
 	if money_today >= goal * 2:
 		stars = 3
 	bank += money_today
+	stars_hist.append(stars)
+	world.set_rain(false)
+	Sfx.set_rain(false)
 	var summary := {"stars": stars, "served": stats["served"], "lost": stats["lost"], "revenue": stats["revenue"],
 		"tips": stats["tips"], "rating": _rating(), "total": money_today, "goal": goal}
 	day += 1
@@ -221,6 +251,7 @@ func _clear_table() -> void:
 	for c in customers_root.get_children():
 		c.queue_free()
 	slots = [null, null, null]
+	orders.customers = []
 	board.clear()
 	grill.clear_all()
 	player.drop()
@@ -248,7 +279,7 @@ func _toggle_sound() -> void:
 	sound_on = not sound_on
 	Sfx.set_enabled(sound_on)
 	_save()
-	hud.show_menu(day, bank, sound_on)
+	hud.show_menu(day, bank, sound_on, day > 1)
 
 
 func _notification(what: int) -> void:
@@ -260,6 +291,93 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
 		if g == G.PLAYING:
 			_pause()
+
+
+# --- Upgrades, shop, finale ---------------------------------------------------------
+
+func _lv(id: String) -> int:
+	return int(up.get(id, 0))
+
+
+func _apply_upgrades() -> void:
+	var cap := int(Bal.f("spit_capacity")) + 4 * _lv("spit")
+	spit.setup(cap, Bal.f("spit_regen_seconds") / (1.0 + 0.5 * _lv("spit")))
+	grill.set_unlocked(int(Bal.f("grill_slots")) + _lv("grill3"))
+	grill.speed = 1.0 + 0.25 * _lv("turbo")
+	player.speed_mult = 1.0 + 0.3 * _lv("shoes")
+	mods = {
+		"patience": 1.0 + 0.15 * _lv("garland"),
+		"spawn": 1.0 / (1.0 + 0.15 * _lv("neon")),
+		"tips": 1.0 + 0.2 * _lv("tipjar"),
+	}
+	world.set_decor(up)
+
+
+func _shop_items() -> Array:
+	var items: Array = []
+	for u in Bal.upgrades:
+		var lv := _lv(u["id"])
+		var prices: Array = u["prices"]
+		items.append({"id": u["id"], "name": u["name"], "desc": u["desc"], "level": lv, "max": prices.size(),
+			"price": int(prices[lv]) if lv < prices.size() else -1})
+	return items
+
+
+func _show_shop() -> void:
+	touch.enabled = false
+	hud.show_shop(bank, _shop_items())
+
+
+func _buy(id: String) -> void:
+	for it in _shop_items():
+		if it["id"] == id and it["price"] >= 0 and it["price"] <= bank:
+			bank -= it["price"]
+			up[id] = _lv(id) + 1
+			_save()
+			world.set_decor(up)
+			fx.float_text(Vector2(get_viewport().get_visible_rect().size.x / 2.0, 120), "Куплено: " + it["name"], DU.GREEN, 32)
+	hud.show_shop(bank, _shop_items())
+
+
+func _shop_closed() -> void:
+	if g == G.MENU:
+		hud.show_menu(day, bank, sound_on, day > 1)
+	else:
+		_show_note()
+
+
+func _after_summary() -> void:
+	if day == LAST_DAY + 1 and stars_hist.size() >= LAST_DAY:
+		var total := 0
+		for st in stars_hist.slice(0, LAST_DAY):
+			total += int(st)
+		var f := Bal.finale_for(total)
+		Sfx.play("jingle", 0.0)
+		hud.show_finale(total, LAST_DAY * 3, f["title"], f["text"])
+		return
+	_show_shop()
+
+
+func _new_game() -> void:
+	day = 1
+	bank = 0
+	up = {}
+	stars_hist = []
+	_save()
+	world.set_decor(up)
+	_to_menu()
+
+
+func _combo_mult() -> float:
+	return 1.0 + 0.1 * clampi(combo - 1, 0, 5)
+
+
+func _set_combo(n: int) -> void:
+	combo = n
+	hud.bar.combo = combo
+	hud.bar.combo_mult = _combo_mult()
+	if combo >= 2:
+		hud.bar.combo_bump = 1.0
 
 
 # --- Shift loop -------------------------------------------------------------------
@@ -276,7 +394,7 @@ func _process(delta: float) -> void:
 		shift_t += delta
 		var hour := _hour()
 		var was := rush
-		rush = hour >= Bal.f("rush_from_hour") and hour < Bal.f("rush_to_hour")
+		rush = hour >= float(event.get("rush_from", Bal.f("rush_from_hour"))) and hour < Bal.f("rush_to_hour")
 		if rush and not was:
 			fx.banner("НОЧНОЙ ЧАС ПИК!", "Чаевые ×2", Color("#ff4fa3"), 200.0)
 			Sfx.play("jingle", 0.0)
@@ -303,6 +421,11 @@ func _process(delta: float) -> void:
 	hud.bar.clock = _clock_text()
 	hud.bar.rush = rush
 	Sfx.set_sizzle(grill.busy_count() / 3.0)
+	orders.customers = slots
+	orders.board_open = board.state == BoardS.S.OPEN
+	orders.board_items = board.items
+	orders.board_meat = board.meat
+	orders.held = player.held
 	_update_hints()
 
 
@@ -322,9 +445,10 @@ func _next_interval(progress: float) -> float:
 	var v := lerpf(Bal.f("spawn_interval_start"), Bal.f("spawn_interval_end"), progress)
 	v *= maxf(1.0, Bal.f("day1_ease") - Bal.f("ease_per_day") * (day - 1))
 	if rush:
-		v *= Bal.f("rush_spawn_mult")
+		v *= float(event.get("rush_spawn", Bal.f("rush_spawn_mult")))
 	if tutorial_left > 0:
 		v *= 1.8
+	v *= mods["spawn"]
 	return v / Bal.tune["spawn"] * rng.randf_range(0.85, 1.15)
 
 
@@ -349,14 +473,16 @@ func _customer_count() -> int:
 func _pick_type() -> Dictionary:
 	var pool: Array = []
 	var total := 0.0
+	var weights: Dictionary = event.get("weights", {})
 	for ct in Bal.customers:
-		if int(ct["min_day"]) > day or (ct["rush_only"] and not rush):
+		var all_day: bool = event.get("taxi_all_day", false) and ct["type_id"] == "taxi"
+		if int(ct["min_day"]) > day or (ct["rush_only"] and not rush and not all_day):
 			continue
 		pool.append(ct)
-		total += float(ct["weight"])
+		total += float(ct["weight"]) * float(weights.get(ct["type_id"], 1.0))
 	var r := rng.randf() * total
 	for ct in pool:
-		r -= float(ct["weight"])
+		r -= float(ct["weight"]) * float(weights.get(ct["type_id"], 1.0))
 		if r <= 0.0:
 			return ct
 	return pool[0]
@@ -376,7 +502,7 @@ func _spawn() -> void:
 		pat *= Bal.f("rush_patience_mult")
 	if tutorial_left > 0:
 		pat *= 3.0
-	pat *= Bal.tune["patience"] * 1.25   # walking around the kiosk takes time
+	pat *= Bal.tune["patience"] * 1.25 * mods["patience"]   # walking around the kiosk takes time
 	var used: Array = []
 	for c in slots:
 		if c != null:
@@ -405,6 +531,7 @@ func _on_gave_up(c) -> void:
 	stats["lost"] += 1
 	ratings.append(1)
 	hud.bar.rating = _rating()
+	_set_combo(0)
 	var phrases: Array = c.ctype["angry"]
 	c.leave(_exit_x(c), phrases[rng.randi_range(0, phrases.size() - 1)], "angry")
 	Sfx.play("angry")
@@ -415,8 +542,10 @@ func _on_gave_up(c) -> void:
 func _serve(c, made: Dictionary) -> void:
 	slots[c.slot] = null
 	var ev: Dictionary = c.order.evaluate(made, Bal.b)
-	var tip_mult := float(c.ctype["tip_mult"]) * (Bal.f("rush_tip_mult") if rush else 1.0)
 	var refuse := float(c.ctype.get("refuse_below", Bal.f("refuse_below_quality")))
+	var perfect: bool = ev["toast"] == "perfect" and ev["accuracy"] >= 1.0
+	_set_combo(combo + 1 if perfect and ev["quality"] >= refuse else 0)
+	var tip_mult: float = float(c.ctype["tip_mult"]) * (Bal.f("rush_tip_mult") if rush else 1.0) * mods["tips"] * _combo_mult()
 	var pay: Dictionary = c.order.payment(ev["quality"], c.patience_frac(), tip_mult, refuse, Bal.b)
 	var head: Vector3 = c.head_global() + Vector3(0, 0.55, 0)
 	ratings.append(pay["stars"])
@@ -461,6 +590,8 @@ func _serve(c, made: Dictionary) -> void:
 		note = "Холодная…"
 	if note != "":
 		_float(head + Vector3(0, 0.25, 0), note, Color("#ff4fa3") if note == "Идеально!" else DU.GOLD, 34)
+	if combo >= 2:
+		fx.float_text(Vector2(119, 130), "Комбо ×%s!" % str(snappedf(_combo_mult(), 0.01)), Color("#ff5a2a"), 30, 40.0)
 	if tutorial_left > 0:
 		tutorial_left -= 1
 
@@ -758,9 +889,11 @@ func _load() -> void:
 		day = int(d.get("day", 1))
 		bank = int(d.get("bank", 0))
 		sound_on = bool(d.get("sound", true))
+		up = d.get("up", {})
+		stars_hist = d.get("stars", [])
 
 
 func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"day": day, "bank": bank, "sound": sound_on}))
+		f.store_string(JSON.stringify({"day": day, "bank": bank, "sound": sound_on, "up": up, "stars": stars_hist}))

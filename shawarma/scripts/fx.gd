@@ -33,7 +33,8 @@ class Banner extends Node2D:
 	var color := Color.WHITE
 
 	func _draw() -> void:
-		var w := maxf(DU.FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 46).x, 300.0) + 60.0
+		var w := maxf(DU.FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 46).x, 300.0)
+		w = maxf(w, DU.FONT.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x) + 70.0
 		DU.rect(self, Rect2(-w / 2.0, -58, w, 84.0 if sub.is_empty() else 116.0), 26.0, color, 5.0, 8.0)
 		DU.text(self, Vector2(0, -18), title, 46, Color.WHITE, 10)
 		if not sub.is_empty():
