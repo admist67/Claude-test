@@ -7,7 +7,7 @@ var customers: Array = []
 var days: Array = []
 var ing_by_id: Dictionary = {}
 ## Live multipliers from the pause-menu tuning sliders (playtest knobs).
-var tune := {"patience": 1.0, "spawn": 1.0, "grill": 1.0}
+var tune := {"patience": 1.0, "spawn": 1.0, "grill": 1.0, "look": 1.0}
 
 
 func _ready() -> void:

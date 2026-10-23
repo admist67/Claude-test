@@ -2,9 +2,9 @@
 
 ENGINE: godot
 ENGINE VERSION: 4.7.2
-DIMENSION: 2D
+DIMENSION: 3D
 LANGUAGE: GDScript
-PLATFORMS: Android (.apk, arm64-v8a + armeabi-v7a), вертикальная ориентация
+PLATFORMS: Android (.apk, arm64-v8a + armeabi-v7a), альбомная ориентация (3D); 2D-версия — вертикальная
 
 ## Decision
 - context: 2D-симулятор под телефон, пользователь только с телефона, сборка в облачном Linux без GUI.

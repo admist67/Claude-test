@@ -22,7 +22,7 @@ VERIFIED: yes
 RUN: пользователь играет только на телефоне — BUILD, затем отправка .apk в чат
 TEST: godot --headless --path . -s res://tests/test_order.gd
 BUILD: godot --headless --path . --export-debug "Android" build/shawarma-chef.apk
-CAPTURE: xvfb-run -a -s "-screen 0 720x1280x24" godot --path . --rendering-driver opengl3 --resolution 720x1280 res://tools/bot.tscn -- --out .studioigor/captures/bot --speed 4
+CAPTURE: xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --resolution 1280x720 res://tools/bot3d.tscn -- --out .studioigor/captures/bot3d --speed 3
 EDITOR: нет (облако без экрана)
 
 ## Pitfalls
@@ -30,3 +30,5 @@ EDITOR: нет (облако без экрана)
 - В --headless кадры не снимаются (dummy renderer) — только xvfb + opengl3.
 - data/*.json не ресурсы: в export_presets include_filter="data/*.json", иначе в APK их нет.
 - Многострочные лямбды: закрывающую скобку ставить на отдельной строке.
+- 2D-бот (tools/bot.tscn) рассчитан на вертикальный экран 720x1280; проект теперь альбомный (3D).
+- Персонажи Kenney смотрят в +Z; паки Kenney делят имя Textures/colormap.png — у каждого пака своя папка.

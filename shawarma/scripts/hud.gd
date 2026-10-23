@@ -23,6 +23,7 @@ class Bar extends Node2D:
 	var rating := 0.0
 	var rush := false
 	var bump := 0.0
+	var width := 720.0
 
 	func _process(delta: float) -> void:
 		shown = move_toward(shown, money, maxf(40.0, absf(money - shown) * 6.0) * delta)
@@ -40,13 +41,13 @@ class Bar extends Node2D:
 		DU.coin(self, Vector2(-80, 0), 17.0)
 		DU.text(self, Vector2(18, -1), "%d / %d" % [roundi(shown), goal], 24, DU.INK, 0)
 		draw_set_transform(Vector2.ZERO)
-		var cr := Rect2(240, 10, 196, 52)
+		var cr := Rect2(width / 2.0 - 98.0, 10, 196, 52)
 		DU.rect(self, cr, 26.0, Color("#ff4fa3") if rush else DU.CREAM, 4.0, 5.0)
 		var moon := Vector2(cr.position.x + 30, cr.get_center().y)
 		DU.circle(self, moon, 13.0, DU.GOLD, 3.0)
 		draw_circle(moon + Vector2(7, -5), 11.0, Color("#ff4fa3") if rush else DU.CREAM)
 		DU.text(self, cr.get_center() + Vector2(16, -1), clock, 28, Color.WHITE if rush else DU.INK, 6 if rush else 0)
-		var rr := Rect2(448, 10, 180, 52)
+		var rr := Rect2(width - 272.0, 10, 180, 52)
 		DU.rect(self, rr, 26.0, DU.CREAM, 4.0, 5.0)
 		DU.star(self, Vector2(rr.position.x + 30, rr.get_center().y), 17.0, DU.GOLD, 3.0)
 		DU.text(self, rr.get_center() + Vector2(16, -1), "—" if rating <= 0.0 else "%.1f" % rating, 28, DU.INK, 0)
@@ -105,6 +106,11 @@ func _ready() -> void:
 	pause_btn.add_theme_font_size_override("font_size", 28)
 	pause_btn.pressed.connect(func(): Sfx.play("ui"); pause_pressed.emit())
 	add_child(pause_btn)
+
+
+func set_width(w: float) -> void:
+	bar.width = w
+	pause_btn.position = Vector2(w - 82.0, 8)
 
 
 func set_bar_visible(on: bool) -> void:
@@ -215,7 +221,7 @@ func show_summary(st: Dictionary) -> void:
 	_label(v, "Смена окончена!", 44, DU.ORANGE.darkened(0.2))
 	var stars := Stars.new()
 	stars.count = st["stars"]
-	stars.custom_minimum_size = Vector2(520, 110)
+	stars.custom_minimum_size = Vector2(520, 96)
 	v.add_child(stars)
 	var rows := [
 		["Обслужено", "%d" % st["served"]],
@@ -251,21 +257,28 @@ func show_pause() -> void:
 	var v := _panel(_new_screen(0.6))
 	_label(v, "Пауза", 44, DU.ORANGE.darkened(0.2))
 	_label(v, "Настройки для теста баланса", 22, Color("#7a6d96"))
-	for spec in [["patience", "Терпение клиентов"], ["spawn", "Частота клиентов"], ["grill", "Скорость гриля"]]:
+	var specs := [["patience", "Терпение клиентов"], ["spawn", "Частота клиентов"], ["grill", "Скорость гриля"]]
+	if Bal.tune.has("look"):
+		specs.append(["look", "Чувствительность обзора"])
+	for spec in specs:
 		var key: String = spec[0]
-		var l := _label(v, "%s: x%.1f" % [spec[1], Bal.tune[key]], 24)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		v.add_child(row)
+		var l := _label(row, "%s: x%.1f" % [spec[1], Bal.tune[key]], 22, DU.INK, false)
+		l.custom_minimum_size = Vector2(330, 0)
 		var s := HSlider.new()
 		s.min_value = 0.5
 		s.max_value = 2.0
 		s.step = 0.1
 		s.value = Bal.tune[key]
-		s.custom_minimum_size = Vector2(500, 48)
-		s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		s.custom_minimum_size = Vector2(240, 44)
+		s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		s.value_changed.connect(func(val: float):
 			Bal.tune[key] = val
 			l.text = "%s: x%.1f" % [spec[1], val]
 		)
-		v.add_child(s)
+		row.add_child(s)
 	_button(v, "Продолжить", func(): resume_pressed.emit())
 	_button(v, "В меню", func(): menu_pressed.emit(), false)
 

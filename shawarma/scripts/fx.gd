@@ -1,6 +1,8 @@
 extends Node2D
 ## Short-lived juice: floating text, flying coins and bits, puffs, sparkles and banners.
 
+var screen_w := 720.0
+
 
 class Floater extends Node2D:
 	var text := ""
@@ -116,7 +118,7 @@ func banner(title: String, sub: String, color: Color, y: float) -> void:
 	n.title = title
 	n.sub = sub
 	n.color = color
-	n.position = Vector2(360, y)
+	n.position = Vector2(screen_w / 2.0, y)
 	n.scale = Vector2(0.2, 0.2)
 	add_child(n)
 	var tw := n.create_tween()
