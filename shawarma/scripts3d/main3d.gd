@@ -380,6 +380,7 @@ func _shop_closed() -> void:
 
 
 func _after_summary() -> void:
+	shop_tab = "cafe" if _lv("cafe") == 0 else "kitchen"
 	if day == LAST_DAY + 1 and stars_hist.size() >= LAST_DAY:
 		var total := 0
 		for st in stars_hist.slice(0, LAST_DAY):
@@ -406,7 +407,7 @@ func _new_game() -> void:
 func _apply_cafe() -> void:
 	var on := _lv("cafe") > 0
 	var count := 2 + 2 * _lv("tables") if on else 0
-	if cafe.enabled != on or cafe.tables.size() != count:
+	if cafe.root == null or cafe.enabled != on or cafe.tables.size() != count:
 		world.set_cafe(on)
 		cafe.build(on, count)
 	var roles: Array = []

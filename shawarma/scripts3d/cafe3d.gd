@@ -26,16 +26,37 @@ func build(on: bool, count: int) -> void:
 		root = null
 	tables.clear()
 	enabled = on
-	if not on:
-		return
 	root = Node3D.new()
 	add_child(root)
+	if not on:
+		_teaser()
+		return
 	_deck()
 	_fence()
 	_lights()
 	_cooler()
 	for i in mini(count, TABLES.size()):
 		_table(i)
+
+
+## Before the café is bought: a fenced-off building site on the sidewalk with a sign.
+func _teaser() -> void:
+	var cone := K + "roads/construction-cone.glb"
+	for k in 6:
+		M3.model(root, cone, Vector3(-2.4 + k * 0.96, 0, -3.9), 5.0)
+	for k in 5:
+		var a := Vector3(-2.4 + k * 0.96, 0.32, -3.9)
+		M3.box(root, Vector3(0.96, 0.05, 0.02), a + Vector3(0.48, 0, 0), M3.mat(Color("#ffc93c") if k % 2 == 0 else Color("#2b1d33")))
+	var board := Node3D.new()
+	board.position = Vector3(0.0, 0, -4.6)
+	root.add_child(board)
+	M3.box(board, Vector3(2.9, 1.45, 0.06), Vector3(0, 1.8, 0), M3.glow(Color("#fff1d6"), 0.35))
+	M3.box(board, Vector3(3.0, 1.55, 0.04), Vector3(0, 1.8, -0.02), M3.mat(Color("#a85f2e"), 0.7))
+	for x in [-1.3, 1.3]:
+		M3.box(board, Vector3(0.07, 1.1, 0.07), Vector3(x, 0.55, 0), M3.mat(Color("#a85f2e"), 0.7))
+	var l := M3.label(board, "СКОРО ЗДЕСЬ:\nКАФЕ-ВЕРАНДА\nКупи в магазине —\nвкладка «Кафе и персонал»", Vector3(0, 1.8, 0.04), 48, DU.INK, 0, 0.0032)
+	l.modulate = Color(1.7, 0.3, 0.22)
+	l.double_sided = false
 
 
 func _deck() -> void:
