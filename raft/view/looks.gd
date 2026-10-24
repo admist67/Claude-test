@@ -7,6 +7,8 @@ const MODELS := {
 	"banana": ["res://assets/models/food/banana.glb", 0.9],
 	"pineapple": ["res://assets/models/food/pineapple.glb", 0.6],
 }
+const T := 1.5     # tile size, as in data/balance.json raft.tile
+const H := 2.4     # wall height = upper floor level
 const PLASTIC := Color("#bfe0f2")
 const CAP := Color("#2a6fb0")
 
@@ -138,6 +140,8 @@ static func mesh(id: String) -> ArrayMesh:
 			return Raft.tile_preview_mesh()
 		"purifier", "grill":
 			_station(st, id)
+		"wall", "window", "door", "door_frame", "door_leaf", "pillar", "lantern", "roof", "stairs", "net":
+			_structure(st, id)
 		_:
 			Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
 	var m := Mk.st_commit(st, leaf)
@@ -271,3 +275,95 @@ static func _fin(st: SurfaceTool, p: Array, c: Color, uv: Vector2) -> void:
 			st.set_normal(n * side * -1.0)
 			st.set_uv(uv)
 			st.add_vertex(v)
+
+
+
+
+## Raft structures. Walls span X (centered), stand on y = 0, are 0.1 thick in Z.
+## Stairs rise toward +Z. The door leaf hinges at its local x = 0.
+static func _structure(st: SurfaceTool, id: String) -> void:
+	var wood := Color(1, 0.93, 0.84)
+	var dark := Color(1, 0.95, 0.9)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	match id:
+		"wall", "window":
+			var n := 5
+			var w := T / n
+			for i in n:
+				var x := -T / 2.0 + w * (i + 0.5)
+				var tint := wood.darkened(rng.randf_range(-0.05, 0.15))
+				var hh := H - rng.randf_range(0.0, 0.06)
+				if id == "window" and i >= 1 and i <= 3:
+					Mk.st_box(st, Vector3(w - 0.02, 0.95, 0.06), Vector3(x, 0.475, 0), tint, "wood", Vector3.ZERO)
+					Mk.st_box(st, Vector3(w - 0.02, hh - 1.75, 0.06), Vector3(x, 1.75 + (hh - 1.75) / 2.0, 0), tint, "wood", Vector3.ZERO)
+				else:
+					Mk.st_box(st, Vector3(w - 0.02, hh, 0.06), Vector3(x, hh / 2.0, 0), tint, "wood", Vector3(0, 0, rng.randf_range(-0.01, 0.01)))
+			for y: float in [0.45, 2.0]:
+				Mk.st_box(st, Vector3(T - 0.04, 0.12, 0.05), Vector3(0, y, -0.055), dark, "wood_dark")
+			if id == "window":
+				for y: float in [0.95, 1.75]:
+					Mk.st_box(st, Vector3(0.9, 0.06, 0.1), Vector3(0, y, 0), dark, "wood_dark")
+				for x: float in [-0.45, 0.45]:
+					Mk.st_box(st, Vector3(0.06, 0.86, 0.1), Vector3(x, 1.35, 0), dark, "wood_dark")
+				Mk.st_box(st, Vector3(0.84, 0.04, 0.04), Vector3(0, 1.35, 0), dark, "wood_dark")
+		"door", "door_frame":
+			for x: float in [-0.66, 0.66]:
+				Mk.st_box(st, Vector3(0.18, H, 0.14), Vector3(x, H / 2.0, 0), dark, "wood_dark")
+			Mk.st_box(st, Vector3(T, 0.3, 0.14), Vector3(0, H - 0.15, 0), dark, "wood_dark")
+			if id == "door":
+				_door_leaf(st, Vector3(-0.56, 0, 0))
+		"door_leaf":
+			_door_leaf(st, Vector3.ZERO)
+		"pillar":
+			Mk.st_box(st, Vector3(0.17, H, 0.17), Vector3(0, H / 2.0, 0), dark, "wood_dark")
+			for y: float in [0.25, H - 0.3]:
+				Mk.st_cyl(st, 0.11, 0.12, Vector3(0, y, 0), Color(1, 0.96, 0.9), "rope", Vector3.ZERO, 10, 0.6)
+		"lantern":
+			Mk.st_box(st, Vector3(0.08, 1.35, 0.08), Vector3(0, 0.675, 0), dark, "wood_dark")
+			Mk.st_box(st, Vector3(0.3, 0.04, 0.06), Vector3(0.1, 1.33, 0), dark, "wood_dark")
+			Mk.st_box(st, Vector3(0.16, 0.03, 0.16), Vector3(0.22, 1.24, 0), Color(0.55, 0.56, 0.6), "metal")
+			Mk.st_box(st, Vector3(0.16, 0.03, 0.16), Vector3(0.22, 1.0, 0), Color(0.55, 0.56, 0.6), "metal")
+			for c: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+				Mk.st_box(st, Vector3(0.015, 0.24, 0.015), Vector3(0.22 + c.x * 0.07, 1.12, c.y * 0.07), Color(0.5, 0.5, 0.55), "metal")
+		"roof":
+			for i in 5:
+				var z := -T / 2.0 + T / 5.0 * (i + 0.5)
+				Mk.st_box(st, Vector3(T, 0.07, T / 5.0 - 0.02), Vector3(0, H - 0.11, z), dark.darkened(rng.randf_range(0.0, 0.12)), "wood_dark")
+			Mk.st_box(st, Vector3(T + 0.08, 0.06, T + 0.08), Vector3(0, H - 0.04, 0), Color("#e2cd98"), "canvas", Vector3.ZERO, 1.0)
+			for k in 4:
+				var a := k * PI / 2.0
+				var d := Vector3(sin(a), 0, cos(a))
+				Mk.st_box(st, Vector3(T + 0.12, 0.05, 0.1), d * (T / 2.0 + 0.04) + Vector3(0, H - 0.09, 0), Color("#c9b27a"), "canvas", Vector3(0, a, 0), 1.0)
+		"stairs":
+			var steps := 7
+			for i in steps:
+				var u := (i + 0.5) / steps
+				Mk.st_box(st, Vector3(T - 0.24, 0.06, T / steps + 0.03), Vector3(0, u * H - 0.03, -T / 2.0 + u * T), wood.darkened(rng.randf_range(0.0, 0.12)), "wood")
+			var slope := atan2(H, T)
+			var slen := sqrt(H * H + T * T)
+			for x: float in [-T / 2.0 + 0.08, T / 2.0 - 0.08]:
+				Mk.st_box(st, Vector3(0.08, 0.16, slen), Vector3(x, H / 2.0 - 0.05, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
+				Mk.st_box(st, Vector3(0.05, 0.05, slen), Vector3(x, H / 2.0 + 0.85, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
+				Mk.st_box(st, Vector3(0.05, 0.9, 0.05), Vector3(x, 0.45, -T / 2.0 + 0.05), dark, "wood_dark")
+		"net":
+			for x: float in [-0.7, 0.7]:
+				Mk.st_box(st, Vector3(0.07, 1.15, 0.07), Vector3(x, 0.05, 0), dark, "wood_dark")
+			for i in 5:
+				var y := -0.45 + i * 0.22
+				Mk.st_box(st, Vector3(1.36, 0.018, 0.018), Vector3(0, y, 0), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
+			for i in 9:
+				var x := -0.64 + i * 0.16
+				Mk.st_box(st, Vector3(0.018, 0.92, 0.018), Vector3(x, 0.0, 0), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
+			Mk.st_box(st, Vector3(1.45, 0.04, 0.04), Vector3(0, 0.5, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 0.6)
+
+
+## A plank door 1.12 wide, hinged at its left edge (local x = 0 → at `at`).
+static func _door_leaf(st: SurfaceTool, at: Vector3) -> void:
+	var wood := Color(1, 0.9, 0.78)
+	for i in 4:
+		Mk.st_box(st, Vector3(0.26, 2.05, 0.05), at + Vector3(0.14 + i * 0.28, 1.04, 0), wood, "wood_warm")
+	for y: float in [0.35, 1.7]:
+		Mk.st_box(st, Vector3(1.08, 0.1, 0.04), at + Vector3(0.56, y, -0.045), Color(1, 0.95, 0.9), "wood_dark")
+	Mk.st_box(st, Vector3(1.4, 0.08, 0.035), at + Vector3(0.56, 1.03, -0.045), Color(1, 0.95, 0.9), "wood_dark", Vector3(0, 0, 0.98))
+	Mk.st_cyl(st, 0.03, 0.04, at + Vector3(0.98, 1.0, 0.04), Color(0.6, 0.6, 0.62), "metal", Vector3(PI / 2.0, 0, 0), 8)

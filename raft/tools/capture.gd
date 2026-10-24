@@ -33,6 +33,23 @@ func _aim(y: float, p: float) -> void:
 	player.pitch = p
 
 
+## Turns the view toward a raft-local point.
+func _aim_local(p: Vector3) -> void:
+	var d := raft.to_global(p) - player.cam.global_position
+	player.yaw = atan2(-d.x, -d.z)
+	player.pitch = atan2(d.y, Vector2(d.x, d.z).length())
+
+
+func _build_at(kind: String, p: Vector3) -> void:
+	builder.kind = kind
+	_aim_local(p)
+	await _wait(0.25)
+	var ok := builder.has_target and builder.valid
+	_on_pressed("action")
+	_on_released("action")
+	print("build ", kind, " target ", builder.has_target, " valid ", ok)
+
+
 ## Turns the view toward a raft cell's center (+ height).
 func _look_cell(c: Vector2i, h := 0.0) -> void:
 	var target := raft.to_global(raft.cell_center(c) + Vector3(0, h, 0))
@@ -204,16 +221,16 @@ func _run() -> void:
 	_select("spear")
 	for i in 2:
 		_on_pressed("action")
-		await _wait(0.5)
+		await _wait(0.75)
 	await _shot("27_shark_hit")
-	print("shark hp ", shark.hp, " state ", shark.state, " tile hp ", raft.tile_hp(shark.target))
-	shark.hp = 1
-	shark.global_position = player.cam.global_position + player.flat_forward() * 2.0
-	shark.state = Shark.State.BITE
-	_on_pressed("action")
-	await _wait(1.0)
-	await _shot("28_shark_dead")
-	print("after kill: ", inv.count("shark_meat"), " kills ", stats.get("shark_kills", 0))
+	print("hits left ", shark.hits_left(), " state ", shark.state, " tile hp ", raft.tile_hp(shark.target))
+	for i in 6:
+		shark.global_position = player.cam.global_position + player.flat_forward() * 2.0
+		shark.state = Shark.State.BITE
+		_on_pressed("action")
+		await _wait(0.75)
+	await _shot("28_shark_driven")
+	print("after drive: meat ", inv.count("shark_meat"), " driven ", stats.get("shark_driven", 0), " state ", shark.state)
 	var bitten: Array = raft.hp.keys()
 	if not bitten.is_empty():
 		_select("hammer")
@@ -222,6 +239,83 @@ func _run() -> void:
 		await _shot("29_repair")
 		_on_pressed("action")
 		print("repaired: ", not raft.damaged(bitten[0]))
+	# Building: walls, window, door, pillar, roofs, stairs, net, lantern.
+	inv.add("plank", 80)
+	inv.add("rope", 30)
+	inv.add("leaf", 30)
+	inv.add("plastic", 12)
+	var grid: Array[Vector2i] = [Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(2, 0), Vector2i(2, 1), Vector2i(0, 2)]
+	grid.append_array([Vector2i(1, 2), Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)])
+	for c: Vector2i in grid:
+		raft.add_tile(c)
+	for c: Vector2i in raft.stations.keys():
+		raft.stations[c].queue_free()
+	raft.stations.clear()
+	_select("hammer")
+	var cc := func(x: int, z: int) -> Vector3: return raft.cell_center(Vector2i(x, z))
+	player.place(cc.call(0, 0), 0.0)
+	await _build_at("wall", cc.call(-1, 0) + Vector3(-0.6, 0, 0))
+	await _build_at("window", cc.call(-1, 1) + Vector3(-0.6, 0, 0))
+	player.place(cc.call(1, 1), 0.0)
+	await _build_at("door", cc.call(0, 2) + Vector3(0, 0, 0.6))
+	await _build_at("pillar", cc.call(1, 2) + Vector3(0.55, 0, 0.55))
+	await _build_at("lantern", cc.call(2, 1) + Vector3(0.55, 0, 0.55))
+	player.place(cc.call(0, 0), 0.0)
+	await _build_at("roof", cc.call(-1, 0))
+	await _build_at("roof", cc.call(-1, 1))
+	player.place(cc.call(1, 0), 0.0)
+	await _build_at("stairs", cc.call(0, 0))
+	await _build_at("net", cc.call(2, 0) + Vector3(0, 0, -0.6))
+	await _build_at("purifier", cc.call(1, 1))
+	print("parts: ", raft.parts.to_list().size())
+	_open_build()
+	await _wait(0.5)
+	await _shot("35_build_panel")
+	_close_build()
+	_select("hook")
+	player.place(cc.call(2, 1), 0.0)
+	_aim_local(cc.call(-1, 0) + Vector3(0, 1.4, 0))
+	player.pitch = -0.12
+	await _wait(0.5)
+	await _shot("30_build_overview")
+	player.place(cc.call(1, 1), 0.0)
+	_aim_local(cc.call(0, 2) + Vector3(0, 1.2, 0.75))
+	await _wait(1.0)
+	await _shot("31_door_open")
+	# Climb the stairs onto the roof.
+	player.place(cc.call(1, 0), PI / 2.0)
+	player.pitch = 0.0
+	player.move_input = Vector2(0, -1)
+	var t3 := 0.0
+	while t3 < 3.0:
+		player.move_input = Vector2(0, -1)
+		await _wait(0.1)
+		t3 += 0.1
+	player.move_input = Vector2.ZERO
+	print("on roof y ", player.position.y, " cell ", raft.cell_at(player.position))
+	player.pitch = -0.3
+	await _wait(0.3)
+	await _shot("32_on_roof")
+	# A net catches drifting debris.
+	var net: Part = raft.parts.nets()[0] if not raft.parts.nets().is_empty() else null
+	if net:
+		for i in 3:
+			var d: Debris = field.items[i]
+			d.global_position = raft.to_global(net.position) + Vector3(0.3 * (i - 1), 0, -2.0 - i * 0.6)
+		await _wait(3.5)
+		print("net caught ", net.caught.size())
+		player.place(cc.call(2, 0), 0.0)
+		_aim_local(net.position + Vector3(0, 0.1, 0))
+		await _wait(0.3)
+		await _shot("33_net")
+		_on_pressed("use")
+		print("after net use: ", net.caught.size())
+	daynight.phase = 0.72
+	player.place(cc.call(1, 1), 0.0)
+	_aim_local(cc.call(-1, 1) + Vector3(0, 1.2, 0))
+	await _wait(0.5)
+	await _shot("34_lantern_night")
+	daynight.phase = 0.2
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

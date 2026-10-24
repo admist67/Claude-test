@@ -81,10 +81,9 @@ func _stop() -> void:
 	visible = false
 
 
-## The rod tip in world space: ahead of and above the hand.
+## The rod tip in world space, taken from the rod model in the hand.
 func tip() -> Vector3:
-	var b := player.cam.global_basis
-	return player.hand.global_position + b.y * 0.26 + b.x * 0.25 + -b.z * 0.42
+	return player.held_point(Vector3(0, 0.85, 0))
 
 
 func _cast() -> void:

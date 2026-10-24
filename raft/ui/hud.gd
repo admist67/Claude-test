@@ -108,11 +108,16 @@ func _draw_vitals() -> void:
 
 func _draw_clock(vs: Vector2) -> void:
 	var dn: DayNight = game.daynight
-	var r := Rect2(vs.x - 316, 40, 196, 52)
+	var day := "День %d" % dn.day
+	var time := dn.clock_text()
+	var dw := title.get_string_size(day, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+	var tw := font.get_string_size(time, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+	var w := 62.0 + dw + 14.0 + tw + 22.0
+	var r := Rect2(vs.x - 120 - w, 40, w, 52)
 	_box("pill", r, 24)
-	Icons.draw(self, "moon" if dn.is_night() else "sun", r.position + Vector2(30, 26), 32.0, Color("#bcd0ff") if dn.is_night() else UiTheme.GOLD)
-	_text("День %d" % dn.day, r.position + Vector2(56, 35), 24, UiTheme.CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1, title, 0)
-	_text(dn.clock_text(), r.position + Vector2(132, 35), 18, Color(1, 1, 1, 0.6), HORIZONTAL_ALIGNMENT_LEFT, -1, font, 0)
+	Icons.draw(self, "moon" if dn.is_night() else "sun", r.position + Vector2(32, 26), 32.0, Color("#bcd0ff") if dn.is_night() else UiTheme.GOLD)
+	_text(day, r.position + Vector2(60, 35), 24, UiTheme.CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1, title, 0)
+	_text(time, r.position + Vector2(60 + dw + 14, 34), 18, Color(1, 1, 1, 0.6), HORIZONTAL_ALIGNMENT_LEFT, -1, font, 0)
 
 
 func _draw_goal(vs: Vector2) -> void:
@@ -164,7 +169,7 @@ func _label_pill_col(text: String, c: Vector2, col: Color) -> void:
 
 func _draw_crosshair(vs: Vector2) -> void:
 	var c := vs / 2.0
-	if game.grab_target or game.station_target:
+	if game.grab_target or game.station_target or game.net_target:
 		draw_arc(c, 15.0, 0, TAU, 28, Color(1, 1, 1, 0.9), 3.0, true)
 	draw_circle(c, 3.0, Color(1, 1, 1, 0.85))
 	var power := -1.0
@@ -173,26 +178,37 @@ func _draw_crosshair(vs: Vector2) -> void:
 	elif game.rod.state == Rod.State.CHARGE:
 		power = game.rod.power
 	if power >= 0.0:
-		_power_bar(Rect2(c + Vector2(-110, 46), Vector2(220, 30)), power)
+		_power_bar(Rect2(c + Vector2(-120, 48), Vector2(240, 26)), power)
 	if game.rod.state == Rod.State.BITE:
 		var s := 1.0 + 0.15 * sin(Time.get_ticks_msec() / 50.0)
 		Icons.draw(self, "exclamation", c + Vector2(0, -80), 70.0 * s, Color("#ffd24a"))
 		_text("Клюёт! Жми!", c + Vector2(-150, 100), 38, Color("#ffd24a"), HORIZONTAL_ALIGNMENT_CENTER, 300, title)
 
 
-## A rounded charge bar inside the pill: warm gradient, a highlight, a glow at full power.
+## The charge bar: a dark rounded frame with a gold rim and a rounded fill inset inside it.
 func _power_bar(r: Rect2, power: float) -> void:
-	_box("pill", r, 15)
-	var inner := r.grow(-7.0)
-	var h := inner.size.y
-	_round_rect(inner, Color(0, 0, 0, 0.35), h / 2.0)
-	var w := maxf(h, inner.size.x * power)
-	var fill := Rect2(inner.position, Vector2(w, h))
+	var h := r.size.y
+	_round_rect(r.grow(2.0), Color(0.02, 0.06, 0.08, 0.75), (h + 4.0) / 2.0)
+	_round_rect_border(r, Color(0.04, 0.12, 0.15, 0.95), UiTheme.GOLD, h / 2.0, 2)
+	var inner := r.grow(-5.0)
+	var ih := inner.size.y
+	var w := ih + (inner.size.x - ih) * power
+	var fill := Rect2(inner.position, Vector2(w, ih))
 	var col := UiTheme.GOLD.lerp(Color("#ff6a3d"), power)
 	if power >= 1.0:
-		col = col.lerp(Color.WHITE, 0.25 + 0.25 * sin(Time.get_ticks_msec() / 60.0))
-	_round_rect(fill, col, h / 2.0)
-	_round_rect(Rect2(fill.position + Vector2(h * 0.35, 2.0), Vector2(maxf(0.0, w - h * 0.7), h * 0.3)), Color(1, 1, 1, 0.35), h * 0.15)
+		col = col.lerp(Color.WHITE, 0.2 + 0.2 * sin(Time.get_ticks_msec() / 60.0))
+	_round_rect(fill, col, ih / 2.0)
+	_round_rect(Rect2(fill.position + Vector2(ih * 0.4, ih * 0.16), Vector2(maxf(0.0, w - ih * 0.8), ih * 0.28)), Color(1, 1, 1, 0.38), ih * 0.14)
+
+
+func _round_rect_border(r: Rect2, bg: Color, border: Color, radius: float, bw: int) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(bw)
+	sb.set_corner_radius_all(int(radius))
+	sb.anti_aliasing = true
+	sb.draw(get_canvas_item(), r)
 
 
 func _round_rect(r: Rect2, col: Color, radius: float) -> void:
@@ -210,6 +226,8 @@ func _draw_buttons() -> void:
 	var act: Dictionary = game.action_view()
 	_ring(a["c"], a["r"], held.has("action"), Color.WHITE if act["ok"] else Color(0.7, 0.7, 0.7))
 	Icons.draw(self, act["icon"], a["c"] + Vector2(0, -10), 92.0, Color.WHITE if act["ok"] else Color(1, 1, 1, 0.55))
+	if float(act.get("cooldown", 0.0)) > 0.0:
+		draw_arc(a["c"], a["r"] - 6, -PI / 2.0, -PI / 2.0 + TAU * float(act["cooldown"]), 48, UiTheme.GOLD, 6.0, true)
 	_label_pill(act["label"], a["c"] + Vector2(0, a["r"] - 4))
 	if act.has("cost"):
 		_cost_row(act["cost"], a["c"] + Vector2(-a["r"] - 30, a["r"] - 4), true)
@@ -273,20 +291,20 @@ func _draw_hotbar() -> void:
 			_text(n, c + Vector2(r - 30, r - 6), 18, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT, 24)
 
 
+## The build button above the hotbar: what the hammer builds; tap to choose another.
 func _draw_builds() -> void:
-	var b: Dictionary = touch.buttons
 	var ids: Array = game.build_choices()
-	for i in ids.size():
-		var s: Dictionary = b["build%d" % i]
-		var sel: bool = ids[i] == game.builder.kind
-		var c: Vector2 = s["c"]
-		var r: float = s["r"]
-		var can: bool = game.inv.has_all(Data.build_by_id[ids[i]]["cost"])
-		draw_texture_rect(_tex["slot_sel" if sel else "slot"], Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), false, Color.WHITE if can else Color(1, 0.7, 0.65))
-		Icons.draw(self, ids[i], c, r * 1.6)
-	if ids.size() > 0:
-		var first: Dictionary = b["build0"]
-		_label_pill(Data.build_by_id[game.builder.kind]["name"], first["c"] + Vector2(-first["r"] - 92, 0))
+	if ids.is_empty():
+		return
+	var s: Dictionary = touch.buttons["build0"]
+	var c: Vector2 = s["c"]
+	var r: float = s["r"]
+	var can: bool = game.inv.has_all(Data.build_by_id[ids[0]]["cost"])
+	draw_texture_rect(_tex["slot_sel"], Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), false, Color.WHITE if can else Color(1, 0.7, 0.65))
+	Icons.draw(self, ids[0], c, r * 1.6)
+	draw_circle(c + Vector2(r * 0.72, -r * 0.72), 15.0, Color(0.03, 0.1, 0.13, 0.9))
+	Icons.draw(self, "plus", c + Vector2(r * 0.72, -r * 0.72), 22.0, UiTheme.GOLD)
+	_label_pill(Data.build_by_id[ids[0]]["name"], c + Vector2(0, -r - 20))
 
 
 func _draw_toasts(_vs: Vector2) -> void:

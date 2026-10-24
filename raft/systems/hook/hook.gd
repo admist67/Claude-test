@@ -131,7 +131,7 @@ func _in_water(delta: float) -> void:
 	_head.rotation.x = sin(Ocean.time * 2.0) * 0.2
 	if caught.size() < int(cfg["max_items"]):
 		for d in field.items:
-			if d.hook == null and Vector2(d.global_position.x - p.x, d.global_position.z - p.z).length() < float(cfg["catch_radius"]):
+			if d.hook == null and d.net == null and Vector2(d.global_position.x - p.x, d.global_position.z - p.z).length() < float(cfg["catch_radius"]):
 				d.hook = self
 				d.hook_offset = Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
 				caught.append(d)
@@ -157,7 +157,7 @@ func _deliver() -> void:
 
 func _draw_rope() -> void:
 	_im.clear_surfaces()
-	var a := player.hand_tip()
+	var a := player.rope_anchor()
 	var b := global_position + Vector3(0, 0.45, 0)
 	var sag := 0.0 if state == State.FLY else clampf(a.distance_to(b) * 0.06, 0.0, 0.8)
 	var eye := player.cam.global_position

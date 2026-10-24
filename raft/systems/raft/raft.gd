@@ -11,6 +11,7 @@ var tiles: Dictionary = {}          # Vector2i -> StaticBody3D
 var stations: Dictionary = {}       # Vector2i -> Station
 var hp: Dictionary = {}             # Vector2i -> bites left; missing = whole tile
 var tile_size := 1.5
+var parts: RaftParts
 var cfg: Dictionary
 var _y := 0.0
 var _pitch := 0.0
@@ -22,6 +23,9 @@ var _ext := 1.5
 func _ready() -> void:
 	cfg = Data.b["raft"]
 	tile_size = float(cfg["tile"])
+	parts = RaftParts.new()
+	parts.raft = self
+	add_child(parts)
 
 
 func cell_center(c: Vector2i) -> Vector3:
@@ -41,6 +45,8 @@ func on_raft(local: Vector3) -> bool:
 
 
 func can_place(c: Vector2i) -> bool:
+	if c.x < -40 or c.x > 40 or c.y < -40 or c.y > 40:
+		return false
 	if tiles.has(c):
 		return false
 	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
@@ -80,6 +86,7 @@ func remove_tile(c: Vector2i) -> void:
 		stations.erase(c)
 	tiles[c].queue_free()
 	tiles.erase(c)
+	parts.on_tile_removed(c)
 	_recalc()
 	changed.emit()
 
@@ -92,6 +99,7 @@ func clear() -> void:
 		stations[c].free()
 	stations.clear()
 	hp.clear()
+	parts.clear()
 	_recalc()
 
 
@@ -105,6 +113,15 @@ func add_station(kind: String, c: Vector2i, def: Dictionary) -> Station:
 	stations[c] = st
 	changed.emit()
 	return st
+
+
+## Can the player stand at this raft-local point (deck, roofs, stairs)?
+func walkable(local: Vector3) -> bool:
+	return parts.walkable(local)
+
+
+func count_kind(kind: String) -> int:
+	return count_stations(kind) + parts.count(kind)
 
 
 func count_stations(kind: String) -> int:

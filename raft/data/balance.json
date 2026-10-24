@@ -6,7 +6,8 @@
     "eye": 1.6,
     "edge_margin": 0.28,
     "reach": 2.8,
-    "use_reach": 2.4
+    "use_reach": 2.4,
+    "spear_cooldown": 0.7
   },
   "vitals": {
     "start": 100,
@@ -121,12 +122,15 @@
     "speed": 2.6,
     "approach_speed": 4.0,
     "bite_every": 2.4,
-    "hp": 5,
     "flee_time": 28.0,
     "respawn": 200.0,
     "hit_reach": 3.2,
-    "drop": {
-      "shark_meat": 3
+    "hits": [
+      3,
+      6
+    ],
+    "reward": {
+      "shark_meat": 1
     }
   }
 }

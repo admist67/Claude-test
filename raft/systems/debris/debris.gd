@@ -8,6 +8,8 @@ var id := ""
 var raft: Raft
 var hook: Node3D               # set while caught
 var hook_offset := Vector3.ZERO
+var net: Part                  # set while held in a collection net
+var net_offset := Vector3.ZERO
 var drift := 1.4
 var sink := 0.06
 var spin := 0.0
@@ -40,6 +42,9 @@ func _process(delta: float) -> void:
 	if hook:
 		var to := hook.global_position + hook_offset
 		p = p.lerp(Vector3(to.x, p.y, to.z), 1.0 - exp(-8.0 * delta))
+	elif net:
+		var at := raft.to_global(net.position + Basis(Vector3.UP, net.rotation.y) * net_offset)
+		p = p.lerp(Vector3(at.x, p.y, at.z), 1.0 - exp(-4.0 * delta))
 	else:
 		p.z += drift * delta
 		var local := raft.to_local(Vector3(p.x, raft.global_position.y, p.z + 0.35))
@@ -48,6 +53,8 @@ func _process(delta: float) -> void:
 			var side := signf(local.x - raft.centroid().x)
 			p = global_position
 			p.x += (side if side != 0.0 else 1.0) * drift * 1.2 * delta
+		global_position = p
+		raft.parts.try_net(self)
 	p.y = Ocean.height_at(p.x, p.z) - sink + (0.04 * sin(_t * 6.0) if highlight else 0.0)
 	global_position = p
 	rotation.y += spin * delta

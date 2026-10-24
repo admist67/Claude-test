@@ -10,6 +10,81 @@
    }
   },
   {
+   "id": "wall",
+   "name": "Стена",
+   "on": "edge",
+   "cost": {
+    "plank": 4,
+    "rope": 1
+   }
+  },
+  {
+   "id": "window",
+   "name": "Стена с окном",
+   "on": "edge",
+   "cost": {
+    "plank": 3,
+    "rope": 1
+   }
+  },
+  {
+   "id": "door",
+   "name": "Дверь",
+   "on": "edge",
+   "cost": {
+    "plank": 5,
+    "rope": 2
+   }
+  },
+  {
+   "id": "pillar",
+   "name": "Столб",
+   "on": "corner",
+   "cost": {
+    "plank": 2,
+    "rope": 1
+   }
+  },
+  {
+   "id": "roof",
+   "name": "Крыша",
+   "on": "roof",
+   "cost": {
+    "plank": 2,
+    "leaf": 4,
+    "rope": 1
+   }
+  },
+  {
+   "id": "stairs",
+   "name": "Лестница",
+   "on": "stairs",
+   "cost": {
+    "plank": 6,
+    "rope": 2
+   }
+  },
+  {
+   "id": "net",
+   "name": "Сеть для мусора",
+   "on": "edge_out",
+   "cost": {
+    "rope": 4,
+    "plank": 2
+   },
+   "capacity": 8
+  },
+  {
+   "id": "lantern",
+   "name": "Фонарь",
+   "on": "corner",
+   "cost": {
+    "plank": 1,
+    "plastic": 2,
+    "leaf": 1
+   }
+  },
+  {
    "id": "purifier",
    "name": "Очиститель воды",
    "on": "deck",

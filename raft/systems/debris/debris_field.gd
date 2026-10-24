@@ -62,7 +62,7 @@ func _process(delta: float) -> void:
 			_spawn(c.z - float(cfg["spawn_ahead"]))
 	for i in range(items.size() - 1, -1, -1):
 		var d := items[i]
-		if d.hook == null and d.global_position.z > c.z + float(cfg["despawn_behind"]):
+		if d.hook == null and d.net == null and d.global_position.z > c.z + float(cfg["despawn_behind"]):
 			d.queue_free()
 			items.remove_at(i)
 
@@ -77,7 +77,7 @@ func nearest(from: Vector3, fwd: Vector3, reach: float) -> Debris:
 	var best: Debris = null
 	var bd := reach
 	for d in items:
-		if d.hook:
+		if d.hook or d.net:
 			continue
 		var v := d.global_position - from
 		v.y = 0.0

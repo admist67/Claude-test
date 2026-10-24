@@ -16,6 +16,7 @@ var hotbar: Array[String] = []
 var sel := 0
 var grab_target: Debris
 var station_target: Station
+var net_target: Part
 var rng := RandomNumberGenerator.new()
 
 var ocean: Ocean
@@ -30,11 +31,13 @@ var builder: Builder
 var touch: TouchControls
 var hud: Hud
 var bag: CraftPanel
+var build_panel: BuildPanel
 var menus: Menus
 var menu_cam: Camera3D
 var _save_t := 0.0
 var _menu_t := 0.0
 var _reel_t := 0.0
+var _spear_cd := 0.0
 
 
 func _ready() -> void:
@@ -125,12 +128,9 @@ func _build_world() -> void:
 		Sfx.play("shark_hit")
 		_burst(shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
 	)
-	shark.fled.connect(func() -> void:
-		stats["shark_driven"] = int(stats.get("shark_driven", 0)) + 1
-		hud.toast("Акула уплыла зализывать раны", "spear")
-		_check_goals()
-	)
-	shark.died.connect(_on_shark_died)
+	shark.fled.connect(_on_shark_driven)
+	raft.parts.player = player
+	raft.parts.daynight = daynight
 	daynight.new_day.connect(func(d: int) -> void:
 		hud.toast("Наступил день %d" % d, "sun")
 		_check_goals()
@@ -165,6 +165,15 @@ func _build_ui() -> void:
 	layer.add_child(bag)
 	bag.craft_requested.connect(_craft)
 	bag.closed.connect(_close_bag)
+	build_panel = BuildPanel.new()
+	build_panel.inv = inv
+	build_panel.visible = false
+	layer.add_child(build_panel)
+	build_panel.picked.connect(func(id: String) -> void:
+		builder.kind = id
+		_close_build()
+	)
+	build_panel.closed.connect(_close_build)
 	menus = Menus.new()
 	layer.add_child(menus)
 	menus.new_game.connect(func() -> void:
@@ -224,6 +233,7 @@ func _state() -> Dictionary:
 		"pos": [p.x, p.y, p.z],
 		"yaw": player.yaw,
 		"stations": raft.stations.values().map(func(st: Station) -> Dictionary: return st.to_dict()),
+		"parts": raft.parts.to_list(),
 		"phase": daynight.phase,
 		"hp": raft.hp.keys().map(func(c: Vector2i) -> Array: return [c.x, c.y, raft.hp[c]]),
 		"day": daynight.day,
@@ -237,6 +247,7 @@ func _apply_save(d: Dictionary) -> void:
 	raft.clear()
 	for c in SaveGame.cells_from_json(d["tiles"]):
 		raft.add_tile(c)
+	raft.parts.from_list(d.get("parts", []))
 	for sd: Dictionary in d.get("stations", []):
 		if Data.build_by_id.has(sd["kind"]):
 			var c := Vector2i(int(sd["cell"][0]), int(sd["cell"][1]))
@@ -399,11 +410,23 @@ func _apply_selection() -> void:
 	touch.set_builds(build_choices().size())
 
 
-## What the hammer can build (shown above the hotbar while it is selected).
+## The build button above the hotbar while the hammer is out: shows what gets built.
 func build_choices() -> Array:
-	if selected() != "hammer":
-		return []
-	return Data.build.map(func(d: Dictionary) -> String: return d["id"])
+	return [builder.kind] if selected() == "hammer" else []
+
+
+func _open_build() -> void:
+	if mode != Mode.PLAY:
+		return
+	mode = Mode.BAG
+	_freeze_input()
+	build_panel.open(builder.kind)
+
+
+func _close_build() -> void:
+	build_panel.visible = false
+	mode = Mode.PLAY
+	touch.enabled = true
 
 
 func _on_pressed(b: String) -> void:
@@ -425,11 +448,8 @@ func _on_pressed(b: String) -> void:
 				Sfx.play("click", -8.0)
 				_apply_selection()
 			elif b.begins_with("build"):
-				var ids := build_choices()
-				var i := int(b.substr(5))
-				if i < ids.size():
-					builder.kind = ids[i]
-					Sfx.play("click", -8.0)
+				Sfx.play("click", -8.0)
+				_open_build.call_deferred()
 
 
 func _on_released(b: String) -> void:
@@ -452,21 +472,30 @@ func _action_down() -> void:
 		if builder.place():
 			player.swing()
 			Sfx.play("hammer")
-			hud.toast("Клетка починена" if fixing else ("Плот стал больше!" if builder.kind == "tile" else "Построено: " + builder.def()["name"]), "hammer" if fixing else builder.kind)
+			var what: String = "Клетка починена" if fixing else ("Плот стал больше!" if builder.kind == "tile" else "Построено: " + builder.def()["name"])
+			hud.toast(what, "hammer" if fixing else builder.kind)
 			_check_goals()
 		else:
 			Sfx.play("build_fail", -4.0)
 			if builder.has_target and builder.valid and not builder.affordable():
 				hud.toast("Не хватает материалов", "plank")
 			elif not builder.has_target or not builder.valid:
-				var water: bool = builder.def()["on"] == "water"
-				hud.toast("Посмотри на воду у края плота" if water else "Посмотри на свободную клетку плота", builder.kind)
+				hud.toast(_build_hint(builder.def()["on"]), builder.kind)
 	elif Data.item(id).get("kind", "") == "food":
 		_consume(id)
 
 
 ## The use button: take from / feed a station, or pick up floating debris by hand.
 func _use() -> void:
+	if net_target:
+		var got: Array = net_target.caught.duplicate()
+		net_target.caught.clear()
+		player.swing()
+		for d: Debris in got:
+			if is_instance_valid(d):
+				d.net = null
+				_collect(d)
+		return
 	if station_target:
 		var res: Array = station_target.interact(inv)
 		var got: String = res[1]
@@ -487,9 +516,13 @@ func _use() -> void:
 
 
 func _stab() -> void:
+	if _spear_cd > 0.0:
+		return
+	_spear_cd = float(Data.b["player"]["spear_cooldown"])
 	player.swing()
 	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z):
-		hud.toast("Попал!" if shark.hp > 0 else "Акула повержена!", "spear")
+		if shark.hits_left() > 0:
+			hud.toast("Попал!", "spear")
 	else:
 		Sfx.play("throw", -6.0, 0.2)
 
@@ -516,14 +549,15 @@ func _on_shark_bite(cell: Vector2i, sank: bool) -> void:
 		hud.toast("Чини молотком: 1 доска", "hammer")
 
 
-func _on_shark_died(pos: Vector3) -> void:
-	stats["shark_kills"] = int(stats.get("shark_kills", 0)) + 1
-	for id: String in Data.b["shark"]["drop"]:
-		var n := int(Data.b["shark"]["drop"][id])
+## Enough spear hits: the shark swims off, leaving a torn-off piece behind.
+func _on_shark_driven() -> void:
+	stats["shark_driven"] = int(stats.get("shark_driven", 0)) + 1
+	hud.toast("Акула уплыла зализывать раны", "spear")
+	for id: String in Data.b["shark"]["reward"]:
+		var n := int(Data.b["shark"]["reward"][id])
 		inv.add(id, n)
 		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
-	_burst(pos, Color("#b8231d"), 30)
-	Sfx.play("goal")
+	Sfx.play("goal", -4.0)
 	_check_goals()
 
 
@@ -557,6 +591,21 @@ func _on_fish(id: String) -> void:
 	hud.toast("Поймана: " + Data.item_name(id), id)
 	player.swing()
 	_check_goals()
+
+
+func _build_hint(on: String) -> String:
+	match on:
+		"water":
+			return "Посмотри на воду у края плота"
+		"edge":
+			return "Посмотри на пол у края клетки, где нужна стена"
+		"edge_out":
+			return "Посмотри на пол у внешнего края плота"
+		"corner":
+			return "Посмотри на пол у угла клетки"
+		"roof":
+			return "Крыше нужна опора: стена, столб или соседняя крыша"
+	return "Посмотри на свободную клетку плота"
 
 
 func _consume(id: String) -> void:
@@ -642,7 +691,7 @@ func _stat(name: String) -> int:
 		"days":
 			return daynight.day
 	if name.begins_with("built_"):
-		return raft.count_stations(name.substr(6))
+		return raft.count_kind(name.substr(6))
 	return int(stats.get(name, 0))
 
 
@@ -670,6 +719,9 @@ func goal_view() -> Dictionary:
 
 
 func use_view() -> Dictionary:
+	if net_target:
+		var p: Dictionary = net_target.prompt(inv)
+		return {"icon": "net", "label": p["text"], "ok": p["ok"]}
 	if station_target:
 		var p: Dictionary = station_target.prompt(inv)
 		var out := {"icon": p["icon"], "label": p["text"], "ok": p["ok"]}
@@ -692,7 +744,7 @@ func action_view() -> Dictionary:
 			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Тяни!"}
 			out["label"] = labels[rod.state]
 		"spear":
-			out = {"icon": "spear", "label": "Ударить", "ok": shark.alive_near()}
+			out = {"icon": "spear", "label": "Ударить", "ok": shark.alive_near() and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
 		"hammer":
 			if builder.repair:
 				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
@@ -723,12 +775,15 @@ func _process(delta: float) -> void:
 		var prev_min := int((played - delta) / 60.0)
 		if int(played / 60.0) != prev_min:
 			_check_goals()
+	_spear_cd = maxf(0.0, _spear_cd - delta)
 	if mode == Mode.PLAY:
-		station_target = _station_in_view()
-		grab_target = null if station_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
+		var aimed := _aimed_body()
+		station_target = aimed as Station
+		net_target = aimed if aimed is Part and aimed.kind == "net" else null
+		grab_target = null if station_target or net_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
 		for d in field.items:
 			d.highlight = d == grab_target
-		touch.buttons["use"]["on"] = grab_target != null or station_target != null
+		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null
 		if hook.reeling and hook.state == Hook.State.WATER:
 			_reel_t -= delta
 			if _reel_t <= 0.0:
@@ -740,19 +795,10 @@ func _process(delta: float) -> void:
 			_save()
 
 
-## The station the player is looking at within reach, if any.
-func _station_in_view() -> Station:
-	var best: Station = null
-	var best_dot := 0.55
-	var eye := player.cam.global_position
-	var fwd := -player.cam.global_basis.z
-	for c: Vector2i in raft.stations:
-		var st: Station = raft.stations[c]
-		var to := st.global_position + Vector3(0, 0.45, 0) - eye
-		if to.length() > float(Data.b["player"]["use_reach"]) + 0.6:
-			continue
-		var dot := to.normalized().dot(fwd)
-		if dot > best_dot:
-			best_dot = dot
-			best = st
-	return best
+## The body the crosshair is right on (a ray from the screen center), if any.
+func _aimed_body() -> Node:
+	var from := player.cam.global_position
+	var to := from + -player.cam.global_basis.z * (float(Data.b["player"]["use_reach"]) + 0.6)
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1, [player.get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return null if hit.is_empty() else hit["collider"]

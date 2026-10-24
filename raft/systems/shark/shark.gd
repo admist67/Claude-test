@@ -1,23 +1,23 @@
 class_name Shark
 extends Node3D
 ## The shark. Circles the raft with its fin above water; every so often picks an edge tile,
-## swims to it and bites until the tile sinks or a spear drives it off. Five hits kill it;
-## a new one comes later. Numbers in data/balance.json "shark".
+## swims to it and bites until the tile sinks or a spear drives it off. It cannot be
+## killed: each visit it takes 3–6 spear hits (rolled anew) before it swims away.
+## Numbers in data/balance.json "shark".
 
 signal attacked(cell: Vector2i)
 signal bit(cell: Vector2i, sank: bool)
 signal hurt(left: int)
 signal fled
-signal died(pos: Vector3)
 
-enum State { AWAY, CIRCLE, APPROACH, BITE, FLEE, DEAD }
+enum State { AWAY, CIRCLE, APPROACH, BITE, FLEE }
 
 var state := State.AWAY
 var raft: Raft
 var daynight: DayNight
 var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
-var hp := 5
+var need := 4                 # hits that drive it off this visit
 var target := Vector2i.ZERO
 var _timer := 0.0
 var _angle := 0.0
@@ -54,10 +54,18 @@ func _joint_z() -> float:
 ## Back to waiting off-screen; the next visit comes after `delay` seconds.
 func reset(delay: float) -> void:
 	state = State.AWAY
-	hp = int(cfg["hp"])
-	_hits = 0
+	_new_visit()
 	_timer = delay
 	visible = false
+
+
+func _new_visit() -> void:
+	_hits = 0
+	need = rng.randi_range(int(cfg["hits"][0]), int(cfg["hits"][1]))
+
+
+func hits_left() -> int:
+	return maxi(0, need - _hits)
 
 
 func attacking() -> bool:
@@ -96,15 +104,10 @@ func try_hit(eye: Vector3, fwd: Vector3) -> bool:
 	var f2 := Vector2(fwd.x, fwd.z).normalized()
 	if flat.normalized().dot(f2) < 0.5:
 		return false
-	hp -= 1
 	_hits += 1
 	_hurt_t = 0.4
-	hurt.emit(hp)
-	if hp <= 0:
-		state = State.DEAD
-		_timer = 4.0
-		died.emit(global_position)
-	elif _hits >= 3:
+	hurt.emit(hits_left())
+	if _hits >= need:
 		_flee(float(cfg["flee_time"]), true)
 	else:
 		# Backs off for a moment, then comes again.
@@ -116,7 +119,7 @@ func try_hit(eye: Vector3, fwd: Vector3) -> bool:
 func _flee(time: float, by_player := false) -> void:
 	state = State.FLEE
 	_timer = time
-	_hits = 0
+	_new_visit()
 	if by_player:
 		fled.emit()
 
@@ -171,14 +174,6 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0:
 				state = State.CIRCLE
 				_timer = _next_attack()
-		State.DEAD:
-			_timer -= delta
-			rotation.z = lerpf(rotation.z, PI, delta * 2.0)
-			global_position.y -= delta * 0.25
-			if _timer <= 0.0:
-				rotation.z = 0.0
-				reset(float(cfg["respawn"]))
-			return
 	_animate(delta)
 
 

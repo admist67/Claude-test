@@ -21,6 +21,7 @@ func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	floor_snap_length = 0.4
+	floor_max_angle = deg_to_rad(62.0)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.25
@@ -64,6 +65,18 @@ func flat_forward() -> Vector3:
 
 func hand_tip() -> Vector3:
 	return hand.global_position + -cam.global_basis.z * 0.25
+
+
+## Where a thrown rope leaves the view: just below the bottom-right edge of the screen.
+func rope_anchor() -> Vector3:
+	return cam.global_transform * Vector3(0.32, -0.5, -0.55)
+
+
+## A point on the held model (its local space), e.g. the rod tip.
+func held_point(local: Vector3) -> Vector3:
+	if _held and _held.get_child_count() > 0:
+		return (_held.get_child(0) as Node3D).global_transform * local
+	return hand_tip()
 
 
 ## Shows the selected hotbar item in the right hand.
@@ -145,6 +158,6 @@ func _keep_on_raft(before: Vector3) -> void:
 func _ok(p: Vector3) -> bool:
 	var m := float(cfg["edge_margin"])
 	for o: Vector3 in [Vector3.ZERO, Vector3(m, 0, 0), Vector3(-m, 0, 0), Vector3(0, 0, m), Vector3(0, 0, -m)]:
-		if not raft.on_raft(p + o):
+		if not raft.walkable(p + o):
 			return false
 	return true

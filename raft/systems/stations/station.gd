@@ -46,7 +46,15 @@ func setup(k: String, c: Vector2i, d: Dictionary) -> void:
 		var m := QuadMesh.new()
 		m.size = Vector2(0.12, 0.12)
 		var sm := StandardMaterial3D.new()
-		sm.albedo_color = Color(1, 1, 1, 0.35)
+		var puff := GradientTexture2D.new()
+		puff.fill = GradientTexture2D.FILL_RADIAL
+		puff.fill_from = Vector2(0.5, 0.5)
+		puff.fill_to = Vector2(0.5, 0.0)
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color(1, 1, 1, 0.8), Color(1, 1, 1, 0.0)])
+		puff.gradient = g
+		sm.albedo_texture = puff
+		sm.albedo_color = Color(1, 1, 1, 0.5)
 		sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -61,6 +69,7 @@ func setup(k: String, c: Vector2i, d: Dictionary) -> void:
 		_steam.initial_velocity_max = 0.4
 		_steam.scale_amount_max = 2.0
 		_steam.position = Vector3(0.38, 0.7, 0)
+		_steam.emitting = false
 		add_child(_steam)
 	_food = MeshInstance3D.new()
 	_food.position = Vector3(0, 0.47, 0) if kind == "grill" else Vector3(0.3, 0.37, 0.2)
