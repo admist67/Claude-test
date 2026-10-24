@@ -9,10 +9,10 @@ const GAP_X := 0.6
 const FENCE_Z := -5.6
 const LANE_Z := -5.95
 const INNER_Z := -5.1
-const DOOR_IN := Vector3(1.2, 0, -0.2)
-const DOOR := Vector3(1.45, 0, -0.75)
-const DOOR_OUT := Vector3(1.45, 0, -1.6)
-const COOLER := Vector3(1.72, 1.0, -0.27)
+const DOOR_IN := Vector3(1.9, 0, -0.1)
+const DOOR := Vector3(2.2, 0, -0.75)
+const DOOR_OUT := Vector3(2.2, 0, -1.6)
+const COOLER := Vector3(2.72, 1.0, -0.2)
 const K := "res://assets/models/"
 
 var enabled := false

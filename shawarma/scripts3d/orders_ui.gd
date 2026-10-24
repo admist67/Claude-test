@@ -6,6 +6,7 @@ extends Node2D
 
 const CustomerS := preload("res://scripts3d/customer3d.gd")
 const ICON := 30.0
+const RAIL_LEFT := 400.0   # right of the quests panel (hud.gd)
 
 var cam: Camera3D
 var customers: Array = []
@@ -33,12 +34,14 @@ func _waiting() -> Array:
 
 ## Customer the board / hand is most likely for.
 func _focus(list: Array):
+	if held.has("crate") or held.has("ext"):
+		return null
 	if not held.is_empty():
 		for c in list:
 			if held.has("drink"):
 				if c.order.drink and not c.got_drink:
 					return c
-			elif c.got_roll.is_empty() and c.order.matches(held):
+			elif c.needs_roll() and c.order.matches(held):
 				return c
 		return null
 	if not board_open:
@@ -46,7 +49,7 @@ func _focus(list: Array):
 	var best = null
 	var best_score := -99
 	for c in list:
-		if not c.got_roll.is_empty():
+		if not c.needs_roll():
 			continue
 		var score := 0
 		for id in board_items:
@@ -63,7 +66,7 @@ func _checks(c) -> Dictionary:
 	var d := {}
 	if c.got_drink:
 		d["drink"] = true
-	if not c.got_roll.is_empty():
+	if not c.needs_roll():
 		d["meat"] = true
 		for id in c.order.items:
 			d[id] = true
@@ -93,25 +96,35 @@ func _draw() -> void:
 			continue
 		var s: float = clampf(1.9 / cam.global_position.distance_to(anchor), 0.42, 1.0) * c.bubble_pop
 		if s > 0.02:
-			var ch := _checks(c) if c == focus or c.got_drink or not c.got_roll.is_empty() else {}
-			OrderBubble.draw(self, p, c.order, c.patience_frac(), c.ctype.get("type_id", ""), s, match_held and c == focus, ch)
+			var ch := _checks(c) if c == focus or c.got_drink or not c.rolls.is_empty() else {}
+			OrderBubble.draw(self, p, c.order, c.patience_frac(), c.ctype.get("type_id", ""), s, match_held and c == focus, ch, c.rolls.size())
 	_draw_tickets(off_screen, focus)
 
 
 func _draw_tickets(list: Array, focus) -> void:
 	if list.is_empty():
 		return
+	# The rail sits right of the quests panel and wraps into a second row when full.
+	var left := RAIL_LEFT
+	var right := screen_w - 16.0
 	var widths: Array = []
-	var total := 0.0
+	var row_w: Array = [0.0]
+	var row_of: Array = []
 	for c in list:
 		var w: float = (c.order.items.size() + (2 if c.order.drink else 1)) * (ICON + 8.0) + 26.0
 		widths.append(w)
-		total += w + 12.0
-	var x := screen_w / 2.0 - (total - 12.0) / 2.0
-	var y := 76.0
+		if row_w[-1] > 0.0 and row_w[-1] + w > right - left:
+			row_w.append(0.0)
+		row_of.append(row_w.size() - 1)
+		row_w[-1] += w + 12.0
+	var x := 0.0
+	var y := 0.0
 	for i in list.size():
 		var c = list[i]
 		var w: float = widths[i]
+		if i == 0 or row_of[i] != row_of[i - 1]:
+			x = (left + right) / 2.0 - (row_w[row_of[i]] - 12.0) / 2.0
+			y = 76.0 + row_of[i] * 74.0
 		var r := Rect2(x, y, w, 62)
 		var f: float = c.patience_frac()
 		var low := f < 0.25 and fmod(t, 0.6) < 0.3
@@ -131,8 +144,12 @@ func _draw_tickets(list: Array, focus) -> void:
 			DU.ing(self, id, ic, ICON * 0.45, 2.5)
 			if k == 0 and c.order.meat == 2:
 				DU.text(self, ic + Vector2(12, -13), "x2", 14, DU.RED, 4)
-			if (is_focus or not c.got_roll.is_empty() or c.got_drink) and checks.has(id):
+			if (is_focus or not c.rolls.is_empty() or c.got_drink) and checks.has(id):
 				OrderBubble.tick(self, ic + Vector2(11, 10))
+		if c.order.count > 1:
+			DU.text(self, Vector2(r.end.x - 16, r.position.y + 50), "×%d" % (c.order.count - c.rolls.size()), 18, DU.RED, 4)
+		if c.order.signature:
+			OrderBubble.crown(self, Vector2(r.get_center().x, r.position.y - 2), 0.6)
 		OrderBubble.badge(self, r.position + Vector2(4, 4), c.ctype.get("type_id", ""), 0.6)
 		if c.dine:
 			DU.circle(self, Vector2(r.end.x - 4, r.position.y + 4), 10.0, Color.WHITE, 2.5)

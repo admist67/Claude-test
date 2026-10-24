@@ -48,5 +48,13 @@
   "dine_patience": 1.6,
   "dine_chance": 0.55,
   "drink_chance": 0.6,
-  "eat_seconds": 6.0
+  "eat_seconds": 6.0,
+  "stock_lavash": 15,
+  "stock_veg": 10,
+  "stock_sauce": 15,
+  "fire_after_burnt": 5.0,
+  "fire_patience_drain": 0.6,
+  "signature_chance": 0.3,
+  "signature_mult": 1.5,
+  "quests_per_day": 3
 }

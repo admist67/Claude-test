@@ -12,6 +12,8 @@ signal shop_pressed
 signal shop_closed
 signal buy_pressed(id: String)
 signal shop_tab(tab: String)
+signal recipe_pressed
+signal recipe_saved(recipe: Dictionary)
 signal endless_pressed
 signal new_game_pressed
 
@@ -33,6 +35,7 @@ class Bar extends Node2D:
 	var combo := 0
 	var combo_mult := 1.0
 	var combo_bump := 0.0
+	var quests: Array = []
 
 	func _process(delta: float) -> void:
 		shown = move_toward(shown, money, maxf(40.0, absf(money - shown) * 6.0) * delta)
@@ -69,6 +72,20 @@ class Bar extends Node2D:
 			DU.poly(self, fl, DU.GOLD, 2.5)
 			DU.text(self, Vector2(14, -1), "КОМБО ×%s" % str(snappedf(combo_mult, 0.01)), 22, Color.WHITE, 6)
 			draw_set_transform(Vector2.ZERO)
+		if not quests.is_empty():
+			var y := 120.0 if combo >= 2 else 76.0
+			var h := 14.0 + quests.size() * 30.0
+			DU.rect(self, Rect2(12, y, 372, h), 14.0, Color(1, 0.95, 0.85, 0.88), 3.0, 0.0)
+			for i in quests.size():
+				var q: Dictionary = quests[i]
+				var cy := y + 22.0 + i * 30.0
+				var col := Color("#2a9d5c") if q["done"] else (DU.RED if q.get("failed", false) else DU.INK)
+				DU.circle(self, Vector2(32, cy), 9.0, DU.GREEN if q["done"] else (DU.RED if q.get("failed", false) else Color.WHITE), 2.5)
+				if q["done"]:
+					draw_polyline(PackedVector2Array([Vector2(27, cy), Vector2(31, cy + 4), Vector2(37, cy - 4)]), Color.WHITE, 3.0, true)
+				draw_string(DU.FONT_B, Vector2(48, cy + 6), q["text"], HORIZONTAL_ALIGNMENT_LEFT, 270, 16, col)
+				if q["id"] != "no_lost":
+					draw_string(DU.FONT, Vector2(320, cy + 6), "%d/%d" % [q["progress"], q["target"]], HORIZONTAL_ALIGNMENT_RIGHT, 56, 16, col)
 
 
 class Logo extends Control:
@@ -228,7 +245,7 @@ func show_menu(day: int, bank: int, sound_on: bool, has_shop := false) -> void:
 	snd.custom_minimum_size = Vector2(260, 76)
 
 
-func show_note(day: int, note: String, goal: int, new_items: Array, event := {}) -> void:
+func show_note(day: int, note: String, goal: int, new_items: Array, event := {}, quests := []) -> void:
 	set_bar_visible(false)
 	var v := _panel(_new_screen())
 	var panel: Control = v.get_parent()
@@ -241,6 +258,11 @@ func show_note(day: int, note: String, goal: int, new_items: Array, event := {})
 	if not event.is_empty():
 		_label(v, "Событие дня: %s — %s" % [event["title"], event["desc"]], 25, Color("#7b4fd6"), true, 680.0)
 	_label(v, "Цель смены: %d ₽" % goal, 30, DU.INK)
+	if not quests.is_empty():
+		var lines: Array = []
+		for q in quests:
+			lines.append("• %s  (+%d ₽)" % [q["text"], q["reward"]])
+		_label(v, "Задания дня:\n" + "\n".join(lines), 22, Color("#6b5a7a"), true, 680.0)
 	_button(v, "Открываемся!", func(): note_closed.emit())
 
 
@@ -259,6 +281,8 @@ func show_summary(st: Dictionary) -> void:
 		["Чаевые", "%d ₽" % st["tips"]],
 		["Рейтинг", "—" if st["rating"] <= 0.0 else "%.1f ★" % st["rating"]],
 	]
+	if st.has("quests"):
+		rows.append(["Задания дня", st["quests"]])
 	if int(st.get("wages", 0)) > 0:
 		rows.append(["Зарплаты персоналу", "-%d ₽" % st["wages"]])
 	var grid := GridContainer.new()
@@ -308,7 +332,8 @@ func show_shop(bank: int, items: Array, tab := "kitchen") -> void:
 		tb.custom_minimum_size = Vector2(300, 60)
 		tb.add_theme_font_size_override("font_size", 26)
 	var grid := GridContainer.new()
-	grid.columns = 2
+	var three := items.size() > 6
+	grid.columns = 3 if three else 2
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 10)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -321,7 +346,7 @@ func show_shop(bank: int, items: Array, tab := "kitchen") -> void:
 		sb.content_margin_top = 8
 		sb.content_margin_bottom = 10
 		card.add_theme_stylebox_override("panel", sb)
-		card.custom_minimum_size = Vector2(580, 0)
+		card.custom_minimum_size = Vector2(404 if three else 580, 0)
 		grid.add_child(card)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
@@ -332,33 +357,141 @@ func show_shop(bank: int, items: Array, tab := "kitchen") -> void:
 		row.add_child(col)
 		var name_l := Label.new()
 		name_l.text = it["name"] if int(it["max"]) == 1 else "%s  (%d/%d)" % [it["name"], it["level"], it["max"]]
-		name_l.add_theme_font_size_override("font_size", 23)
+		name_l.add_theme_font_size_override("font_size", 21 if three else 23)
 		name_l.add_theme_color_override("font_color", DU.INK)
+		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_l.custom_minimum_size = Vector2(212 if three else 340, 0)
 		col.add_child(name_l)
 		var desc_l := Label.new()
 		desc_l.text = it["desc"]
 		desc_l.add_theme_font_size_override("font_size", 18)
 		desc_l.add_theme_color_override("font_color", Color("#6b5a7a"))
 		desc_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc_l.custom_minimum_size = Vector2(340, 0)
+		desc_l.custom_minimum_size = Vector2(212 if three else 340, 0)
 		col.add_child(desc_l)
 		var price: int = it["price"]
 		var locked: String = it.get("locked", "")
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(176, 64)
+		btn.custom_minimum_size = Vector2(150 if three else 176, 64)
 		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		btn.add_theme_font_size_override("font_size", 24 if locked == "" else 18)
 		btn.text = locked if locked != "" else ("Куплено" if price < 0 else "%d ₽" % price)
 		btn.disabled = locked != "" or price < 0 or price > bank
 		var id: String = it["id"]
-		btn.pressed.connect(func():
-			Sfx.play("cash", 0.02)
-			Sfx.buzz(25)
-			buy_pressed.emit(id)
-		)
+		if it.get("action", "") == "recipe":
+			btn.text = "Изменить"
+			btn.disabled = false
+			btn.pressed.connect(func():
+				Sfx.play("ui")
+				recipe_pressed.emit()
+			)
+		else:
+			btn.pressed.connect(func():
+				Sfx.play("cash", 0.02)
+				Sfx.buzz(25)
+				buy_pressed.emit(id)
+			)
 		row.add_child(btn)
 	var next_b := _button(box, "Дальше", func(): shop_closed.emit())
 	next_b.custom_minimum_size = Vector2(360, 80)
+
+
+## Signature recipe editor. options: unlocked veggie and sauce ids.
+func show_recipe(options: Array, recipe: Dictionary, names: Array) -> void:
+	set_bar_visible(false)
+	var v := _panel(_new_screen(0.65))
+	var panel: Control = v.get_parent()
+	panel.custom_minimum_size = Vector2(900, 0)
+	_label(v, "Фирменный рецепт", 38, DU.ORANGE.darkened(0.2))
+	var st := {"name": names.find(recipe.get("name", names[0])), "meat": int(recipe.get("meat", 1)), "items": Array(recipe.get("items", []))}
+	if st["name"] < 0:
+		st["name"] = 0
+	var name_row := HBoxContainer.new()
+	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	name_row.add_theme_constant_override("separation", 14)
+	v.add_child(name_row)
+	var name_l := _label(name_row, names[st["name"]], 30, DU.INK, true, 420.0)
+	var prev := _button(name_row, "<", func():
+		st["name"] = (st["name"] - 1 + names.size()) % names.size()
+		name_l.text = names[st["name"]]
+	, false)
+	prev.custom_minimum_size = Vector2(70, 60)
+	name_row.move_child(prev, 0)
+	var nxt := _button(name_row, ">", func():
+		st["name"] = (st["name"] + 1) % names.size()
+		name_l.text = names[st["name"]]
+	, false)
+	nxt.custom_minimum_size = Vector2(70, 60)
+	var info := _label(v, "", 22, Color("#6b5a7a"))
+	var grid := GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(grid)
+	var buttons := {}
+	var refresh := func() -> void:
+		for id in buttons:
+			var on: bool = id == "meat2" and st["meat"] == 2 or st["items"].has(id)
+			var b: Button = buttons[id]
+			b.add_theme_stylebox_override("normal", _box(Color("#3ccf7a") if on else Color("#c9c2d6"), 18))
+			b.add_theme_stylebox_override("hover", _box(Color("#3ccf7a") if on else Color("#c9c2d6"), 18))
+		var veg := 0
+		var sauce := 0
+		for id in st["items"]:
+			if Bal.ing_by_id[id]["kind"] == "sauce":
+				sauce += 1
+			else:
+				veg += 1
+		info.text = "Выбери 1–3 добавки и 1 соус. Сейчас: добавок %d, соусов %d" % [veg, sauce]
+		info.add_theme_color_override("font_color", Color("#2a9d5c") if veg >= 1 and veg <= 3 and sauce == 1 else DU.RED)
+	for id in ["meat2"] + options:
+		var b := Button.new()
+		b.text = "Двойное мясо" if id == "meat2" else Bal.ing_name(id)
+		b.custom_minimum_size = Vector2(160, 56)
+		b.add_theme_font_size_override("font_size", 20)
+		var key: String = id
+		b.pressed.connect(func():
+			Sfx.play("tap")
+			if key == "meat2":
+				st["meat"] = 1 if st["meat"] == 2 else 2
+			elif st["items"].has(key):
+				st["items"].erase(key)
+			else:
+				if Bal.ing_by_id[key]["kind"] == "sauce":
+					for other in st["items"].duplicate():
+						if Bal.ing_by_id[other]["kind"] == "sauce":
+							st["items"].erase(other)
+				st["items"].append(key)
+			refresh.call()
+		)
+		grid.add_child(b)
+		buttons[id] = b
+	refresh.call()
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	v.add_child(row)
+	var save := _button(row, "Сохранить", func():
+		var veg := 0
+		var sauce := 0
+		for id in st["items"]:
+			if Bal.ing_by_id[id]["kind"] == "sauce":
+				sauce += 1
+			else:
+				veg += 1
+		if veg >= 1 and veg <= 3 and sauce == 1:
+			recipe_saved.emit({"name": names[st["name"]], "meat": st["meat"], "items": st["items"]})
+		else:
+			Sfx.play("error")
+	)
+	save.custom_minimum_size = Vector2(300, 76)
+	var back := _button(row, "Назад", func(): shop_closed_to_shop(), false)
+	back.custom_minimum_size = Vector2(240, 70)
+
+
+func shop_closed_to_shop() -> void:
+	shop_tab.emit("kitchen")
 
 
 func show_finale(stars: int, max_stars: int, title: String, text: String) -> void:

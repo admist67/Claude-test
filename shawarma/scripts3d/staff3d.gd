@@ -9,15 +9,17 @@ const CafeS := preload("res://scripts3d/cafe3d.gd")
 const CustomerS := preload("res://scripts3d/customer3d.gd")
 const BoardS := preload("res://scripts3d/board3d.gd")
 const K := "res://assets/models/characters/character-"
-const HOME := {"helper": Vector3(-0.95, 0, 0.55), "waiter": Vector3(1.05, 0, -0.1), "cleaner": Vector3(4.8, 0, -1.7)}
-const LOOK := {"helper": Vector3(-0.95, 0, 2.0), "waiter": Vector3(0, 0, -2.0), "cleaner": Vector3(0, 0, -3.0)}
+const HOME := {"helper": Vector3(-2.1, 0, 1.45), "waiter": Vector3(2.2, 0, -1.9), "cleaner": Vector3(4.8, 0, -1.7)}
+const LOOK := {"helper": Vector3(-2.1, 0, 3.0), "waiter": Vector3(0, 0, -3.0), "cleaner": Vector3(0, 0, -3.0)}
 
 var game: Node3D          # main3d.gd
 var workers := {}         # role -> worker
 var helper_wait := 0.0
+var restocking := {}
 
 
 func hire(roles: Array) -> void:
+	restocking.clear()
 	for r in workers.keys():
 		if not roles.has(r):
 			workers[r].queue_free()
@@ -59,6 +61,11 @@ func roles() -> Array:
 
 
 func tick(delta: float) -> void:
+	# A worker right in front of the camera would fill the screen: hide them up close.
+	var eye: Vector3 = game.player.global_position
+	for r in workers:
+		var w = workers[r]
+		w.visible = Vector2(w.position.x - eye.x, w.position.z - eye.z).length() > 0.95
 	if workers.has("helper"):
 		_helper(delta)
 	if workers.has("waiter"):
@@ -76,6 +83,10 @@ func _go_home(w) -> void:
 func _helper(delta: float) -> void:
 	var w = workers["helper"]
 	if w.busy:
+		return
+	var low: Array = game.bins.lowest()
+	if not low.is_empty() and game.bins.frac(low[0]) < 0.3 and not restocking.has(low[0]):
+		_restock(w, low[0])
 		return
 	if game.board.state != BoardS.S.EMPTY:
 		helper_wait = 1.2
@@ -95,7 +106,24 @@ func _helper(delta: float) -> void:
 					game.board.add_meat()
 			Sfx.play("lavash", 0.05, -6.0)
 		_go_home(w)
-	w.go([Vector3(-0.85, 0, 1.0)], done, 1.0, Vector3(-0.85, 0, 2.0))
+	w.go([Vector3(-1.4, 0, 1.45)], done, 1.0, Vector3(-1.4, 0, 3.0))
+
+
+## Fetches a crate from the storage and refills bin `id`.
+func _restock(w, id: String) -> void:
+	restocking[id] = true
+	var storage: Vector3 = game.bins.target("storage")
+	var bin: Vector3 = game.bins.target(id)
+	var put := func() -> void:
+		w.drop()
+		game.bins.refill(id)
+		restocking.erase(id)
+		Sfx.play("plop", 0.05, -6.0)
+		_go_home(w)
+	var grab := func() -> void:
+		w.hold({"crate": true})
+		w.go([Vector3(bin.x, 0, 1.45)], put, 0.5, bin)
+	w.go([Vector3(storage.x, 0, 1.45)], grab, 0.5, storage)
 
 
 # --- Waiter ------------------------------------------------------------------------
@@ -114,7 +142,7 @@ func _waiter() -> void:
 		if c == null:
 			continue
 		c.set_meta("waiter_roll", true)
-		var stand := Vector3(1.15, 0, grill.slot_global(i).z)
+		var stand := Vector3(2.05, 0, grill.slot_global(i).z)
 		var slot: int = i
 		var take := func() -> void:
 			if grill.slots[slot] != null and is_instance_valid(c) and c.st == CustomerS.St.WAIT:
@@ -130,7 +158,7 @@ func _waiter() -> void:
 		for c in game.all_customers():
 			if c.st == CustomerS.St.WAIT and c.order.drink and not c.got_drink and not c.has_meta("waiter_drink"):
 				c.set_meta("waiter_drink", true)
-				var stand := Vector3(1.15, 0, CafeS.COOLER.z)
+				var stand := Vector3(2.05, 0, CafeS.COOLER.z)
 				var guest = c
 				var grab := func() -> void:
 					w.hold({"drink": true})
@@ -142,7 +170,7 @@ func _waiter() -> void:
 func _serve_spot(c) -> Vector3:
 	if c.dine:
 		return c.position + Vector3(0.55, 0, 0.35)
-	return Vector3(clampf(c.position.x, -1.3, 0.75), 0, -0.3)
+	return Vector3(clampf(c.position.x, -2.2, 1.1), 0, -0.3)
 
 
 func _deliver(w, c) -> void:

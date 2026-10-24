@@ -1,0 +1,88 @@
+{
+ "quests": [
+  {
+   "id": "perfect",
+   "text": "Сделай идеальных шаурм: %d",
+   "base": 3,
+   "per_day": 0.4,
+   "max": 10,
+   "reward": 350
+  },
+  {
+   "id": "served",
+   "text": "Обслужи клиентов: %d",
+   "base": 8,
+   "per_day": 0.8,
+   "max": 24,
+   "reward": 300
+  },
+  {
+   "id": "combo",
+   "text": "Набери комбо ×%d",
+   "base": 3,
+   "per_day": 0.15,
+   "max": 6,
+   "reward": 400
+  },
+  {
+   "id": "no_lost",
+   "text": "Ни один клиент не уйдёт злым",
+   "base": 1,
+   "per_day": 0,
+   "max": 1,
+   "reward": 600
+  },
+  {
+   "id": "type",
+   "text": "Обслужи «%s»: %d",
+   "base": 2,
+   "per_day": 0.2,
+   "max": 5,
+   "reward": 350
+  },
+  {
+   "id": "fast",
+   "text": "Обслужи быстрее 20 секунд: %d",
+   "base": 3,
+   "per_day": 0.3,
+   "max": 10,
+   "reward": 400
+  },
+  {
+   "id": "drinks",
+   "text": "Продай напитков: %d",
+   "base": 3,
+   "per_day": 0.3,
+   "max": 10,
+   "reward": 350,
+   "needs": "cafe"
+  },
+  {
+   "id": "dine",
+   "text": "Накорми гостей на веранде: %d",
+   "base": 3,
+   "per_day": 0.3,
+   "max": 10,
+   "reward": 400,
+   "needs": "cafe"
+  },
+  {
+   "id": "courier",
+   "text": "Выполни заказы курьеров: %d",
+   "base": 1,
+   "per_day": 0.1,
+   "max": 3,
+   "reward": 500,
+   "min_day": 3
+  },
+  {
+   "id": "signature",
+   "text": "Продай фирменных шаурм: %d",
+   "base": 2,
+   "per_day": 0.2,
+   "max": 6,
+   "reward": 450,
+   "needs": "recipe"
+  }
+ ]
+}

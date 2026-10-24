@@ -1,11 +1,16 @@
 extends Node3D
 ## Builds the static world: the kiosk interior (walls, counters, lamps, decor), the night
 ## street outside the service window, lights and the environment. Kiosk inner space:
-## x -2..2, z -1 (window) .. 2 (back wall); counter tops at y = 1.0.
+## x -HX..HX, z -1 (window) .. BACK (back wall); counter tops at y = 1.0.
 
 const K := "res://assets/models/"
+const HX := 3.0          # inner half width
+const BACK := 2.4        # inner back wall z
+const WIN := 2.6         # service window half width
+const PASS_X := 1.4      # with the café the front counter ends here
 
 var neon: Label3D
+var menu: Label3D
 var front: Node3D
 var street_lights: Array[OmniLight3D] = []
 var env: Environment
@@ -46,18 +51,18 @@ func set_decor(levels: Dictionary) -> void:
 			m.emission = col
 			m.emission_energy_multiplier = 2.0
 			bulb_mats.append(m)
-		_garland(n, Vector3(-1.8, 2.3, -0.96), Vector3(1.8, 2.3, -0.96), 0.1, 26)
+		_garland(n, Vector3(-WIN, 2.3, -0.96), Vector3(WIN, 2.3, -0.96), 0.12, 36)
 		if g >= 2:
-			_garland(n, Vector3(-1.95, 2.62, 1.95), Vector3(1.95, 2.62, 1.95), 0.12, 28)
-			_garland(n, Vector3(-1.97, 2.62, -0.9), Vector3(-1.97, 2.62, 1.9), 0.1, 20)
-			_garland(n, Vector3(1.97, 2.62, -0.9), Vector3(1.97, 2.62, 1.9), 0.1, 20)
+			_garland(n, Vector3(-HX + 0.05, 2.62, BACK - 0.05), Vector3(HX - 0.05, 2.62, BACK - 0.05), 0.14, 40)
+			_garland(n, Vector3(-HX + 0.03, 2.62, -0.9), Vector3(-HX + 0.03, 2.62, BACK - 0.1), 0.1, 26)
+			_garland(n, Vector3(HX - 0.03, 2.62, -0.9), Vector3(HX - 0.03, 2.62, BACK - 0.1), 0.1, 26)
 	if int(levels.get("neon", 0)) >= 1:
 		var n := Node3D.new()
 		add_child(n)
 		decor["neon"] = n
-		M3.box(n, Vector3(3.62, 0.03, 0.03), Vector3(0, 2.31, -0.97), M3.glow(Color(1.0, 0.31, 0.64), 2.2))
-		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(-1.81, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
-		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(1.81, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
+		M3.box(n, Vector3(2.0 * WIN + 0.02, 0.03, 0.03), Vector3(0, 2.31, -0.97), M3.glow(Color(1.0, 0.31, 0.64), 2.2))
+		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(-WIN - 0.01, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
+		M3.box(n, Vector3(0.03, 1.25, 0.03), Vector3(WIN + 0.01, 1.68, -0.97), M3.glow(Color(0.31, 0.94, 1.0), 2.2))
 		var l := OmniLight3D.new()
 		l.position = Vector3(0, 1.9, -0.7)
 		l.light_color = Color("#ff7ad9")
@@ -66,7 +71,7 @@ func set_decor(levels: Dictionary) -> void:
 		n.add_child(l)
 	if int(levels.get("tipjar", 0)) >= 1:
 		var n := Node3D.new()
-		n.position = Vector3(0.05, 1.0, -0.62)
+		n.position = Vector3(0.4, 1.0, -0.62)
 		add_child(n)
 		decor["tipjar"] = n
 		var glass := StandardMaterial3D.new()
@@ -154,49 +159,56 @@ func _kiosk() -> void:
 	var floor_m := StandardMaterial3D.new()
 	floor_m.albedo_texture = _checker(Color("#6e4c3c"), Color("#8c6652"))
 	floor_m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	floor_m.uv1_scale = Vector3(8, 6, 1)
+	floor_m.uv1_scale = Vector3(12, 7, 1)
 	floor_m.roughness = 0.7
-	M3.wall(self, Vector3(4.2, 0.1, 3.2), Vector3(0, -0.05, 0.5), floor_m)
+	var depth := BACK + 1.2
+	var mid_z := (BACK - 1.0) / 2.0
+	M3.wall(self, Vector3(2.0 * HX + 0.2, 0.1, depth), Vector3(0, -0.05, mid_z), floor_m)
 	var wall_m := M3.mat(Color("#f1e3c8"), 0.9)
 	var trim_m := M3.mat(Color("#a85f2e"), 0.7)
-	M3.wall(self, Vector3(4.2, 2.75, 0.1), Vector3(0, 1.375, 2.05), wall_m)
-	M3.wall(self, Vector3(0.1, 2.75, 3.2), Vector3(-2.05, 1.375, 0.5), wall_m)
-	M3.wall(self, Vector3(0.1, 2.75, 3.2), Vector3(2.05, 1.375, 0.5), wall_m)
-	M3.box(self, Vector3(4.2, 0.1, 3.2), Vector3(0, 2.8, 0.5), M3.mat(Color("#3a2c3f")))
-	# Front wall with the service window (x -1.85..1.85, y 1.0..2.35); the lower part and
-	# the front counter are rebuilt by set_cafe() (the café opens a passage on the right).
-	M3.wall(self, Vector3(4.2, 0.4, 0.1), Vector3(0, 2.55, -1.05), wall_m)
-	M3.wall(self, Vector3(0.25, 1.35, 0.1), Vector3(-1.975, 1.675, -1.05), wall_m)
-	M3.box(self, Vector3(3.8, 0.08, 0.14), Vector3(0, 2.36, -1.05), trim_m)
-	M3.box(self, Vector3(0.08, 1.4, 0.14), Vector3(-1.86, 1.68, -1.05), trim_m)
+	M3.wall(self, Vector3(2.0 * HX + 0.2, 2.75, 0.1), Vector3(0, 1.375, BACK + 0.05), wall_m)
+	M3.wall(self, Vector3(0.1, 2.75, depth), Vector3(-HX - 0.05, 1.375, mid_z), wall_m)
+	M3.wall(self, Vector3(0.1, 2.75, depth), Vector3(HX + 0.05, 1.375, mid_z), wall_m)
+	M3.box(self, Vector3(2.0 * HX + 0.2, 0.1, depth), Vector3(0, 2.8, mid_z), M3.mat(Color("#3a2c3f")))
+	# Front wall with the service window (x -WIN..WIN, y 1.0..2.35); the lower part, the right
+	# pillar and the front counter are rebuilt by set_cafe() (the café opens a passage).
+	var pillar := HX + 0.1 - WIN
+	M3.wall(self, Vector3(2.0 * HX + 0.2, 0.4, 0.1), Vector3(0, 2.55, -1.05), wall_m)
+	M3.wall(self, Vector3(pillar, 1.35, 0.1), Vector3(-WIN - pillar / 2.0, 1.675, -1.05), wall_m)
+	M3.box(self, Vector3(2.0 * WIN + 0.2, 0.08, 0.14), Vector3(0, 2.36, -1.05), trim_m)
+	M3.box(self, Vector3(0.08, 1.4, 0.14), Vector3(-WIN - 0.01, 1.68, -1.05), trim_m)
 	# Tiled band behind the back counter.
-	for k in 16:
-		M3.box(self, Vector3(0.24, 0.24, 0.01), Vector3(-1.875 + k * 0.25, 1.15, 1.995), M3.mat(Color("#ffffff") if k % 2 == 0 else Color("#e9f0f5"), 0.3))
-		M3.box(self, Vector3(0.24, 0.24, 0.01), Vector3(-1.875 + k * 0.25, 1.4, 1.995), M3.mat(Color("#e9f0f5") if k % 2 == 0 else Color("#ffffff"), 0.3))
-	# Counters: front (serving), back (prep), left (spit), right (grill).
+	var tiles := int(2.0 * HX / 0.25)
+	for k in tiles:
+		M3.box(self, Vector3(0.24, 0.24, 0.01), Vector3(-HX + 0.125 + k * 0.25, 1.15, BACK - 0.005), M3.mat(Color("#ffffff") if k % 2 == 0 else Color("#e9f0f5"), 0.3))
+		M3.box(self, Vector3(0.24, 0.24, 0.01), Vector3(-HX + 0.125 + k * 0.25, 1.4, BACK - 0.005), M3.mat(Color("#e9f0f5") if k % 2 == 0 else Color("#ffffff"), 0.3))
+	# Counters: back (prep), left (spit), right (grill); the front one is in set_cafe().
 	var body_m := M3.mat(Color("#b8432f"), 0.7)
 	var top_m := M3.mat(Color("#cfcbe0"), 0.35, 0.6)
-	_counter(Vector3(4.0, 0.95, 0.65), Vector3(0, 0.475, 1.675), body_m, top_m, Vector3(4.0, 0.05, 0.69), Vector3(0, 0.975, 1.655))
-	_counter(Vector3(0.6, 0.95, 1.8), Vector3(-1.7, 0.475, 0.45), body_m, top_m, Vector3(0.64, 0.05, 1.8), Vector3(-1.68, 0.975, 0.45))
-	_counter(Vector3(0.6, 0.95, 1.8), Vector3(1.7, 0.475, 0.45), body_m, top_m, Vector3(0.64, 0.05, 1.8), Vector3(1.68, 0.975, 0.45))
-	# Drawer handles facing the room.
-	for x in [-1.4, -0.7, 0.0, 0.7, 1.4]:
-		M3.box(self, Vector3(0.22, 0.03, 0.03), Vector3(x, 0.8, 1.34), top_m)
+	_counter(Vector3(2.0 * HX, 0.95, 0.65), Vector3(0, 0.475, BACK - 0.325), body_m, top_m, Vector3(2.0 * HX, 0.05, 0.69), Vector3(0, 0.975, BACK - 0.345))
+	var side_len := BACK - 0.65 + 0.45
+	var side_z := (-0.45 + BACK - 0.65) / 2.0
+	_counter(Vector3(0.6, 0.95, side_len), Vector3(-HX + 0.3, 0.475, side_z), body_m, top_m, Vector3(0.64, 0.05, side_len), Vector3(-HX + 0.32, 0.975, side_z))
+	_counter(Vector3(0.6, 0.95, side_len), Vector3(HX - 0.3, 0.475, side_z), body_m, top_m, Vector3(0.64, 0.05, side_len), Vector3(HX - 0.32, 0.975, side_z))
+	var x := -HX + 0.6
+	while x < HX - 0.5:
+		M3.box(self, Vector3(0.22, 0.03, 0.03), Vector3(x, 0.8, BACK - 0.66), top_m)
+		x += 0.8
 	set_cafe(false)
 	# Ceiling lamps.
-	for x in [-0.9, 0.9]:
-		M3.model(self, K + "furniture/lampSquareCeiling.glb", Vector3(x - 0.12, 2.29, 0.62), 2.0)
+	for lx in [-1.5, 1.5]:
+		M3.model(self, K + "furniture/lampSquareCeiling.glb", Vector3(lx - 0.12, 2.29, 0.82), 2.0)
 		var l := OmniLight3D.new()
-		l.position = Vector3(x, 2.15, 0.5)
+		l.position = Vector3(lx, 2.15, 0.7)
 		l.light_color = Color("#ffd9a0")
-		l.light_energy = 1.5
-		l.omni_range = 4.5
+		l.light_energy = 1.6
+		l.omni_range = 5.0
 		add_child(l)
 	var spot := OmniLight3D.new()
-	spot.position = Vector3(0, 1.9, 1.3)
+	spot.position = Vector3(0, 1.9, BACK - 0.7)
 	spot.light_color = Color("#ffe2b8")
-	spot.light_energy = 0.8
-	spot.omni_range = 2.5
+	spot.light_energy = 0.9
+	spot.omni_range = 3.2
 	add_child(spot)
 
 
@@ -206,8 +218,8 @@ func _counter(size: Vector3, pos: Vector3, body_m: Material, top_m: Material, to
 	M3.box(n, top_size, top_pos, top_m)
 
 
-## Front counter and the wall under the window. With the café the counter ends at x 0.95
-## and a passage opens to the terrace (x 0.95..2.05).
+## Front counter and the wall under the window. With the café the counter ends at PASS_X
+## and a wide passage opens to the terrace (x PASS_X..HX).
 func set_cafe(on: bool) -> void:
 	if front:
 		front.queue_free()
@@ -217,47 +229,57 @@ func set_cafe(on: bool) -> void:
 	var top_m := M3.mat(Color("#cfcbe0"), 0.35, 0.6)
 	var wall_m := M3.mat(Color("#f1e3c8"), 0.9)
 	var trim_m := M3.mat(Color("#a85f2e"), 0.7)
-	var right := 0.95 if on else 2.0
-	var w := right + 2.0
-	_counter(Vector3(w, 0.95, 0.55), Vector3(-2.0 + w / 2.0, 0.475, -0.725), body_m, top_m, Vector3(w, 0.05, 0.8), Vector3(-2.0 + w / 2.0, 0.975, -0.83), front)
-	var ww := right + 2.1
-	M3.wall(front, Vector3(ww, 1.0, 0.1), Vector3(-2.1 + ww / 2.0, 0.5, -1.05), M3.mat(Color("#c95d3b")))
+	var right := PASS_X if on else HX
+	var w := right + HX
+	_counter(Vector3(w, 0.95, 0.55), Vector3(-HX + w / 2.0, 0.475, -0.725), body_m, top_m, Vector3(w, 0.05, 0.8), Vector3(-HX + w / 2.0, 0.975, -0.83), front)
+	var ww := right + HX + 0.1
+	M3.wall(front, Vector3(ww, 1.0, 0.1), Vector3(-HX - 0.1 + ww / 2.0, 0.5, -1.05), M3.mat(Color("#c95d3b")))
 	if on:
-		M3.box(front, Vector3(0.1, 2.35, 0.16), Vector3(0.95, 1.175, -1.05), trim_m)
-		var sign := M3.label(front, "ВЫХОД НА ВЕРАНДУ", Vector3(1.5, 2.45, -1.0), 30, Color(0.6, 2.4, 1.2), 6, 0.002)
+		M3.box(front, Vector3(0.1, 2.35, 0.16), Vector3(PASS_X, 1.175, -1.05), trim_m)
+		var sign := M3.label(front, "ВЫХОД НА ВЕРАНДУ", Vector3((PASS_X + HX) / 2.0, 2.45, -1.0), 30, Color(0.6, 2.4, 1.2), 6, 0.002)
 		sign.rotation.y = PI
 	else:
-		M3.wall(front, Vector3(0.25, 1.35, 0.1), Vector3(1.975, 1.675, -1.05), wall_m)
-		M3.box(front, Vector3(0.08, 1.4, 0.14), Vector3(1.86, 1.68, -1.05), trim_m)
-	var xs := [-1.4, -0.7, 0.0, 0.6] if on else [-1.4, -0.7, 0.0, 0.7, 1.4]
-	for x in xs:
+		var pillar := HX + 0.1 - WIN
+		M3.wall(front, Vector3(pillar, 1.35, 0.1), Vector3(WIN + pillar / 2.0, 1.675, -1.05), wall_m)
+		M3.box(front, Vector3(0.08, 1.4, 0.14), Vector3(WIN + 0.01, 1.68, -1.05), trim_m)
+	var x := -HX + 0.6
+	while x < right - 0.3:
 		M3.box(front, Vector3(0.22, 0.03, 0.03), Vector3(x, 0.8, -0.44), top_m)
+		x += 0.8
 
 
 func _decor() -> void:
-	M3.model(self, K + "furniture/hoodModern.glb", Vector3(-1.95, 1.85, 0.52), 1.9, PI / 2.0)
-	M3.model(self, K + "market/cash-register.glb", Vector3(0.55, 1.0, -0.72), 0.42, PI)
-	M3.model(self, K + "furniture/kitchenCoffeeMachine.glb", Vector3(-1.62, 1.0, -0.62), 1.6, PI)
-	M3.model(self, K + "furniture/plantSmall1.glb", Vector3(-1.05, 1.0, -0.8), 2.2)
-	M3.model(self, K + "food/soda-can.glb", Vector3(-0.8, 1.0, -0.85), 0.45)
-	M3.model(self, K + "food/soda-can.glb", Vector3(-0.68, 1.0, -0.82), 0.45)
-	M3.model(self, K + "furniture/kitchenFridgeSmall.glb", Vector3(-1.95, 0.0, -0.4), 2.0, PI / 2.0)
+	M3.model(self, K + "furniture/hoodModern.glb", Vector3(-HX + 0.05, 1.85, 0.77), 1.9, PI / 2.0)
+	M3.model(self, K + "market/cash-register.glb", Vector3(0.9, 1.0, -0.72), 0.42, PI)
+	M3.model(self, K + "furniture/kitchenCoffeeMachine.glb", Vector3(-HX + 0.38, 1.0, -0.62), 1.6, PI)
+	M3.model(self, K + "furniture/plantSmall1.glb", Vector3(-2.05, 1.0, -0.8), 2.2)
+	M3.model(self, K + "food/soda-can.glb", Vector3(-1.8, 1.0, -0.85), 0.45)
+	M3.model(self, K + "food/soda-can.glb", Vector3(-1.68, 1.0, -0.82), 0.45)
 	# Menu board and neon sign on the back wall (labels face the room: -Z).
-	M3.box(self, Vector3(1.5, 0.62, 0.03), Vector3(-0.85, 2.05, 1.985), M3.mat(Color("#20302a")))
-	M3.box(self, Vector3(1.58, 0.7, 0.02), Vector3(-0.85, 2.05, 1.995), M3.mat(Color("#a85f2e")))
-	var menu := M3.label(self, "МЕНЮ\nШаурма классика ..... 120 ₽\nДвойное мясо ......... +60 ₽\nКаждая добавка ......... +25 ₽", Vector3(-0.85, 2.05, 1.965), 40, Color("#f4f1e8"), 0, 0.0022)
+	M3.box(self, Vector3(1.5, 0.62, 0.03), Vector3(-1.0, 2.05, BACK - 0.015), M3.mat(Color("#20302a")))
+	M3.box(self, Vector3(1.58, 0.7, 0.02), Vector3(-1.0, 2.05, BACK - 0.005), M3.mat(Color("#a85f2e")))
+	menu = M3.label(self, "", Vector3(-1.0, 2.05, BACK - 0.035), 40, Color("#f4f1e8"), 0, 0.0022)
 	menu.rotation.y = PI
 	menu.line_spacing = 6.0
-	neon = M3.label(self, "ШАУРМА", Vector3(0.95, 2.12, 1.96), 110, Color(2.6, 0.55, 1.5), 0, 0.0042)
+	set_menu("")
+	neon = M3.label(self, "ШАУРМА", Vector3(1.3, 2.12, BACK - 0.04), 110, Color(2.6, 0.55, 1.5), 0, 0.0042)
 	neon.rotation.y = PI
 	var neon_light := OmniLight3D.new()
-	neon_light.position = Vector3(0.95, 2.1, 1.7)
+	neon_light.position = Vector3(1.3, 2.1, BACK - 0.3)
 	neon_light.light_color = Color("#ff5fb0")
 	neon_light.light_energy = 0.6
 	neon_light.omni_range = 1.6
 	add_child(neon_light)
 	var open_sign := M3.label(self, "ОТКРЫТО", Vector3(0, 2.46, -1.0), 60, Color(0.6, 2.4, 2.6), 0, 0.003)
 	open_sign.rotation.y = 0.0
+
+
+## Menu board text; `signature` adds the house recipe line.
+func set_menu(signature: String) -> void:
+	var text := "МЕНЮ\nШаурма классика ..... 120 ₽\nДвойное мясо ......... +60 ₽\nКаждая добавка ......... +25 ₽"
+	if signature != "":
+		text += "\n★ %s — фирменная ×1.5" % signature
+	menu.text = text
 
 
 func _street() -> void:
@@ -273,8 +295,8 @@ func _street() -> void:
 	awning.position = Vector3(0, 2.66, -1.42)
 	awning.rotation.x = 0.38
 	add_child(awning)
-	for k in 10:
-		M3.box(awning, Vector3(0.43, 0.03, 0.78), Vector3(-1.94 + k * 0.43, 0, 0), M3.mat(Color("#e2493b") if k % 2 == 0 else Color("#fff1d6")))
+	for k in 14:
+		M3.box(awning, Vector3(0.45, 0.03, 0.78), Vector3(-2.925 + k * 0.45, 0, 0), M3.mat(Color("#e2493b") if k % 2 == 0 else Color("#fff1d6")))
 	# Buildings across the road and a far skyline.
 	var names := ["a", "b", "c", "d", "e", "f", "g", "h", "b", "d"]
 	for i in names.size():
@@ -295,10 +317,10 @@ func _street() -> void:
 		add_child(l)
 		street_lights.append(l)
 	# Metro sign on a pole.
-	M3.cyl(self, 0.05, 0.05, 3.0, Vector3(-3.4, 1.5, -2.8), M3.mat(Color("#5b5480"), 0.5, 0.5))
-	var disc := M3.cyl(self, 0.38, 0.38, 0.06, Vector3(-3.4, 3.1, -2.8), M3.glow(Color("#3a7bff"), 1.6))
+	M3.cyl(self, 0.05, 0.05, 3.0, Vector3(-6.4, 1.5, -2.8), M3.mat(Color("#5b5480"), 0.5, 0.5))
+	var disc := M3.cyl(self, 0.38, 0.38, 0.06, Vector3(-6.4, 3.1, -2.8), M3.glow(Color("#3a7bff"), 1.6))
 	disc.rotation.x = PI / 2.0
-	M3.label(self, "M", Vector3(-3.4, 3.1, -2.76), 120, Color(2, 2, 2), 0, 0.004)
+	M3.label(self, "M", Vector3(-6.4, 3.1, -2.76), 120, Color(2, 2, 2), 0, 0.004)
 	# Sidewalk props.
 	for k in 3:
 		M3.model(self, K + "roads/construction-cone.glb", Vector3(-6.0 + k * 0.6, 0, -4.8), 5.0)

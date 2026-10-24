@@ -19,7 +19,7 @@ var patience_max := 40.0
 var slot := -1             # window slot, or -1 for café guests
 var dine := false
 var table := -1
-var got_roll: Dictionary = {}
+var rolls: Array = []      # rolls handed over (couriers need order.count of them)
 var got_drink := false
 var bubble_h := 1.95       # bubble anchor height (lower when seated)
 var model: Node3D
@@ -48,6 +48,9 @@ func setup(type_def: Dictionary, o: Order, patience_s: float, model_path: String
 	body.set_meta("customer", self)
 	var greet: Array = type_def["greet"]
 	say_label.text = greet[randi() % greet.size()]
+	if type_def.get("type_id", "") == "courier":
+		M3.box(self, Vector3(0.62, 0.62, 0.42), Vector3(0, 1.05, -0.42), M3.mat(Color("#ff8a3d"), 0.6))
+		M3.box(self, Vector3(0.64, 0.12, 0.44), Vector3(0, 1.2, -0.42), M3.mat(Color("#2b1d33"), 0.6))
 
 
 func _play(a: String, speed := 1.0) -> void:
@@ -107,9 +110,13 @@ func _say(text: String, dur: float) -> void:
 	say_t = dur
 
 
+func needs_roll() -> bool:
+	return rolls.size() < order.count
+
+
 ## True once everything ordered has been handed over.
 func complete() -> bool:
-	return not got_roll.is_empty() and (got_drink or not order.drink)
+	return not needs_roll() and (got_drink or not order.drink)
 
 
 ## Café guest eats for a while, then leaves along `exit`.

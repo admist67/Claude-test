@@ -2,7 +2,7 @@ extends Node3D
 ## A hired worker NPC: walks routes, plays work animations and carries a roll or a drink.
 ## The decisions are made by staff3d.gd; this node only moves and shows.
 
-const SCALE := 2.05
+const SCALE := 1.75
 const SPEED := 1.6
 
 var role := ""
@@ -10,6 +10,7 @@ var busy := false
 var anim: AnimationPlayer
 var carry_roll: MeshInstance3D
 var carry_can: Node3D
+var carry_crate: Node3D
 var carrying: Dictionary = {}
 
 
@@ -22,16 +23,21 @@ func setup(role_id: String, title: String, model_path: String, apron: Color) -> 
 			if anim.has_animation(a):
 				anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
 		anim.play("idle")
-	M3.box(self, Vector3(0.42, 0.34, 0.02), Vector3(0, 0.62, 0.2), M3.mat(apron, 0.8))
-	var tag := M3.label(self, title, Vector3(0, 1.95, 0), 40, apron.lightened(0.4), 10, 0.003)
+	M3.box(self, Vector3(0.36, 0.3, 0.02), Vector3(0, 0.53, 0.17), M3.mat(apron, 0.8))
+	var tag := M3.label(self, title, Vector3(0, 1.7, 0), 40, apron.lightened(0.4), 10, 0.003)
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	carry_roll = M3.make_roll()
-	carry_roll.position = Vector3(0.0, 1.0, 0.32)
+	carry_roll.position = Vector3(0.0, 0.85, 0.3)
 	carry_roll.rotation.y = PI / 2.0
 	carry_roll.visible = false
 	add_child(carry_roll)
-	carry_can = M3.model(self, "res://assets/models/food/soda-can.glb", Vector3(0.12, 0.95, 0.3), 0.32)
+	carry_can = M3.model(self, "res://assets/models/food/soda-can.glb", Vector3(0.12, 0.8, 0.28), 0.32)
 	carry_can.visible = false
+	carry_crate = Node3D.new()
+	add_child(carry_crate)
+	M3.box(carry_crate, Vector3(0.34, 0.16, 0.26), Vector3(0, 0.8, 0.3), M3.mat(Color("#c98b55"), 0.8))
+	M3.box(carry_crate, Vector3(0.3, 0.03, 0.22), Vector3(0, 0.89, 0.3), M3.mat(Color("#6cc24a"), 0.8))
+	carry_crate.visible = false
 
 
 func _play(a: String) -> void:
@@ -48,7 +54,8 @@ func _face_to(q: Vector3) -> void:
 func hold(item: Dictionary) -> void:
 	carrying = item
 	carry_can.visible = item.has("drink")
-	carry_roll.visible = not item.is_empty() and not item.has("drink")
+	carry_crate.visible = item.has("crate")
+	carry_roll.visible = not item.is_empty() and not item.has("drink") and not item.has("crate")
 	if carry_roll.visible:
 		M3.set_toast(carry_roll, item["toast"], Bal.b)
 

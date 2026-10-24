@@ -4,6 +4,7 @@ extends Node3D
 
 signal perfect_reached(pos: Vector3)
 signal burnt(pos: Vector3)
+signal fire_started(pos: Vector3)
 
 const MAX_SLOTS := 3
 const SLOT_Z := [-0.36, 0.0, 0.36]
@@ -16,6 +17,7 @@ var bal: Dictionary
 var bars: Array = []                    # per slot: {"root", "marker"}
 var steam: Array[CPUParticles3D] = []
 var locks: Array[Node3D] = []
+var fires: Array = [null, null, null]   # per slot: flames node while burning
 
 
 func _ready() -> void:
@@ -97,9 +99,68 @@ func set_unlocked(n: int) -> void:
 
 func free_slot() -> int:
 	for i in unlocked:
-		if slots[i] == null:
+		if slots[i] == null and fires[i] == null:
 			return i
 	return -1
+
+
+func on_fire(i: int) -> bool:
+	return fires[i] != null
+
+
+func any_fire() -> bool:
+	for f in fires:
+		if f != null:
+			return true
+	return false
+
+
+## A roll left burning too long sets the slot on fire: the roll is lost, the slot is blocked
+## until the fire is put out with the extinguisher.
+func _ignite(i: int) -> void:
+	take(i)
+	var n := Node3D.new()
+	n.position = Vector3(-0.02, 0.14, SLOT_Z[i])
+	add_child(n)
+	for k in 2:
+		var p := CPUParticles3D.new()
+		p.amount = 26
+		p.lifetime = 0.7
+		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		p.emission_box_extents = Vector3(0.12, 0.01, 0.1)
+		p.direction = Vector3.UP
+		p.spread = 12.0
+		p.initial_velocity_min = 0.5
+		p.initial_velocity_max = 0.9
+		p.gravity = Vector3(0, 0.6, 0)
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.4
+		var sm := SphereMesh.new()
+		sm.radius = 0.03 if k == 0 else 0.05
+		sm.height = sm.radius * 2.0
+		sm.radial_segments = 6
+		sm.rings = 3
+		p.mesh = sm
+		p.material_override = M3.glow(Color(1.0, 0.55, 0.1), 3.0) if k == 0 else M3.flat(Color(0.2, 0.18, 0.2, 0.55))
+		if k == 1:
+			p.lifetime = 1.6
+			p.initial_velocity_max = 0.5
+		n.add_child(p)
+		p.emitting = true
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.5, 0.15)
+	l.light_energy = 1.5
+	l.omni_range = 1.8
+	l.position.y = 0.2
+	n.add_child(l)
+	fires[i] = n
+	fire_started.emit(slot_global(i))
+
+
+func extinguish(i: int) -> void:
+	if fires[i] != null:
+		fires[i].queue_free()
+		fires[i] = null
 
 
 func slot_global(i: int) -> Vector3:
@@ -134,6 +195,7 @@ func clear_all() -> void:
 	for i in MAX_SLOTS:
 		if slots[i] != null:
 			take(i)
+		extinguish(i)
 
 
 func busy_count() -> int:
@@ -155,6 +217,9 @@ func _rang_for(t: float) -> int:
 func _process(delta: float) -> void:
 	var burnt_at := float(bal["grill_burnt_at"])
 	for i in MAX_SLOTS:
+		if fires[i] != null:
+			var l: OmniLight3D = fires[i].get_child(fires[i].get_child_count() - 1)
+			l.light_energy = 1.2 + randf() * 0.8
 		var s = slots[i]
 		if s == null:
 			continue
@@ -171,3 +236,5 @@ func _process(delta: float) -> void:
 				perfect_reached.emit(slot_global(i))
 			else:
 				burnt.emit(slot_global(i))
+		if s["t"] >= burnt_at + float(bal["fire_after_burnt"]):
+			_ignite(i)

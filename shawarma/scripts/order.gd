@@ -5,6 +5,8 @@ extends RefCounted
 var meat := 1
 var items: Array[String] = []   # veggie ids, then one sauce id
 var drink := false              # café guests may also want a soda
+var count := 1                  # couriers take several identical rolls
+var signature := false          # the house recipe (pays more)
 
 
 static func generate(rng: RandomNumberGenerator, defs: Array, ctype: Dictionary, bal: Dictionary) -> Order:
@@ -30,6 +32,16 @@ static func generate(rng: RandomNumberGenerator, defs: Array, ctype: Dictionary,
 		o.items.append(sauces[rng.randi_range(0, sauces.size() - 1)])
 	var dm := float(ctype.get("double_meat_chance", bal["double_meat_chance"]))
 	o.meat = 2 if rng.randf() < dm else 1
+	o.count = rng.randi_range(int(ctype.get("count_min", 1)), int(ctype.get("count_max", 1)))
+	return o
+
+
+## The house recipe as an order: {"meat": int, "items": Array}.
+static func from_recipe(recipe: Dictionary) -> Order:
+	var o := Order.new()
+	o.meat = int(recipe["meat"])
+	o.items.assign(recipe["items"])
+	o.signature = true
 	return o
 
 
@@ -44,9 +56,12 @@ func matches(made: Dictionary) -> bool:
 	return true
 
 
+## Price of one roll (plus the drink, if any).
 func price(bal: Dictionary) -> int:
-	return int(bal["price_base"]) + int(bal["price_per_item"]) * items.size() \
-		+ int(bal["price_extra_meat"]) * (meat - 1) + (int(bal.get("price_drink", 0)) if drink else 0)
+	var roll := int(bal["price_base"]) + int(bal["price_per_item"]) * items.size() + int(bal["price_extra_meat"]) * (meat - 1)
+	if signature:
+		roll = roundi(roll * float(bal.get("signature_mult", 1.0)))
+	return roll + (int(bal.get("price_drink", 0)) if drink else 0)
 
 
 static func toast_state(t: float, bal: Dictionary) -> String:

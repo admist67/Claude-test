@@ -8,7 +8,7 @@ enum G { MENU, NOTE, PLAYING, SUMMARY }
 
 const SAVE_PATH := "user://save3d.json"
 const REACH := 2.1
-const SLOT_X := [-1.15, -0.1, 0.8]
+const SLOT_X := [-1.7, -0.3, 1.0]
 const WINDOW_Z := -2.0
 const LANE_Z := -3.0
 const MONEY_PILL := Vector2(40, 36)
@@ -29,7 +29,12 @@ const HudS := preload("res://scripts/hud.gd")
 const OrdersS := preload("res://scripts3d/orders_ui.gd")
 const CafeS := preload("res://scripts3d/cafe3d.gd")
 const StaffS := preload("res://scripts3d/staff3d.gd")
+const QuestsS := preload("res://scripts3d/quests.gd")
+const EXTINGUISHER := Vector3(2.72, 1.0, 1.55)
+const RECIPE_NAMES := ["Шаурма дяди Ромы", "Огненная", "Студенческая", "Королевская", "Ночная", "Метро-классика", "Бабушкина", "Таксистская"]
 const LAST_DAY := 15
+const TRASH := Vector3(2.05, 0, 1.5)
+const START := Vector3(0, 0, 0.6)
 
 var g := G.MENU
 var rng := RandomNumberGenerator.new()
@@ -48,6 +53,9 @@ var orders: Node2D
 var cafe: Node3D
 var staff: Node3D
 var shop_tab := "kitchen"
+var quests = QuestsS.new()
+var recipe := {}          # house recipe {"name", "meat", "items"}
+var tips_seen := {}
 
 var day := 1
 var bank := 0
@@ -80,31 +88,39 @@ func _ready() -> void:
 	world = WorldS.new()
 	add_child(world)
 	spit = SpitS.new()
-	spit.position = Vector3(-1.72, 1.0, 0.75)
+	spit.position = Vector3(-2.72, 1.0, 1.0)
 	add_child(spit)
 	board = BoardS.new()
 	board.bal = Bal.b
-	board.position = Vector3(-0.85, 1.0, 1.62)
+	board.position = Vector3(-1.4, 1.0, 2.07)
 	add_child(board)
 	bins = BinsS.new()
-	bins.position = Vector3(0, 1.0, 1.62)
+	bins.position = Vector3(-0.45, 1.0, 2.07)
 	add_child(bins)
 	grill = GrillS.new()
 	grill.bal = Bal.b
-	grill.position = Vector3(1.72, 1.0, 0.55)
+	grill.position = Vector3(2.72, 1.0, 0.75)
 	add_child(grill)
 	cafe = CafeS.new()
 	add_child(cafe)
 	staff = StaffS.new()
 	staff.game = self
 	add_child(staff)
-	M3.model(self, "res://assets/models/furniture/trashcan.glb", Vector3(1.15, 0, 1.05), 2.2)
-	M3.solid(self, Vector3(0.5, 0.95, 0.5), Vector3(1.15, 0.47, 1.05), M3.LAYER_USE, "trash")
-	M3.solid(self, Vector3(0.45, 0.95, 0.45), Vector3(1.15, 0.47, 1.05))
+	M3.model(self, "res://assets/models/furniture/trashcan.glb", TRASH, 2.2)
+	M3.solid(self, Vector3(0.5, 0.95, 0.5), TRASH + Vector3(0, 0.47, 0), M3.LAYER_USE, "trash")
+	M3.solid(self, Vector3(0.45, 0.95, 0.45), TRASH + Vector3(0, 0.47, 0))
+	var ext := Node3D.new()
+	ext.position = EXTINGUISHER
+	add_child(ext)
+	M3.cyl(ext, 0.06, 0.06, 0.34, Vector3(0, 0.17, 0), M3.mat(Color("#e2493b"), 0.4), 14)
+	M3.box(ext, Vector3(0.14, 0.04, 0.04), Vector3(-0.05, 0.36, 0), M3.mat(Color("#2b1d33")))
+	var el := M3.label(ext, "ОГНЕТУШИТЕЛЬ", Vector3(-0.12, 0.45, 0), 26, DU.RED, 8, 0.0018)
+	el.rotation.y = -PI / 2.0
+	M3.solid(ext, Vector3(0.24, 0.5, 0.24), Vector3(0, 0.22, 0), M3.LAYER_USE, "extinguisher")
 	customers_root = Node3D.new()
 	add_child(customers_root)
 	player = PlayerS.new()
-	player.position = Vector3(0, 0, 0.35)
+	player.position = START
 	add_child(player)
 	var fx_layer := CanvasLayer.new()
 	fx_layer.layer = 4
@@ -148,10 +164,25 @@ func _ready() -> void:
 		Sfx.play("burnt")
 		_puff(p, Color(0.2, 0.15, 0.15, 0.8), 14, true)
 	)
+	grill.fire_started.connect(func(_p: Vector3):
+		Sfx.play("angry", 0.0)
+		Sfx.buzz(120)
+		_tip("fire", "Пожар на гриле!", "Возьми красный огнетушитель справа и нажми на огонь")
+	)
+	hud.recipe_pressed.connect(_show_recipe)
+	hud.recipe_saved.connect(func(r: Dictionary):
+		recipe = r
+		_save()
+		world.set_menu(recipe["name"])
+		Sfx.play("jingle", 0.0)
+		shop_tab = "kitchen"
+		_show_shop()
+	)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	Sfx.set_enabled(sound_on)
 	_apply_cafe()
+	world.set_menu(recipe.get("name", ""))
 	_to_menu()
 
 
@@ -171,7 +202,7 @@ func _to_menu() -> void:
 	g = G.MENU
 	touch.enabled = false
 	_clear_table()
-	player.position = Vector3(0, 0, 0.35)
+	player.position = START
 	player.yaw = 0.0
 	player.pitch = -0.08
 	hud.show_menu(day, bank, sound_on, day > 1)
@@ -187,7 +218,12 @@ func _show_note() -> void:
 		for ing in Bal.ingredients:
 			if int(ing["unlock_day"]) == day:
 				fresh.append(ing["name"])
-	hud.show_note(day, Bal.note_for(day), goal, fresh, Bal.event_for(day))
+	var types: Array = []
+	for ct in Bal.customers:
+		if int(ct["min_day"]) <= day and not ct["rush_only"] and ct["type_id"] != "regular":
+			types.append([ct["type_id"], ct["name"]])
+	quests.pick({"day": day, "cafe": _lv("cafe") > 0, "recipe": not recipe.is_empty(), "types": types}, rng, int(Bal.f("quests_per_day")))
+	hud.show_note(day, Bal.note_for(day), goal, fresh, Bal.event_for(day), quests.list)
 
 
 func _start_shift() -> void:
@@ -204,6 +240,8 @@ func _start_shift() -> void:
 	Sfx.set_rain(event.get("rain", false))
 	combo = 0
 	hud.bar.combo = 0
+	hud.bar.quests = quests.list
+	bins.setup_stock(1.5 if _lv("bigbins") > 0 else 1.0)
 	stats = {"served": 0, "lost": 0, "revenue": 0, "tips": 0, "dine": 0}
 	ratings.clear()
 	money_today = 0
@@ -247,6 +285,14 @@ func _end_shift() -> void:
 	hints.clear()
 	Sfx.set_sizzle(0.0)
 	Sfx.music.pitch_scale = 1.0
+	for q in quests.finish():
+		money_today += q["reward"]
+	var q_done := 0
+	var q_money := 0
+	for q in quests.list:
+		if q["done"]:
+			q_done += 1
+			q_money += int(q["reward"])
 	var stars := 0
 	if money_today >= goal:
 		stars = 1
@@ -254,13 +300,15 @@ func _end_shift() -> void:
 		stars = 2
 	if money_today >= goal * 2:
 		stars = 3
+	hud.bar.quests = []
 	var wages := _wages()
 	bank += money_today - wages
 	stars_hist.append(stars)
 	world.set_rain(false)
 	Sfx.set_rain(false)
 	var summary := {"stars": stars, "served": stats["served"], "lost": stats["lost"], "revenue": stats["revenue"],
-		"tips": stats["tips"], "rating": _rating(), "total": money_today - wages, "goal": goal, "wages": wages}
+		"tips": stats["tips"], "rating": _rating(), "total": money_today - wages, "goal": goal, "wages": wages,
+		"quests": "%d из %d  (+%d ₽)" % [q_done, quests.list.size(), q_money]}
 	day += 1
 	_save()
 	Sfx.play("jingle", 0.0)
@@ -351,8 +399,13 @@ func _shop_items(tab := "") -> Array:
 		var locked := ""
 		if u.has("requires") and _lv(u["requires"]) == 0:
 			locked = "Нужно кафе"
-		items.append({"id": u["id"], "name": u["name"], "desc": desc, "level": lv, "max": prices.size(),
-			"price": int(prices[lv]) if lv < prices.size() else -1, "locked": locked})
+		var item := {"id": u["id"], "name": u["name"], "desc": desc, "level": lv, "max": prices.size(),
+			"price": int(prices[lv]) if lv < prices.size() else -1, "locked": locked}
+		if u["id"] == "recipe" and lv > 0:
+			item["action"] = "recipe"
+			if not recipe.is_empty():
+				item["desc"] = "Сейчас: «%s»" % recipe["name"]
+		items.append(item)
 	return items
 
 
@@ -369,7 +422,36 @@ func _buy(id: String) -> void:
 			_save()
 			world.set_decor(up)
 			_apply_cafe()
+			if id == "recipe":
+				_show_recipe()
+				return
 	hud.show_shop(bank, _shop_items(shop_tab), shop_tab)
+
+
+func _show_recipe() -> void:
+	var options: Array = []
+	for ing in Bal.ingredients:
+		if (ing["kind"] == "veg" or ing["kind"] == "sauce") and int(ing["unlock_day"]) <= day:
+			options.append(ing["id"])
+	var r := recipe if not recipe.is_empty() else {"name": RECIPE_NAMES[0], "meat": 1, "items": []}
+	hud.show_recipe(options, r, RECIPE_NAMES)
+
+
+## Shows a one-time banner the first time a mechanic appears.
+func _tip(key: String, title: String, sub: String) -> void:
+	if tips_seen.has(key):
+		return
+	tips_seen[key] = true
+	_save()
+	fx.banner(title, sub, Color("#7b4fd6"), 300.0)
+
+
+func _quest_done(done: Array) -> void:
+	for q in done:
+		money_today += q["reward"]
+		hud.bar.money = money_today
+		fx.banner("Задание выполнено!", "%s   +%d ₽" % [q["text"], q["reward"]], Color("#2a9d5c"), 300.0)
+		Sfx.play("jingle", 0.0)
 
 
 func _shop_closed() -> void:
@@ -397,6 +479,8 @@ func _new_game() -> void:
 	bank = 0
 	up = {}
 	stars_hist = []
+	recipe = {}
+	world.set_menu("")
 	_save()
 	world.set_decor(up)
 	_apply_cafe()
@@ -435,6 +519,7 @@ func _set_combo(n: int) -> void:
 	hud.bar.combo_mult = _combo_mult()
 	if combo >= 2:
 		hud.bar.combo_bump = 1.0
+	_quest_done(quests.reach("combo", combo))
 
 
 # --- Shift loop -------------------------------------------------------------------
@@ -478,7 +563,13 @@ func _process(delta: float) -> void:
 	hud.bar.clock = _clock_text()
 	hud.bar.rush = rush
 	Sfx.set_sizzle(grill.busy_count() / 3.0)
+	if grill.any_fire():
+		for c in _waiting():
+			c.patience -= delta * Bal.f("fire_patience_drain")
 	staff.tick(delta)
+	for c in customers_root.get_children():
+		var near := 0.65 if c.st == CustomerS.St.WAIT or c.st == CustomerS.St.EAT else 0.95
+		c.model.visible = Vector2(c.position.x - player.position.x, c.position.z - player.position.z).length() > near
 	orders.customers = all_customers()
 	orders.board_open = board.state == BoardS.S.OPEN
 	orders.board_items = board.items
@@ -548,7 +639,7 @@ func _waiting() -> Array:
 ## The waiting customer a finished roll is for (exact fillings), most impatient first.
 func customer_for(made: Dictionary):
 	for c in _waiting():
-		if c.got_roll.is_empty() and not c.has_meta("waiter_roll") and c.order.matches(made):
+		if c.needs_roll() and not c.has_meta("waiter_roll") and c.order.matches(made):
 			return c
 	return null
 
@@ -559,10 +650,10 @@ func next_uncovered():
 	for i in grill.unlocked:
 		if grill.slots[i] != null:
 			taken.append(customer_for(grill.slots[i]["made"]))
-	if not player.held.is_empty() and not player.held.has("drink"):
+	if player.holding_roll():
 		taken.append(customer_for(player.held))
 	for c in _waiting():
-		if c.got_roll.is_empty() and not c.has_meta("waiter_roll") and not taken.has(c):
+		if c.needs_roll() and not c.has_meta("waiter_roll") and not taken.has(c):
 			return c
 	return null
 
@@ -592,12 +683,22 @@ func _spawn() -> void:
 	if not dine and slot < 0:
 		return
 	var ct := _pick_type()
+	if ct["type_id"] == "courier":
+		if slot < 0:
+			return
+		dine = false
 	var defs: Array = []
 	for id in unlocked:
 		var kind: String = Bal.ing_by_id[id]["kind"]
 		if kind == "veg" or kind == "sauce":
 			defs.append(Bal.ing_by_id[id])
 	var order := Order.generate(rng, defs, ct, Bal.b)
+	if not recipe.is_empty() and ct["type_id"] != "courier" and rng.randf() < Bal.f("signature_chance"):
+		var ok := true
+		for id in recipe["items"]:
+			ok = ok and unlocked.has(id)
+		if ok:
+			order = Order.from_recipe(recipe)
 	order.drink = dine and rng.randf() < Bal.f("drink_chance")
 	var pat := (Bal.f("patience_base") + Bal.f("patience_per_item") * order.items.size()) * float(ct["patience_mult"])
 	if dine:
@@ -630,6 +731,8 @@ func _spawn() -> void:
 		return
 	c.slot = slot
 	slots[slot] = c
+	if ct["type_id"] == "courier":
+		_tip("courier", "Курьер доставки!", "Ему нужно сразу %d одинаковых шаурмы — жарь на всех местах гриля" % order.count)
 	var x: float = SLOT_X[slot]
 	if cafe.enabled:
 		c.arrive([Vector3(side * 9.0, 0, CafeS.LANE_Z), Vector3(CafeS.GAP_X, 0, CafeS.LANE_Z),
@@ -668,7 +771,8 @@ func _release(c, dirty: bool) -> void:
 func _on_gave_up(c) -> void:
 	if c.st != CustomerS.St.WAIT:
 		return
-	_release(c, not c.got_roll.is_empty() or c.got_drink)
+	_release(c, not c.rolls.is_empty() or c.got_drink)
+	quests.fail("no_lost")
 	stats["lost"] += 1
 	ratings.append(1)
 	hud.bar.rating = _rating()
@@ -690,20 +794,31 @@ func give(c, item: Dictionary, by_staff := false) -> bool:
 			return false
 		c.got_drink = true
 	else:
-		if not c.got_roll.is_empty():
+		if not c.needs_roll():
 			return false
-		c.got_roll = item
+		c.rolls.append(item)
 	Sfx.play("plop", 0.1, -2.0)
 	if c.complete():
-		_serve(c, c.got_roll)
+		_serve(c, c.rolls)
 	elif not by_staff:
-		_float(c.head_global() + Vector3(0, 0.5, 0), "Ещё напиток!" if not c.got_drink else "Теперь шаурму!", DU.CREAM, 30)
+		var left: int = c.order.count - c.rolls.size()
+		var msg := "Ещё %d шт.!" % left if left > 0 and c.order.count > 1 else ("Теперь шаурму!" if left > 0 else "Ещё напиток!")
+		_float(c.head_global() + Vector3(0, 0.5, 0), msg, DU.CREAM, 30)
 	return true
 
 
-func _serve(c, made: Dictionary) -> void:
+## The customer has everything: judge the rolls (average quality, worst one for the remark) and pay.
+func _serve(c, rolls: Array) -> void:
 	_release(c, true)
-	var ev: Dictionary = c.order.evaluate(made, Bal.b)
+	var ev: Dictionary = {}
+	var q_sum := 0.0
+	for r in rolls:
+		var e: Dictionary = c.order.evaluate(r, Bal.b)
+		q_sum += e["quality"]
+		if ev.is_empty() or e["quality"] < ev["quality"]:
+			ev = e
+	ev = ev.duplicate()
+	ev["quality"] = q_sum / rolls.size()
 	var refuse := float(c.ctype.get("refuse_below", Bal.f("refuse_below_quality")))
 	var perfect: bool = ev["toast"] == "perfect" and ev["accuracy"] >= 1.0
 	_set_combo(combo + 1 if perfect and ev["quality"] >= refuse else 0)
@@ -712,16 +827,34 @@ func _serve(c, made: Dictionary) -> void:
 	if c.dine and not pay["refused"]:
 		pay["pay"] = roundi(pay["pay"] * Bal.f("dine_bonus"))
 		pay["tip"] = roundi(pay["tip"] * Bal.f("dine_bonus"))
+	pay["pay"] *= c.order.count
+	pay["tip"] *= c.order.count
 	var head: Vector3 = c.head_global() + Vector3(0, 0.55, 0)
 	ratings.append(pay["stars"])
 	hud.bar.rating = _rating()
 	if pay["refused"]:
 		stats["lost"] += 1
+		quests.fail("no_lost")
 		c.leave(_exit_path(c), "Это не мой заказ!" if ev["accuracy"] < 0.6 else "Это есть нельзя!", "angry")
 		Sfx.play("angry")
 		Sfx.buzz(70)
 		_float(head, "Отказ!", DU.RED, 40)
 		return
+	var done: Array = []
+	done.append_array(quests.bump("served"))
+	if perfect:
+		done.append_array(quests.bump("perfect"))
+	done.append_array(quests.bump("type", 1, c.ctype["type_id"]))
+	if c.dine:
+		done.append_array(quests.bump("dine"))
+	if c.order.drink:
+		done.append_array(quests.bump("drinks"))
+	if c.order.count > 1:
+		done.append_array(quests.bump("courier"))
+	if c.order.signature:
+		done.append_array(quests.bump("signature", c.order.count))
+	if c.patience_max - c.patience < 20.0:
+		done.append_array(quests.bump("fast"))
 	var total: int = pay["pay"] + pay["tip"]
 	stats["served"] += 1
 	stats["revenue"] += pay["pay"]
@@ -764,6 +897,7 @@ func _serve(c, made: Dictionary) -> void:
 		fx.float_text(Vector2(119, 130), "Комбо ×%s!" % str(snappedf(_combo_mult(), 0.01)), Color("#ff5a2a"), 30, 40.0)
 	if tutorial_left > 0:
 		tutorial_left -= 1
+	_quest_done(done)
 
 
 func _rating() -> float:
@@ -819,12 +953,29 @@ func _tap(pos: Vector2) -> void:
 			return
 		if player.held.is_empty():
 			_error(pos, "Сначала приготовь заказ")
+		elif player.held.has("crate") or player.held.has("ext"):
+			_error(pos, "Это не для клиента")
 		elif give(c, player.held):
 			player.drop()
 		else:
-			_error(pos, "Ему это не нужно" if player.held.has("drink") else "Он уже получил шаурму")
+			_error(pos, "Ему это не нужно" if player.held.has("drink") else "Ему не такая шаурма")
 	elif kind == "trash":
 		_trash(pos)
+	elif kind == "storage":
+		if not player.held.is_empty():
+			_error(pos, "Руки заняты")
+		else:
+			player.hold({"crate": true})
+			Sfx.play("clank", 0.1, -6.0)
+			Sfx.buzz(15)
+	elif kind == "extinguisher":
+		if player.held.has("ext"):
+			player.drop()
+		elif not player.held.is_empty():
+			_error(pos, "Руки заняты")
+		else:
+			player.hold({"ext": true})
+			Sfx.play("clank", 0.1, -6.0)
 	elif kind == "drinks":
 		if not player.held.is_empty():
 			_error(pos, "Руки заняты")
@@ -859,14 +1010,34 @@ func _error(pos: Vector2, text: String) -> void:
 
 func _lavash(pos: Vector2) -> void:
 	bins.poke("lavash")
+	if player.held.has("crate"):
+		_restock("lavash")
+		return
 	if not player.held.is_empty():
 		_error(pos, "Руки заняты")
 		return
+	if not bins.has("lavash"):
+		_empty_bin(pos)
+		return
 	if board.put_lavash():
+		bins.take("lavash")
 		Sfx.play("lavash")
 		Sfx.buzz(15)
 	else:
 		_error(pos, "Доска занята")
+
+
+func _restock(id: String) -> void:
+	player.drop()
+	bins.refill(id)
+	Sfx.play("plop", 0.05)
+	Sfx.buzz(20)
+	_puff(bins.target(id), Color(1, 1, 1, 0.8), 10, true)
+
+
+func _empty_bin(pos: Vector2) -> void:
+	_error(pos, "Пусто! Принеси ящик с заготовками")
+	_tip("stock", "Лоток опустел!", "Возьми ящик «ЗАГОТОВКИ» справа на столе и нажми на пустой лоток")
 
 
 func _bin(id: String, pos: Vector2) -> void:
@@ -874,16 +1045,23 @@ func _bin(id: String, pos: Vector2) -> void:
 	if not unlocked.has(id):
 		_error(pos, "Откроется позже")
 		return
+	if player.held.has("crate"):
+		_restock(id)
+		return
+	if not bins.has(id):
+		_empty_bin(pos)
+		return
 	if board.state != BoardS.S.OPEN:
 		_error(pos, "Сначала лаваш" if board.state == BoardS.S.EMPTY else "Уже завёрнуто")
 		return
 	if board.add_item(id):
+		bins.take(id)
 		Sfx.play("plop")
 		Sfx.buzz(10)
 		_fly(bins.target(id), board.center_global(), M3.mat(Bal.color(id)), Vector3(0.03, 0.01, 0.03), 3)
 		var wanted := false
 		for c in _waiting():
-			if c.got_roll.is_empty() and c.order.items.has(id):
+			if c.needs_roll() and c.order.items.has(id):
 				wanted = true
 		if not wanted:
 			fx.float_text(pos + Vector2(0, -80), "Этого никто не заказывал!", DU.GOLD, 26, 50.0)
@@ -935,9 +1113,19 @@ func _grill_tap(i: int, pos: Vector2) -> void:
 	if i >= grill.unlocked:
 		_error(pos, "Закрыто")
 		return
+	if grill.on_fire(i):
+		if player.held.has("ext"):
+			grill.extinguish(i)
+			player.drop()
+			_puff(grill.slot_global(i), Color(1, 1, 1, 0.9), 30, true)
+			Sfx.play("roll", 0.05)
+			Sfx.buzz(40)
+		else:
+			_error(pos, "Пожар! Возьми огнетушитель")
+		return
 	if not player.held.is_empty():
-		if player.held.has("drink"):
-			_error(pos, "Это напиток — отнеси гостю")
+		if not player.holding_roll():
+			_error(pos, "Это сюда не положить")
 			return
 		if grill.slots[i] != null:
 			_error(pos, "Занято")
@@ -956,7 +1144,7 @@ func _grill_tap(i: int, pos: Vector2) -> void:
 func _trash(pos: Vector2) -> void:
 	if not player.held.is_empty():
 		player.drop()
-		_puff(Vector3(1.15, 1.0, 1.05), DU.LAVASH, 10, false)
+		_puff(TRASH + Vector3(0, 1.0, 0), DU.LAVASH, 10, false)
 		Sfx.play("plop", 0.15)
 	elif board.state != BoardS.S.EMPTY:
 		board.clear()
@@ -1046,7 +1234,7 @@ func _update_hints() -> void:
 		return
 	var from := Bal.f("grill_perfect_from")
 	if not player.held.is_empty():
-		if not player.held.has("drink") and float(player.held["toast"]) < from and grill.free_slot() >= 0:
+		if player.holding_roll() and float(player.held["toast"]) < from and grill.free_slot() >= 0:
 			_hint_at("tap", grill.slot_global(grill.free_slot()), "Положи на гриль")
 		else:
 			_hint_at("tap", c.head_global(), "Отдай клиенту — нажми на него")
@@ -1088,9 +1276,12 @@ func _load() -> void:
 		sound_on = bool(d.get("sound", true))
 		up = d.get("up", {})
 		stars_hist = d.get("stars", [])
+		recipe = d.get("recipe", {})
+		tips_seen = d.get("tips", {})
 
 
 func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"day": day, "bank": bank, "sound": sound_on, "up": up, "stars": stars_hist}))
+		f.store_string(JSON.stringify({"day": day, "bank": bank, "sound": sound_on, "up": up, "stars": stars_hist,
+			"recipe": recipe, "tips": tips_seen}))

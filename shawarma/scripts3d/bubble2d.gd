@@ -6,7 +6,8 @@ const CELL := 64.0
 
 
 ## checks: ingredient ids (and "meat") already on the board, drawn as green ticks.
-static func draw(ci: CanvasItem, tip: Vector2, order: Order, patience: float, type_id: String, s := 1.0, glow := false, checks := {}) -> void:
+## delivered: rolls already handed over (couriers order several).
+static func draw(ci: CanvasItem, tip: Vector2, order: Order, patience: float, type_id: String, s := 1.0, glow := false, checks := {}, delivered := 0) -> void:
 	var icons: Array = ["meat"]
 	icons.append_array(order.items)
 	if order.drink:
@@ -19,6 +20,8 @@ static func draw(ci: CanvasItem, tip: Vector2, order: Order, patience: float, ty
 	var r := Rect2(-bw / 2.0, -18.0 - bh, bw, bh)
 	if glow:
 		DU.rect(ci, r.grow(9.0), 30.0, Color(0.24, 0.81, 0.48, 0.85), 0.0, 0.0)
+	elif order.signature:
+		DU.rect(ci, r.grow(7.0), 28.0, DU.GOLD, 0.0, 0.0)
 	DU.rect(ci, r, 24.0, Color.WHITE, 5.0, 7.0)
 	DU.poly(ci, PackedVector2Array([Vector2(-14, -22), Vector2(14, -22), Vector2.ZERO]), Color.WHITE, 0.0)
 	ci.draw_polyline(PackedVector2Array([Vector2(-14, -19), Vector2.ZERO, Vector2(14, -19)]), DU.INK, 5.0, true)
@@ -38,7 +41,21 @@ static func draw(ci: CanvasItem, tip: Vector2, order: Order, patience: float, ty
 		ci.draw_colored_polygon(DU.rrect_pts(Rect2(bar.position, Vector2(bar.size.x * patience, bar.size.y)), 6.0), patience_color(patience))
 	ci.draw_polyline(DU.closed(DU.rrect_pts(bar, 6.0)), DU.INK, 3.0, true)
 	badge(ci, r.position + Vector2(8, 8), type_id, 1.0)
+	if order.signature:
+		crown(ci, Vector2(0, r.position.y - 4), 1.0)
+	if order.count > 1:
+		var c := Vector2(r.end.x - 6, r.position.y + 6)
+		DU.circle(ci, c, 24.0, DU.RED, 3.5)
+		DU.text(ci, c + Vector2(0, -2), "×%d" % order.count, 22, Color.WHITE, 4)
+		if delivered > 0:
+			DU.text(ci, Vector2(0, r.end.y + 22), "%d из %d" % [delivered, order.count], 22, Color.WHITE, 6)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+static func crown(ci: CanvasItem, c: Vector2, s: float) -> void:
+	var pts := PackedVector2Array([c + Vector2(-20, 8) * s, c + Vector2(-22, -10) * s, c + Vector2(-10, -2) * s,
+		c + Vector2(0, -16) * s, c + Vector2(10, -2) * s, c + Vector2(22, -10) * s, c + Vector2(20, 8) * s])
+	DU.poly(ci, pts, DU.GOLD, 3.0 * s)
 
 
 static func tick(ci: CanvasItem, c: Vector2, s := 1.0) -> void:

@@ -5,15 +5,17 @@ extends "res://scripts3d/main3d.gd"
 
 const VIEWS := {
 	"terrace": [Vector3(0.6, 0, -5.0), PI + 0.35, -0.15],
-	"hall": [Vector3(1.45, 0, -1.4), 0.5, -0.22],
+	"hall": [Vector3(2.2, 0, -1.4), 0.5, -0.22],
 	"tables": [Vector3(-0.6, 0, -2.4), PI / 2.0 + 0.2, -0.22],
-	"window": [Vector3(0, 0, 0.1), 0.0, -0.06],
-	"back": [Vector3(-0.3, 0, 0.75), PI, -0.6],
-	"spit": [Vector3(-0.85, 0, 0.8), PI / 2.0, -0.38],
-	"grill": [Vector3(0.85, 0, 0.3), -PI / 2.0, -0.5],
-	"overview": [Vector3(-1.15, 0, 1.15), -PI / 4.0, -0.2],
+	"window": [Vector3(0, 0, 0.0), 0.0, -0.06],
+	"back": [Vector3(-0.6, 0, 1.0), PI, -0.55],
+	"spit": [Vector3(-1.75, 0, 1.0), PI / 2.0, -0.38],
+	"grill": [Vector3(1.7, 0, 0.75), -PI / 2.0, -0.5],
+	"overview": [Vector3(-2.0, 0, 1.5), -PI / 4.0 + 0.1, -0.2],
+	"storage": [Vector3(0.9, 0, 0.7), PI - 0.45, -0.35],
+	"storage2": [Vector3(0.9, 0, 0.7), PI + 0.45, -0.35],
 }
-const SHOTS := [[6.0, "spit"], [11.5, "window"], [14.0, "back"], [19.0, "grill"], [24.0, "overview"],
+const SHOTS := [[6.0, "spit"], [11.5, "window"], [14.0, "back"], [19.0, "grill"], [24.0, "overview"], [26.0, "storage"], [28.0, "storage2"],
 	[34.0, "terrace"], [44.0, "hall"], [60.0, "tables"], [90.0, "terrace"], [121.0, "window"], [150.0, "hall"]]
 
 var out_dir := ".studioigor/captures/bot3d"
@@ -23,6 +25,9 @@ var real_t := 0.0
 var phase := 0
 var days_to_play := 1
 var day_i := 1
+var fire_demo := false
+var _shots_fire := 0
+var _seen_restock := false
 
 
 func _ready() -> void:
@@ -85,6 +90,11 @@ func _process(delta: float) -> void:
 					shop_tab = "cafe"
 					_show_shop()
 					await _shot("01b_shop_bought")
+					_buy("recipe")
+					_show_recipe()
+					await _shot("01c_recipe")
+					hud.recipe_saved.emit({"name": RECIPE_NAMES[1], "meat": 2, "items": ["tomato", "cabbage", "onion"]})
+					await _shot("01d_shop_recipe_saved")
 				_show_note()
 				real_t = 1.4
 				phase = 2
@@ -98,6 +108,12 @@ func _process(delta: float) -> void:
 				phase = 4
 		4:
 			if g == G.PLAYING:
+				if not fire_demo and shift_t >= 17.0 and grill.slots[0] != null:
+					grill._ignite(0)
+					fire_demo = true
+				if not staff.restocking.is_empty() and not _seen_restock:
+					_seen_restock = true
+					print("BOT3D helper restocking ", staff.restocking.keys(), " at ", int(shift_t))
 				if shot_i < SHOTS.size() and shift_t >= SHOTS[shot_i][0]:
 					_view(SHOTS[shot_i][1])
 					_shot("%02d_%s_%03d" % [shot_i + 2, SHOTS[shot_i][1], int(SHOTS[shot_i][0])])
@@ -130,6 +146,25 @@ func _process(delta: float) -> void:
 
 
 func _act() -> void:
+	if grill.any_fire() and shift_t > 21.0:
+		if not player.held.has("ext"):
+			player.drop()
+			player.hold({"ext": true})
+			return
+		for i in grill.unlocked:
+			if grill.on_fire(i):
+				grill.extinguish(i)
+				player.drop()
+				_shots_fire += 1
+				return
+	if player.held.has("ext") or player.held.has("crate"):
+		player.drop()
+		return
+	if not staff.workers.has("helper"):
+		for id in ["lavash"] + unlocked:
+			if bins.nodes.has(id) and not bins.has(id):
+				bins.refill(id)
+				return
 	if not player.held.is_empty():
 		var target = null
 		if player.held.has("drink"):
@@ -166,8 +201,9 @@ func _act() -> void:
 			return
 	match board.state:
 		BoardS.S.EMPTY:
-			if grill.free_slot() >= 0 and next_uncovered() != null:
-				board.put_lavash()
+			if grill.free_slot() >= 0 and next_uncovered() != null and bins.has("lavash"):
+				if board.put_lavash():
+					bins.take("lavash")
 		BoardS.S.OPEN:
 			var c = _board_target()
 			if c == null:
@@ -181,7 +217,8 @@ func _act() -> void:
 				return
 			for id in c.order.items:
 				if not board.items.has(id):
-					board.add_item(id)
+					if bins.has(id) and board.add_item(id):
+						bins.take(id)
 					return
 			board.roll()
 		BoardS.S.ROLLED:
@@ -197,7 +234,7 @@ func _board_target():
 		if grill.slots[i] != null:
 			taken.append(customer_for(grill.slots[i]["made"]))
 	for c in _waiting():
-		if not c.got_roll.is_empty() or c.has_meta("waiter_roll") or taken.has(c):
+		if not c.needs_roll() or c.has_meta("waiter_roll") or taken.has(c):
 			continue
 		var ok: bool = board.meat <= c.order.meat
 		for id in board.items:

@@ -14,6 +14,8 @@ var move_input := Vector2.ZERO
 var held: Dictionary = {}
 var held_mesh: MeshInstance3D
 var held_can: Node3D
+var held_crate: Node3D
+var held_ext: Node3D
 var hand: Node3D
 var bob := 0.0
 var speed_mult := 1.0
@@ -44,6 +46,16 @@ func _ready() -> void:
 	hand.add_child(held_mesh)
 	held_can = M3.model(hand, "res://assets/models/food/soda-can.glb", Vector3(0, -0.08, 0), 0.45)
 	held_can.visible = false
+	held_crate = Node3D.new()
+	hand.add_child(held_crate)
+	M3.box(held_crate, Vector3(0.34, 0.16, 0.26), Vector3(-0.1, -0.05, 0), M3.mat(Color("#c98b55"), 0.8))
+	M3.box(held_crate, Vector3(0.3, 0.03, 0.22), Vector3(-0.1, 0.04, 0), M3.mat(Color("#6cc24a"), 0.8))
+	held_crate.visible = false
+	held_ext = Node3D.new()
+	hand.add_child(held_ext)
+	M3.cyl(held_ext, 0.05, 0.05, 0.3, Vector3(0, -0.05, 0), M3.mat(Color("#e2493b"), 0.4), 12)
+	M3.box(held_ext, Vector3(0.12, 0.03, 0.03), Vector3(-0.05, 0.12, 0), M3.mat(Color("#2b1d33")))
+	held_ext.visible = false
 
 
 func look(rel: Vector2) -> void:
@@ -52,11 +64,13 @@ func look(rel: Vector2) -> void:
 	pitch = clampf(pitch - rel.y * k, -1.3, 1.0)
 
 
-## Holds a roll (made dict) or a drink ({"drink": true}).
+## Holds a roll (made dict), a drink {"drink"}, a crate {"crate"} or the extinguisher {"ext"}.
 func hold(made: Dictionary) -> void:
 	held = made
 	held_can.visible = made.has("drink")
-	held_mesh.visible = not made.has("drink")
+	held_crate.visible = made.has("crate")
+	held_ext.visible = made.has("ext")
+	held_mesh.visible = not (made.has("drink") or made.has("crate") or made.has("ext"))
 	if held_mesh.visible:
 		M3.set_toast(held_mesh, made["toast"], Bal.b)
 	hand.position.y = -0.44
@@ -68,7 +82,13 @@ func drop() -> Dictionary:
 	held = {}
 	held_mesh.visible = false
 	held_can.visible = false
+	held_crate.visible = false
+	held_ext.visible = false
 	return made
+
+
+func holding_roll() -> bool:
+	return not held.is_empty() and not (held.has("drink") or held.has("crate") or held.has("ext"))
 
 
 func hand_global() -> Vector3:

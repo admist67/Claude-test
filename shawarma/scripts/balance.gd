@@ -7,6 +7,7 @@ var customers: Array = []
 var days: Array = []
 var finale: Array = []
 var upgrades: Array = []
+var quests: Array = []
 var ing_by_id: Dictionary = {}
 ## Live multipliers from the pause-menu tuning sliders (playtest knobs).
 var tune := {"patience": 1.0, "spawn": 1.0, "grill": 1.0, "look": 1.0}
@@ -20,6 +21,7 @@ func _ready() -> void:
 	days = d["days"]
 	finale = d["finale"]
 	upgrades = load_json("res://data/upgrades.json")["upgrades"]
+	quests = load_json("res://data/quests.json")["quests"]
 	for ing in ingredients:
 		ing_by_id[ing["id"]] = ing
 

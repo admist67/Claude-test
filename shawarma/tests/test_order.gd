@@ -30,6 +30,9 @@ func _init() -> void:
 	check("refuse below threshold", pay["refused"] and pay["pay"] == 0)
 	pay = o.payment(1.0, 0.0, 1.0, 0.35, bal)
 	check("no tip when patience ran out", pay["tip"] == 0)
+	var sig := Order.from_recipe({"meat": o.meat, "items": o.items})
+	check("signature pays more", sig.signature and sig.price(bal) == roundi(o.price(bal) * float(bal["signature_mult"])))
+	check("signature matches its recipe", sig.matches({"meat": o.meat, "items": ["garlic", "cabbage", "tomato"]}))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
 	var defs: Array = JSON.parse_string(FileAccess.get_file_as_string("res://data/ingredients.json"))["ingredients"]
