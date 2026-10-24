@@ -46,8 +46,8 @@ files: ENV.md
 ## Phase 5 — Assets and look-dev
 files: ASSETS.md
 - [ ] asset and pipeline research done — check: test -s .studioigor/research/assets.md SKIP: ассеты v0.1: Kenney CC0 + процедурные, решено вместе со стилем (решение #5)
-- [ ] strategy by category agreed — check: user
-- [ ] look-dev scene built per the art bible and captured — check: ls .studioigor/captures/lookdev/*.png
+- [x] strategy by category agreed — check: user
+- [x] look-dev scene built per the art bible and captured — check: ls .studioigor/captures/lookdev/*.png
 - [ ] user approved the look-dev: "this is how the game will look" — check: user
 - [x] everything third-party is in the license registry — check: manual
 

@@ -1,12 +1,102 @@
-{"items": [
-  {"id": "plank", "name": "Доска", "kind": "resource"},
-  {"id": "plastic", "name": "Пластик", "kind": "resource"},
-  {"id": "leaf", "name": "Пальмовый лист", "kind": "resource"},
-  {"id": "rope", "name": "Верёвка", "kind": "resource"},
-  {"id": "coconut", "name": "Кокос", "kind": "food", "food": 12, "water": 10},
-  {"id": "banana", "name": "Банан", "kind": "food", "food": 14, "water": 0},
-  {"id": "pineapple", "name": "Ананас", "kind": "food", "food": 20, "water": 8},
-  {"id": "water", "name": "Бутылка воды", "kind": "food", "food": 0, "water": 35},
-  {"id": "hook", "name": "Крюк", "kind": "tool"},
-  {"id": "hammer", "name": "Молоток", "kind": "tool"}
-]}
+{
+ "items": [
+  {
+   "id": "hook",
+   "name": "Крюк",
+   "kind": "tool"
+  },
+  {
+   "id": "hammer",
+   "name": "Молоток",
+   "kind": "tool"
+  },
+  {
+   "id": "rod",
+   "name": "Удочка",
+   "kind": "tool"
+  },
+  {
+   "id": "plank",
+   "name": "Доска",
+   "kind": "resource"
+  },
+  {
+   "id": "plastic",
+   "name": "Пластик",
+   "kind": "resource"
+  },
+  {
+   "id": "leaf",
+   "name": "Пальмовый лист",
+   "kind": "resource"
+  },
+  {
+   "id": "rope",
+   "name": "Верёвка",
+   "kind": "resource"
+  },
+  {
+   "id": "coconut",
+   "name": "Кокос",
+   "kind": "food",
+   "food": 12,
+   "water": 10
+  },
+  {
+   "id": "banana",
+   "name": "Банан",
+   "kind": "food",
+   "food": 14,
+   "water": 0
+  },
+  {
+   "id": "pineapple",
+   "name": "Ананас",
+   "kind": "food",
+   "food": 20,
+   "water": 8
+  },
+  {
+   "id": "water",
+   "name": "Бутылка воды",
+   "kind": "food",
+   "food": 0,
+   "water": 35
+  },
+  {
+   "id": "fish",
+   "name": "Сырая рыба",
+   "kind": "food",
+   "food": 6,
+   "water": 0
+  },
+  {
+   "id": "big_fish",
+   "name": "Крупная сырая рыба",
+   "kind": "food",
+   "food": 9,
+   "water": 0
+  },
+  {
+   "id": "fish_cooked",
+   "name": "Жареная рыба",
+   "kind": "food",
+   "food": 28,
+   "water": 2
+  },
+  {
+   "id": "big_fish_cooked",
+   "name": "Жареная крупная рыба",
+   "kind": "food",
+   "food": 45,
+   "water": 3
+  },
+  {
+   "id": "cup_water",
+   "name": "Пресная вода",
+   "kind": "food",
+   "food": 0,
+   "water": 40
+  }
+ ]
+}

@@ -28,8 +28,10 @@ var _arc := 1.0
 func _ready() -> void:
 	cfg = Data.b["hook"]
 	top_level = true
-	_head = Looks.hook_head()
-	_head.scale = Vector3.ONE * 1.6
+	var hm := MeshInstance3D.new()
+	hm.mesh = Looks.mesh("hook_head")
+	_head = hm
+	_head.scale = Vector3.ONE * 1.5
 	add_child(_head)
 	_im = ImmediateMesh.new()
 	_rope = MeshInstance3D.new()

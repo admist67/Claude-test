@@ -77,8 +77,25 @@ func _init() -> void:
 		check("recipe item %s" % rec["id"], items.has(rec["id"]))
 		for id: String in rec["cost"]:
 			check("recipe cost %s" % id, items.has(id))
-	for id: String in bal["raft"]["tile_cost"]:
-		check("tile cost %s" % id, items.has(id))
+	var build: Array = _json("res://data/buildables.json")["build"]
+	for d: Dictionary in build:
+		for id: String in d["cost"]:
+			check("build cost %s" % id, items.has(id))
+		for id: String in d.get("fuel", {}):
+			check("fuel %s" % id, items.has(id) and float(d["fuel"][id]) >= float(d["time"]))
+		for id: String in d.get("cook", {}):
+			check("cook %s" % id, items.has(id) and items.has(d["cook"][id]))
+		if d.has("out"):
+			check("station out %s" % d["out"], items.has(d["out"]))
+	for e: Dictionary in bal["fishing"]["catch"]:
+		check("catch %s" % e["item"], items.has(e["item"]))
+	var stats := ["tiles", "minutes", "days", "barrels", "fish", "cooked"]
+	for g: Dictionary in _json("res://data/goals.json")["goals"]:
+		var st: String = g["stat"]
+		var known := st in stats or st.begins_with("built_") or st.begins_with("got_") or st.begins_with("made_")
+		check("goal stat %s" % st, known)
+		if st.begins_with("got_") or st.begins_with("made_"):
+			check("goal item %s" % st, items.has(st.split("_", true, 1)[1]))
 
 	# Loot tables give known items in range; barrels roll twice.
 	var rng := RandomNumberGenerator.new()

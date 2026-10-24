@@ -1,7 +1,7 @@
 class_name TouchControls
 extends Control
 ## Multi-touch input: a floating joystick on the left, look-drags elsewhere, and round
-## buttons (action, grab, bag, pause, hotbar slots) that work while another finger moves.
+## buttons (action, use, bag, pause, hotbar and build slots) that work while another finger moves.
 ## Also maps keyboard/mouse for desktop testing.
 
 signal pressed(button: String)
@@ -9,7 +9,7 @@ signal released(button: String)
 signal looked(rel: Vector2)
 
 const JOY_R := 90.0
-const KEYS := {KEY_SPACE: "action", KEY_F: "action", KEY_E: "grab", KEY_TAB: "bag", KEY_I: "bag", KEY_ESCAPE: "pause"}
+const KEYS := {KEY_SPACE: "action", KEY_F: "action", KEY_E: "use", KEY_TAB: "bag", KEY_I: "bag", KEY_ESCAPE: "pause"}
 
 var move := Vector2.ZERO
 var enabled := false
@@ -20,12 +20,13 @@ var joy_index := -1
 var joy_center := Vector2.ZERO
 var _ptr: Dictionary = {}          # touch index -> {"btn": String, "last": Vector2}
 var _slots := 0
+var _builds := 0
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for n: String in ["action", "grab", "bag", "pause"]:
+	for n: String in ["action", "use", "bag", "pause"]:
 		buttons[n] = {"c": Vector2.ZERO, "r": 40.0, "on": true}
 
 
@@ -38,18 +39,34 @@ func set_slots(n: int) -> void:
 	layout()
 
 
+## Build-choice buttons shown above the hotbar while the hammer is out.
+func set_builds(n: int) -> void:
+	for i in _builds:
+		buttons.erase("build%d" % i)
+	_builds = n
+	for i in n:
+		buttons["build%d" % i] = {"c": Vector2.ZERO, "r": 44.0, "on": true}
+	layout()
+
+
 func layout() -> void:
 	if not buttons.has("action"):
 		return
 	var vs := get_viewport_rect().size
-	_place("action", Vector2(vs.x - 140, vs.y - 150), 78.0)
-	_place("grab", Vector2(vs.x - 300, vs.y - 105), 54.0)
-	_place("bag", Vector2(vs.x - 66, 64), 42.0)
-	_place("pause", Vector2(52, 52), 32.0)
-	var gap := 86.0
+	_place("action", Vector2(vs.x - 135, vs.y - 145), 78.0)
+	_place("use", Vector2(vs.x - 135, vs.y - 330), 58.0)
+	_place("bag", Vector2(vs.x - 66, 66), 42.0)
+	_place("pause", Vector2(52, 52), 34.0)
+	# Many food kinds: squeeze the hotbar between the joystick and the action button.
+	var gap := minf(84.0, (vs.x - 640.0) / maxf(1.0, _slots - 1))
+	var r := minf(38.0, gap * 0.46)
 	var x0 := vs.x / 2.0 - gap * (_slots - 1) / 2.0
 	for i in _slots:
-		_place("slot%d" % i, Vector2(x0 + gap * i, vs.y - 56), 36.0)
+		_place("slot%d" % i, Vector2(x0 + gap * i, vs.y - 54), r)
+	var bgap := 104.0
+	var b0 := vs.x / 2.0 - bgap * (_builds - 1) / 2.0
+	for i in _builds:
+		_place("build%d" % i, Vector2(b0 + bgap * i, vs.y - 168), 44.0)
 
 
 func _place(n: String, c: Vector2, r: float) -> void:
@@ -93,7 +110,7 @@ func _input(event: InputEvent) -> void:
 				_ptr[event.index] = {"btn": b, "last": event.position}
 				held[b] = true
 				pressed.emit(b)
-			elif joy_index < 0 and event.position.x < vs.x * 0.38 and event.position.y > 110.0:
+			elif joy_index < 0 and event.position.x < vs.x * 0.38 and event.position.y > 130.0:
 				joy_index = event.index
 				joy_center = event.position
 				move = Vector2.ZERO
@@ -128,6 +145,8 @@ func _key(e: InputEventKey) -> void:
 		b = KEYS[e.keycode]
 	elif e.keycode >= KEY_1 and e.keycode <= KEY_9 and e.keycode - KEY_1 < _slots:
 		b = "slot%d" % (e.keycode - KEY_1)
+	elif e.keycode >= KEY_F1 and e.keycode <= KEY_F3 and e.keycode - KEY_F1 < _builds:
+		b = "build%d" % (e.keycode - KEY_F1)
 	if b == "":
 		return
 	if e.pressed and not held.has(b):
@@ -142,12 +161,11 @@ func _draw() -> void:
 	if not enabled:
 		return
 	var vs := get_viewport_rect().size
-	if joy_index < 0:
-		var c := Vector2(160, vs.y - 160)
-		draw_circle(c, JOY_R, Color(1, 1, 1, 0.07))
-		draw_arc(c, JOY_R, 0, TAU, 40, Color(1, 1, 1, 0.3), 4.0, true)
-		draw_circle(c, 36.0, Color(1, 1, 1, 0.22))
-	else:
-		draw_circle(joy_center, JOY_R, Color(1, 1, 1, 0.1))
-		draw_arc(joy_center, JOY_R, 0, TAU, 40, Color(1, 1, 1, 0.45), 4.0, true)
-		draw_circle(joy_center + move * JOY_R, 38.0, Color(1, 1, 1, 0.6))
+	var c := Vector2(170, vs.y - 165) if joy_index < 0 else joy_center
+	var knob := c + move * JOY_R
+	var a := 0.55 if joy_index >= 0 else 0.3
+	draw_circle(c, JOY_R, Color(0.03, 0.1, 0.13, 0.28 * a / 0.3))
+	draw_arc(c, JOY_R, 0, TAU, 48, Color(0.95, 0.85, 0.62, a), 4.0, true)
+	draw_arc(c, JOY_R - 9, 0, TAU, 48, Color(0.95, 0.85, 0.62, a * 0.35), 2.0, true)
+	draw_circle(knob, 38.0, Color(0.95, 0.88, 0.7, a + 0.15))
+	draw_arc(knob, 38.0, 0, TAU, 32, Color(0.35, 0.22, 0.1, a + 0.2), 3.0, true)

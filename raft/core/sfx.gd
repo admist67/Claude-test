@@ -1,7 +1,7 @@
 extends Node
 ## Autoload "Sfx": one-shot sounds from assets/sfx and the looping ocean ambience.
 
-const NAMES := ["throw", "splash", "snag", "pop", "reel", "hammer", "eat", "drink", "craft", "click", "hurt", "goal", "build_fail"]
+const NAMES := ["throw", "splash", "snag", "pop", "reel", "hammer", "eat", "drink", "craft", "click", "hurt", "goal", "build_fail", "ready", "ignite"]
 const POOL := 8
 
 var muted := false

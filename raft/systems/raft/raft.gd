@@ -5,9 +5,8 @@ extends Node3D
 
 signal changed
 
-const WOOD := [Color("#c89a5b"), Color("#b7864c"), Color("#d4a86a"), Color("#a97a45")]
-
 var tiles: Dictionary = {}          # Vector2i -> StaticBody3D
+var stations: Dictionary = {}       # Vector2i -> Station
 var tile_size := 1.5
 var cfg: Dictionary
 var _meshes: Array[ArrayMesh] = []
@@ -22,7 +21,7 @@ func _ready() -> void:
 	cfg = Data.b["raft"]
 	tile_size = float(cfg["tile"])
 	for i in 3:
-		_meshes.append(_tile_mesh(i))
+		_meshes.append(build_tile_mesh(tile_size, i))
 
 
 func cell_center(c: Vector2i) -> Vector3:
@@ -75,6 +74,9 @@ func add_tile(c: Vector2i) -> void:
 func remove_tile(c: Vector2i) -> void:
 	if not tiles.has(c) or tiles.size() <= 1:
 		return
+	if stations.has(c):
+		stations[c].queue_free()
+		stations.erase(c)
 	tiles[c].queue_free()
 	tiles.erase(c)
 	_recalc()
@@ -85,7 +87,30 @@ func clear() -> void:
 	for c: Vector2i in tiles:
 		tiles[c].free()
 	tiles.clear()
+	for c: Vector2i in stations:
+		stations[c].free()
+	stations.clear()
 	_recalc()
+
+
+## Builds a station (purifier, grill) on an existing tile.
+func add_station(kind: String, c: Vector2i, def: Dictionary) -> Station:
+	var st := Station.new()
+	st.setup(kind, c, def)
+	st.position = cell_center(c)
+	st.rotation.y = PI
+	add_child(st)
+	stations[c] = st
+	changed.emit()
+	return st
+
+
+func count_stations(kind: String) -> int:
+	var n := 0
+	for c: Vector2i in stations:
+		if stations[c].kind == kind:
+			n += 1
+	return n
 
 
 func cells() -> Array:
@@ -140,19 +165,36 @@ func _process(_delta: float) -> void:
 		mi.position.y = clampf((Ocean.height_at(p.x, p.z) - base) * amp, -0.06, 0.06)
 
 
-## A foundation tile: five planks on two beams with a float underneath.
-func _tile_mesh(seed_i: int) -> ArrayMesh:
+## The tile as an item/ghost preview.
+static func tile_preview_mesh() -> ArrayMesh:
+	return build_tile_mesh(1.5, 0)
+
+
+## A foundation tile: five nailed planks on two dark beams, rope lashings at the corners
+## and two plastic barrels underneath as floats. One mesh, one atlas material.
+static func build_tile_mesh(ts: float, seed_i: int) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11 + seed_i * 31
 	var st := Mk.st_begin()
 	var n := 5
-	var w := (tile_size - 0.04) / float(n)
+	var w := (ts - 0.02) / float(n)
+	var beam_x := ts * 0.33
 	for i in n:
-		var c: Color = WOOD[rng.randi() % WOOD.size()].lightened(rng.randf_range(-0.05, 0.08))
-		var z := -tile_size / 2.0 + w * (i + 0.5)
-		var pl := tile_size - 0.02 - rng.randf_range(0.0, 0.08)
-		Mk.st_box(st, Vector3(pl, 0.09, w - 0.035), Vector3(rng.randf_range(-0.03, 0.03), -0.045 + rng.randf_range(-0.012, 0.012), z), c, rng.randf_range(-0.02, 0.02))
-	for x: float in [-tile_size * 0.32, tile_size * 0.32]:
-		Mk.st_box(st, Vector3(0.16, 0.12, tile_size - 0.06), Vector3(x, -0.15, 0.0), Color("#7a5532"))
-	Mk.st_box(st, Vector3(tile_size * 0.7, 0.22, 0.42), Vector3(0.0, -0.3, 0.0), Color("#3e8fc9") if seed_i != 1 else Color("#d8d2c0"))
+		var z := -ts / 2.0 + 0.01 + w * (i + 0.5)
+		var pl := ts - rng.randf_range(0.0, 0.07)
+		var tint := Color(1.0, 0.93, 0.82).darkened(rng.randf_range(-0.06, 0.16))
+		var px := rng.randf_range(-0.025, 0.025)
+		var y := -0.04 + rng.randf_range(-0.008, 0.008)
+		Mk.st_box(st, Vector3(pl, 0.07, w - 0.028), Vector3(px, y, z), tint, "wood", Vector3(rng.randf_range(-0.01, 0.01), rng.randf_range(-0.015, 0.015), 0.0))
+		for bx: float in [-beam_x, beam_x]:
+			for dz: float in [-w * 0.24, w * 0.24]:
+				Mk.st_box(st, Vector3(0.022, 0.012, 0.022), Vector3(bx + px * 0.5, y + 0.039, z + dz), Color(0.55, 0.55, 0.58), "metal")
+	for bx: float in [-beam_x, beam_x]:
+		Mk.st_box(st, Vector3(0.13, 0.11, ts - 0.04), Vector3(bx, -0.13, 0.0), Color(1, 0.95, 0.9), "wood_dark")
+		for bz: float in [-ts / 2.0 + 0.09, ts / 2.0 - 0.09]:
+			for k in 3:
+				Mk.st_box(st, Vector3(0.17, 0.03, 0.028), Vector3(bx, -0.04 + 0.002 * k, bz + (k - 1) * 0.034), Color(1, 0.97, 0.9), "rope", Vector3(0, 0, rng.randf_range(-0.12, 0.12)), 0.6)
+	var float_tint := Color("#4a86c8") if seed_i != 1 else Color("#e6e1d2")
+	for fz: float in [-ts * 0.24, ts * 0.24]:
+		Mk.st_cyl(st, 0.17, ts * 0.72, Vector3(0.0, -0.32, fz), float_tint, "plastic", Vector3(0, 0, PI / 2.0), 10, 1.5, 0.1)
 	return Mk.st_commit(st)

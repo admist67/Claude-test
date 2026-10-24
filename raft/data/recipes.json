@@ -1,4 +1,29 @@
-{"recipes": [
-  {"id": "rope", "out": 1, "cost": {"leaf": 2}},
-  {"id": "hammer", "out": 1, "cost": {"plank": 3, "rope": 2}, "once": true}
-]}
+{
+ "recipes": [
+  {
+   "id": "rope",
+   "out": 1,
+   "cost": {
+    "leaf": 2
+   }
+  },
+  {
+   "id": "hammer",
+   "out": 1,
+   "cost": {
+    "plank": 3,
+    "rope": 2
+   },
+   "once": true
+  },
+  {
+   "id": "rod",
+   "out": 1,
+   "cost": {
+    "plank": 3,
+    "rope": 3
+   },
+   "once": true
+  }
+ ]
+}

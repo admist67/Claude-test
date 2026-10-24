@@ -1,0 +1,48 @@
+{
+ "build": [
+  {
+   "id": "tile",
+   "name": "Клетка плота",
+   "on": "water",
+   "cost": {
+    "plank": 3,
+    "plastic": 1
+   }
+  },
+  {
+   "id": "purifier",
+   "name": "Очиститель воды",
+   "on": "deck",
+   "cost": {
+    "plastic": 3,
+    "plank": 3,
+    "leaf": 2
+   },
+   "time": 16.0,
+   "out": "cup_water",
+   "fuel": {
+    "leaf": 20.0,
+    "plank": 40.0
+   }
+  },
+  {
+   "id": "grill",
+   "name": "Гриль",
+   "on": "deck",
+   "cost": {
+    "plank": 4,
+    "leaf": 3,
+    "plastic": 1
+   },
+   "time": 14.0,
+   "cook": {
+    "big_fish": "big_fish_cooked",
+    "fish": "fish_cooked"
+   },
+   "fuel": {
+    "leaf": 20.0,
+    "plank": 40.0
+   }
+  }
+ ]
+}

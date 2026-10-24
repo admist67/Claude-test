@@ -6,12 +6,15 @@
 <!-- one line per asset card (references/assets.md): name · category · style · budget · source · status -->
 | asset | category | style | budget | source | status |
 |---|---|---|---|---|---|
-| клетка плота (5 досок, балки, поплавок) | окружение | low-poly vc | 1 draw call | процедурно (raft.gd) | v0.1 |
-| вода | окружение | фасетный шейдер | 1 draw call | процедурно (ocean.gdshader) | v0.1 |
-| доска, пластик, пальмовый лист, верёвка, крюк | пропсы | low-poly vc | 1 dc | процедурно (view/looks.gd) | v0.1 |
-| бочка, молоток, бутылка | пропсы | Kenney | — | Kenney Survival Kit | v0.1 |
+| клетка плота (доски с гвоздями, балки, обвязки, бочки-поплавки) | окружение | low-poly + атлас CC0 | 1 draw call | процедурно (raft.gd) | v0.2 |
+| вода и небо | окружение | шейдеры: нормали, рябь, Френель, облака, звёзды | 1 dc + небо | ocean.gdshader, sky.gdshader | v0.2 |
+| доска, бутылка-пластик, пальмовая ветка, верёвка, крюк | пропсы | low-poly + атлас CC0 | 1 dc | процедурно (view/looks.gd) | v0.2 |
+| бочка, молоток, бутылка, удочка, рыба, станции | пропсы | low-poly + атлас CC0 | 1 dc | процедурно (view/looks.gd) | v0.2 |
+| атлас текстур | материалы | CC0 PBR | 1 материал | tools/build_atlas.py (ambientCG) | v0.2 |
+| вода: рябь и шум | материалы | процедурно | — | tools/gen_textures.py | v0.2 |
+| UI-кит: кнопки, панели, кольца, значки | UI | морской | — | tools/build_ui.py (+ Kenney Game Icons) | v0.2 |
+| 3D-иконки предметов | UI | рендер | — | tools/render_icons.tscn | v0.2 |
 | кокос, банан, ананас | еда | Kenney | — | Kenney Food Kit | v0.1 |
-| иконки UI | UI | flat | — | процедурно (ui/icons.gd) | v0.1 |
 | звуки и шум океана | звук | синтез | — | tools/gen_audio.py | v0.1 |
 | иконка приложения | UI | flat | — | tools/make_icon.py | v0.1 |
 
@@ -32,7 +35,9 @@
 ## License registry
 | asset / pack | source (URL) | license | author | path | attribution |
 |---|---|---|---|---|---|
-| Survival Kit (бочка, молоток, бутылка и др.) | kenney.nl/assets/survival-kit | CC0 | Kenney | assets/models/survival | не требуется |
-| Food Kit (кокос, банан, ананас, рыба) | kenney.nl/assets/food-kit | CC0 | Kenney | assets/models/food | не требуется |
+| Food Kit (кокос, банан, ананас) | kenney.nl/assets/food-kit | CC0 | Kenney | assets/models/food | не требуется |
 | Nunito 800/900 | fonts.google.com/specimen/Nunito | SIL OFL 1.1 | Vernon Adams, Cyreal, Jacques Le Bailly | assets/fonts | в титрах |
-| звуки, иконка, процедурная геометрия | сгенерированы в проекте | собственные | — | assets/sfx, icon.png | — |
+| Wood049, Wood051, Wood092, Rope001, Plastic010, Metal021, Clay005, Bricks105, Fabric030 | ambientcg.com | CC0 | ambientCG (Lennart Demes) | assets/textures/atlas_* | не требуется |
+| Game Icons (pause, cross, exclamation…) | kenney.nl/assets/game-icons | CC0 | Kenney | assets/ui/glyphs | не требуется |
+| Kelly Slab | fonts.google.com/specimen/Kelly+Slab | SIL OFL 1.1 | Denis Masharov | assets/fonts | в титрах |
+| звуки, иконка, процедурная геометрия, UI-кит | сгенерированы в проекте | собственные | — | assets/sfx, assets/ui, icon.png | — |

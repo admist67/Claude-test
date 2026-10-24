@@ -106,6 +106,11 @@ def sfx():
     s["hurt"] = mix(sweep(160, 60, 0.5) * env(len(t), 0.005, 5), lowpass(noise(0.5), 0.1) * env(len(t), 0.005, 8))
     notes = [523.25, 659.25, 783.99, 1046.5]
     s["goal"] = np.concatenate([bell([f, f * 2], 0.13, 10) for f in notes[:-1]] + [bell([notes[-1], notes[-1] * 2], 0.7, 3)])
+    s["ready"] = mix(bell([1046.5, 2093], 0.6, 5), np.concatenate([np.zeros(int(SR * 0.12)), bell([1318.5, 2637], 0.6, 5)]))
+    crackle = np.zeros(int(SR * 0.6))
+    for p in rng.integers(0, len(crackle) - 300, 25):
+        crackle[p:p + 300] += highpass(noise(300 / SR), 0.8) * env(300, 0.0005, 300) * rng.uniform(0.3, 1.0)
+    s["ignite"] = mix(lowpass(noise(0.6), 0.12) * np.sin(np.linspace(0, np.pi, int(SR * 0.6))) * 1.5, crackle * 0.6)
     os.makedirs(OUT, exist_ok=True)
     for name, x in s.items():
         write_wav(os.path.join(OUT, name + ".wav"), norm(x, 0.7))

@@ -33,6 +33,14 @@ func _aim(y: float, p: float) -> void:
 	player.pitch = p
 
 
+## Turns the view toward a raft cell's center (+ height).
+func _look_cell(c: Vector2i, h := 0.0) -> void:
+	var target := raft.to_global(raft.cell_center(c) + Vector3(0, h, 0))
+	var d := target - player.cam.global_position
+	player.yaw = atan2(-d.x, -d.z)
+	player.pitch = atan2(d.y, Vector2(d.x, d.z).length())
+
+
 func _run() -> void:
 	await _wait(2.0)
 	await _shot("00_menu")
@@ -94,6 +102,77 @@ func _run() -> void:
 	_aim(PI, -0.55)
 	await _wait(0.3)
 	await _shot("11_back")
+	# Stations: purifier and grill on the deck.
+	inv.add("plastic", 6)
+	inv.add("plank", 14)
+	inv.add("leaf", 8)
+	inv.add("fish", 2)
+	player.place(raft.cell_center(Vector2i(0, 0)) + Vector3(0, 0.05, 0), 0.0)
+	_select("hammer")
+	builder.kind = "purifier"
+	_look_cell(Vector2i(1, 0))
+	await _wait(0.4)
+	await _shot("18_build_purifier")
+	_on_pressed("action")
+	_on_released("action")
+	builder.kind = "grill"
+	_look_cell(Vector2i(0, 1))
+	await _wait(0.3)
+	_on_pressed("action")
+	_on_released("action")
+	print("stations: ", raft.stations.size())
+	_select("hook")
+	_look_cell(Vector2i(1, 0), 0.4)
+	await _wait(0.3)
+	_on_pressed("use")
+	_look_cell(Vector2i(0, 1), 0.4)
+	await _wait(0.3)
+	_on_pressed("use")
+	await _wait(1.2)
+	await _shot("19_grill_cooking")
+	_look_cell(Vector2i(1, 0), 0.4)
+	await _wait(0.6)
+	await _shot("20_purifier_boiling")
+	for st: Station in raft.stations.values():
+		st.progress = float(st.def["time"]) - 0.3
+	await _wait(0.8)
+	_on_pressed("use")
+	_look_cell(Vector2i(0, 1), 0.4)
+	await _wait(0.3)
+	_on_pressed("use")
+	print("after stations: ", inv.to_dict())
+	# Fishing.
+	inv.add("rope", 3)
+	for r: Dictionary in Data.recipes:
+		if r["id"] == "rod":
+			_craft(r)
+	_select("rod")
+	player.place(raft.cell_center(Vector2i(1, 1)) + Vector3(0, 0.05, 0), 0.0)
+	_aim(0.5, -0.15)
+	_on_pressed("action")
+	await _wait(0.6)
+	_on_released("action")
+	await _wait(1.4)
+	await _shot("21_rod_wait")
+	rod._timer = 0.01
+	await _wait(0.25)
+	await _shot("22_bite")
+	_on_pressed("action")
+	_on_released("action")
+	await _wait(0.4)
+	await _shot("23_caught")
+	print("fish: ", inv.count("fish"), " big: ", inv.count("big_fish"))
+	# Night with a fire on the grill.
+	inv.add("fish", 1)
+	_look_cell(Vector2i(0, 1), 0.4)
+	await _wait(0.2)
+	_on_pressed("use")
+	player.place(raft.cell_center(Vector2i(1, 1)) + Vector3(0, 0.05, 0), 0.0)
+	_look_cell(Vector2i(0, 1), 0.3)
+	daynight.phase = 0.7
+	await _wait(0.6)
+	await _shot("24_night_fire")
+	daynight.phase = 0.2
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0
@@ -111,5 +190,14 @@ func _run() -> void:
 	_respawn()
 	await _wait(0.5)
 	await _shot("15_respawn")
+	# Time of day.
+	_aim(0.4, 0.05)
+	daynight.phase = 0.47
+	await _wait(0.4)
+	await _shot("16_sunset")
+	daynight.phase = 0.72
+	await _wait(0.4)
+	await _shot("17_night")
+	daynight.phase = 0.2
 	print("CAPTURE DONE")
 	get_tree().quit()
