@@ -36,6 +36,7 @@
    },
    "time": 14.0,
    "cook": {
+    "shark_meat": "shark_steak",
     "big_fish": "big_fish_cooked",
     "fish": "fish_cooked"
    },

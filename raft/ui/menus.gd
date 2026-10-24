@@ -42,6 +42,7 @@ func _open(dim: float, framed := false) -> VBoxContainer:
 	var v := VBoxContainer.new()
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_theme_constant_override("separation", 14)
+	_screen.add_child(TapShield.new())
 	if framed:
 		var pc := PanelContainer.new()
 		pc.custom_minimum_size = Vector2(620, 0)

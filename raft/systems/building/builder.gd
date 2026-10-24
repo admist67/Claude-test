@@ -11,6 +11,7 @@ var cell := Vector2i.ZERO
 var has_target := false
 var valid := false
 var active := false
+var repair := false         # the target is a bitten tile to fix, not something new
 var _ghost: MeshInstance3D
 var _ok_mat: StandardMaterial3D
 var _bad_mat: StandardMaterial3D
@@ -41,7 +42,7 @@ func def() -> Dictionary:
 
 
 func cost() -> Dictionary:
-	return def()["cost"]
+	return Data.b["raft"]["repair_cost"] if repair else def()["cost"]
 
 
 func affordable() -> bool:
@@ -52,17 +53,21 @@ func _process(delta: float) -> void:
 	_t += delta
 	has_target = false
 	valid = false
-	if active:
+	repair = false
+	if active and _find_repair():
+		pass
+	elif active:
 		if def()["on"] == "water":
 			_find_water_cell()
 		else:
 			_find_deck_cell()
-	if _ghost_kind != kind:
-		_ghost_kind = kind
-		_ghost.mesh = Looks.mesh(kind)
+	var gk := "tile" if repair else kind
+	if _ghost_kind != gk:
+		_ghost_kind = gk
+		_ghost.mesh = Looks.mesh(gk)
 	_ghost.visible = has_target
 	if has_target:
-		var lift := 0.0 if kind == "tile" else 0.02
+		var lift := 0.0 if _ghost_kind == "tile" else 0.02
 		_ghost.position = raft.cell_center(cell) + Vector3(0, lift + sin(_t * 5.0) * 0.015, 0)
 		_ghost.rotation.y = PI
 		_ghost.material_override = _ok_mat if valid and affordable() else _bad_mat
@@ -78,6 +83,21 @@ func _deck_hit() -> Variant:
 	if Vector2(hit.x - o.x, hit.z - o.z).length() > float(Data.b["raft"]["build_reach"]):
 		return null
 	return hit
+
+
+## Looking at a bitten tile: offer to fix it first.
+func _find_repair() -> bool:
+	var hit: Variant = _deck_hit()
+	if hit == null:
+		return false
+	var c := raft.cell_at(hit)
+	if not raft.damaged(c):
+		return false
+	cell = c
+	has_target = true
+	valid = true
+	repair = true
+	return true
 
 
 func _find_water_cell() -> void:
@@ -115,7 +135,9 @@ func _find_deck_cell() -> void:
 func place() -> bool:
 	if not (has_target and valid) or not inv.pay(cost()):
 		return false
-	if kind == "tile":
+	if repair:
+		raft.repair_tile(cell)
+	elif kind == "tile":
 		raft.add_tile(cell)
 	else:
 		raft.add_station(kind, cell, def())

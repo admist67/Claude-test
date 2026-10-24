@@ -40,6 +40,10 @@ static func held(id: String) -> Node3D:
 				mi.scale = Vector3.ONE * 0.7
 				mi.rotation = Vector3(0.3, -0.4, 0.2)
 				mi.position = Vector3(0.06, -0.12, 0.0)
+			"spear":
+				mi.scale = Vector3.ONE * 0.8
+				mi.rotation = Vector3(-1.35, 0.05, -0.15)
+				mi.position = Vector3(0.0, -0.05, 0.25)
 			"rod":
 				mi.scale = Vector3.ONE * 0.75
 				mi.rotation = Vector3(-0.55, 0.0, -0.5)
@@ -100,6 +104,16 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.018, 0.9, Vector3(0, 0.4, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
 			Mk.st_cyl(st, 0.026, 0.22, Vector3(0, -0.12, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
 			Mk.st_cyl(st, 0.045, 0.04, Vector3(0.04, -0.02, 0), Color(0.6, 0.62, 0.66), "metal", Vector3(0, 0, PI / 2.0), 12)
+		"spear":
+			Mk.st_cyl(st, 0.022, 1.3, Vector3(0, 0.2, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
+			Mk.st_cyl(st, 0.03, 0.14, Vector3(0, 0.82, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
+			Mk.st_box(st, Vector3(0.06, 0.2, 0.015), Vector3(0, 0.97, 0), Color(0.8, 0.82, 0.86), "metal")
+			Mk.st_box(st, Vector3(0.035, 0.07, 0.016), Vector3(0, 1.1, 0), Color(0.85, 0.87, 0.9), "metal")
+		"spear_icon":
+			Mk.st_cyl(st, 0.045, 1.0, Vector3(0, 0.1, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
+			Mk.st_cyl(st, 0.055, 0.16, Vector3(0, 0.58, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
+			Mk.st_box(st, Vector3(0.14, 0.3, 0.03), Vector3(0, 0.78, 0), Color(0.8, 0.82, 0.86), "metal")
+			Mk.st_box(st, Vector3(0.07, 0.1, 0.032), Vector3(0, 0.96, 0), Color(0.85, 0.87, 0.9), "metal")
 		"rod_icon":
 			Mk.st_cyl(st, 0.035, 0.7, Vector3(0, 0.3, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
 			Mk.st_cyl(st, 0.05, 0.22, Vector3(0, -0.12, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
@@ -109,6 +123,10 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.05, 0.05, Vector3(0, 0.025, 0), Color("#f4f1ea"), "plastic", Vector3.ZERO, 10)
 			Mk.st_cyl(st, 0.05, 0.05, Vector3(0, -0.025, 0), Color("#e8452c"), "plastic", Vector3.ZERO, 10)
 			Mk.st_cyl(st, 0.008, 0.08, Vector3(0, 0.08, 0), Color("#e8452c"), "plastic", Vector3.ZERO, 6)
+		"shark_meat", "shark_steak":
+			var cooked := id == "shark_steak"
+			Mk.st_box(st, Vector3(0.3, 0.09, 0.2), Vector3.ZERO, Color("#8a5232") if cooked else Color("#d98b84"), "clay", Vector3(0, 0.2, 0), 0.5)
+			Mk.st_box(st, Vector3(0.28, 0.02, 0.18), Vector3(0, 0.05, 0), Color("#5a3220") if cooked else Color("#7d8a96"), "white", Vector3(0, 0.2, 0))
 		"fish", "big_fish", "fish_cooked", "big_fish_cooked":
 			var big := id.begins_with("big")
 			var cooked := id.ends_with("cooked")
@@ -176,3 +194,80 @@ static func _station(st: SurfaceTool, kind: String) -> void:
 		for z: float in [-0.2, 0.2]:
 			Mk.st_box(st, Vector3(0.7, 0.012, 0.012), Vector3(0, 0.44, z), Color(0.45, 0.46, 0.5), "metal")
 		Mk.st_box(st, Vector3(0.3, 0.14, 0.05), Vector3(0, 0.12, 0.28), Color(0.15, 0.13, 0.12), "ash")
+
+
+## The shark as two meshes, [body, tail]: a lofted body (nose at -Z) with dorsal and
+## pectoral fins; the tail starts at the joint so it can swing. Gray back, white belly.
+static func shark_parts(length := 2.6) -> Array[ArrayMesh]:
+	var rings := 14
+	var seg := 12
+	var joint := 9
+	var back := Color("#3e4e5c")
+	var belly := Color("#d8dcdf")
+	var pts: Array = []
+	for i in rings + 1:
+		var u := float(i) / rings
+		var z := (u - 0.5) * length
+		var r := 0.42 * pow(sin(PI * (0.06 + 0.9 * u)), 0.75) * (1.0 - 0.55 * u * u)
+		var ring: Array = []
+		for j in seg:
+			var a := TAU * j / seg
+			ring.append(Vector3(cos(a) * r * 0.78, sin(a) * r, z))
+		pts.append(ring)
+	var parts: Array[ArrayMesh] = []
+	var r_white := Mk.cell("white")
+	var uv := r_white.get_center()
+	var joint_z: float = pts[joint][0].z
+	for part in 2:
+		var st := Mk.st_begin()
+		st.set_uv(uv)
+		var i0 := 0 if part == 0 else joint
+		var i1 := joint if part == 0 else rings
+		var off := Vector3.ZERO if part == 0 else Vector3(0, 0, -joint_z)
+		for i in range(i0, i1):
+			for j in seg:
+				var a: Vector3 = pts[i][j]
+				var b: Vector3 = pts[i][(j + 1) % seg]
+				var c: Vector3 = pts[i + 1][(j + 1) % seg]
+				var d: Vector3 = pts[i + 1][j]
+				for v: Vector3 in [a, c, b, a, d, c]:
+					var n := Vector3(v.x, v.y, 0).normalized()
+					st.set_color(back.lerp(belly, smoothstep(0.2, -0.45, n.y)))
+					st.set_normal(n)
+					st.set_uv(uv)
+					st.add_vertex(v + off)
+		if part == 0:
+			var tip := Vector3(0, 0.02, -length * 0.52)
+			for j in seg:
+				var a: Vector3 = pts[0][j]
+				var b: Vector3 = pts[0][(j + 1) % seg]
+				for v: Vector3 in [tip, a, b]:
+					st.set_color(back)
+					st.set_normal((v - Vector3(0, 0, -length * 0.4)).normalized())
+					st.set_uv(uv)
+					st.add_vertex(v)
+			var zf := -length * 0.08
+			_fin(st, [Vector3(0, 0.3, zf - 0.32), Vector3(0, 1.15, zf + 0.16), Vector3(0, 0.3, zf + 0.34)], back.darkened(0.15), uv)
+			for sx: float in [-1.0, 1.0]:
+				_fin(st, [Vector3(sx * 0.25, -0.15, -length * 0.2), Vector3(sx * 0.75, -0.42, -length * 0.02), Vector3(sx * 0.25, -0.15, -length * 0.05)], back, uv)
+			for sx: float in [-1.0, 1.0]:
+				Mk.st_box(st, Vector3(0.03, 0.04, 0.04), Vector3(sx * 0.2, 0.08, -length * 0.38), Color(0.05, 0.05, 0.06), "white")
+			Mk.st_box(st, Vector3(0.22, 0.02, 0.12), Vector3(0, -0.16, -length * 0.4), Color(0.25, 0.12, 0.12), "white")
+		else:
+			var tz := length / 2.0 - joint_z
+			_fin(st, [Vector3(0, 0.0, tz - 0.15), Vector3(0, 0.7, tz + 0.35), Vector3(0, 0.05, tz + 0.05)], back.darkened(0.1), uv)
+			_fin(st, [Vector3(0, 0.0, tz - 0.12), Vector3(0, -0.42, tz + 0.25), Vector3(0, -0.02, tz + 0.04)], back.darkened(0.1), uv)
+		parts.append(Mk.st_commit(st))
+	return parts
+
+
+## A double-sided fin triangle.
+static func _fin(st: SurfaceTool, p: Array, c: Color, uv: Vector2) -> void:
+	var n: Vector3 = (p[1] - p[0]).cross(p[2] - p[0]).normalized()
+	for side: float in [1.0, -1.0]:
+		var order := [p[0], p[1], p[2]] if side > 0.0 else [p[0], p[2], p[1]]
+		for v: Vector3 in order:
+			st.set_color(c)
+			st.set_normal(n * side * -1.0)
+			st.set_uv(uv)
+			st.add_vertex(v)

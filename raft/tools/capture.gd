@@ -173,6 +173,55 @@ func _run() -> void:
 	await _wait(0.6)
 	await _shot("24_night_fire")
 	daynight.phase = 0.2
+	# The shark: attack, spear fight, repair.
+	inv.add("plank", 6)
+	inv.add("rope", 3)
+	inv.add("plastic", 3)
+	for r: Dictionary in Data.recipes:
+		if r["id"] == "spear":
+			_craft(r)
+	shark.reset(0.0)
+	await _wait(0.2)
+	shark._timer = 0.0
+	var t2 := 0.0
+	while shark.state != Shark.State.BITE and t2 < 15.0:
+		await _wait(0.2)
+		t2 += 0.2
+	print("shark state ", shark.state, " target ", shark.target)
+	player.place(raft.nearest_tile(raft.centroid()), 0.0)
+	var sp := shark.global_position - player.cam.global_position
+	player.yaw = atan2(-sp.x, -sp.z) + 0.6
+	player.pitch = -0.35
+	await _wait(1.6)
+	await _shot("25_shark_warning")
+	player.place(raft.cell_center(shark.target), 0.0)
+	await _wait(0.2)
+	sp = shark.global_position - player.cam.global_position
+	player.yaw = atan2(-sp.x, -sp.z)
+	player.pitch = atan2(sp.y, Vector2(sp.x, sp.z).length())
+	await _wait(0.4)
+	await _shot("26_shark_bite")
+	_select("spear")
+	for i in 2:
+		_on_pressed("action")
+		await _wait(0.5)
+	await _shot("27_shark_hit")
+	print("shark hp ", shark.hp, " state ", shark.state, " tile hp ", raft.tile_hp(shark.target))
+	shark.hp = 1
+	shark.global_position = player.cam.global_position + player.flat_forward() * 2.0
+	shark.state = Shark.State.BITE
+	_on_pressed("action")
+	await _wait(1.0)
+	await _shot("28_shark_dead")
+	print("after kill: ", inv.count("shark_meat"), " kills ", stats.get("shark_kills", 0))
+	var bitten: Array = raft.hp.keys()
+	if not bitten.is_empty():
+		_select("hammer")
+		_look_cell(bitten[0])
+		await _wait(0.4)
+		await _shot("29_repair")
+		_on_pressed("action")
+		print("repaired: ", not raft.damaged(bitten[0]))
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

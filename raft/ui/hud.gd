@@ -68,6 +68,7 @@ func _draw() -> void:
 	_draw_vitals()
 	_draw_clock(vs)
 	_draw_goal(vs)
+	_draw_shark(vs)
 	_draw_crosshair(vs)
 	_draw_hotbar()
 	_draw_builds()
@@ -127,6 +128,40 @@ func _draw_goal(vs: Vector2) -> void:
 	_text(g["prog"], r.position + Vector2(w - 92, 39), 22, Color("#8a3b12"), HORIZONTAL_ALIGNMENT_RIGHT, 70, title, 0)
 
 
+## While the shark attacks: a red warning under the goal and an arrow toward it.
+func _draw_shark(vs: Vector2) -> void:
+	var sh: Shark = game.shark
+	if not sh.attacking():
+		return
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 140.0)
+	_label_pill_col("Акула атакует плот!", Vector2(vs.x / 2.0 - 30, 108), Color("#ff8a7a", pulse))
+	var cam: Camera3D = game.player.cam
+	var p: Vector3 = sh.global_position
+	var c := vs / 2.0
+	var dir: Vector2
+	if cam.is_position_behind(p):
+		var sp := cam.unproject_position(p)
+		dir = (c - sp).normalized()
+	else:
+		var sp := cam.unproject_position(p)
+		if Rect2(Vector2(60, 60), vs - Vector2(120, 120)).has_point(sp):
+			draw_arc(sp, 40.0 * pulse, 0, TAU, 32, Color("#ff5a4a", 0.9), 4.0, true)
+			return
+		dir = (sp - c).normalized()
+	var edge := c + dir * minf(vs.x * 0.42, vs.y * 0.4)
+	var tip := edge + dir * 26.0
+	var side := dir.orthogonal() * 18.0
+	draw_colored_polygon(PackedVector2Array([tip, edge + side, edge - side]), Color("#ff5a4a", pulse))
+	Icons.draw(self, "spear", edge - dir * 34.0, 40.0, Color(1, 1, 1, pulse))
+
+
+func _label_pill_col(text: String, c: Vector2, col: Color) -> void:
+	var w := title.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x + 40.0
+	var r := Rect2(c - Vector2(w / 2.0, 20), Vector2(w, 40))
+	_box("pill", r, 19)
+	_text(text, r.position + Vector2(0, 28), 24, col, HORIZONTAL_ALIGNMENT_CENTER, w, title, 0)
+
+
 func _draw_crosshair(vs: Vector2) -> void:
 	var c := vs / 2.0
 	if game.grab_target or game.station_target:
@@ -138,14 +173,34 @@ func _draw_crosshair(vs: Vector2) -> void:
 	elif game.rod.state == Rod.State.CHARGE:
 		power = game.rod.power
 	if power >= 0.0:
-		var r := Rect2(c + Vector2(-90, 46), Vector2(180, 22))
-		_box("pill", r, 11)
-		var col := UiTheme.CREAM.lerp(Color("#ff6a3d"), power)
-		draw_rect(Rect2(r.position + Vector2(8, 7), Vector2((r.size.x - 16) * power, 8)), col)
+		_power_bar(Rect2(c + Vector2(-110, 46), Vector2(220, 30)), power)
 	if game.rod.state == Rod.State.BITE:
 		var s := 1.0 + 0.15 * sin(Time.get_ticks_msec() / 50.0)
 		Icons.draw(self, "exclamation", c + Vector2(0, -80), 70.0 * s, Color("#ffd24a"))
 		_text("Клюёт! Жми!", c + Vector2(-150, 100), 38, Color("#ffd24a"), HORIZONTAL_ALIGNMENT_CENTER, 300, title)
+
+
+## A rounded charge bar inside the pill: warm gradient, a highlight, a glow at full power.
+func _power_bar(r: Rect2, power: float) -> void:
+	_box("pill", r, 15)
+	var inner := r.grow(-7.0)
+	var h := inner.size.y
+	_round_rect(inner, Color(0, 0, 0, 0.35), h / 2.0)
+	var w := maxf(h, inner.size.x * power)
+	var fill := Rect2(inner.position, Vector2(w, h))
+	var col := UiTheme.GOLD.lerp(Color("#ff6a3d"), power)
+	if power >= 1.0:
+		col = col.lerp(Color.WHITE, 0.25 + 0.25 * sin(Time.get_ticks_msec() / 60.0))
+	_round_rect(fill, col, h / 2.0)
+	_round_rect(Rect2(fill.position + Vector2(h * 0.35, 2.0), Vector2(maxf(0.0, w - h * 0.7), h * 0.3)), Color(1, 1, 1, 0.35), h * 0.15)
+
+
+func _round_rect(r: Rect2, col: Color, radius: float) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(int(radius))
+	sb.anti_aliasing = true
+	sb.draw(get_canvas_item(), r)
 
 
 func _draw_buttons() -> void:

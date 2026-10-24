@@ -1,14 +1,113 @@
-{"debris": [
-  {"id": "plank", "weight": 38, "loot": [{"item": "plank", "n": [1, 1], "w": 1}]},
-  {"id": "plastic", "weight": 24, "loot": [{"item": "plastic", "n": [1, 1], "w": 1}]},
-  {"id": "leaf", "weight": 26, "loot": [{"item": "leaf", "n": [1, 1], "w": 1}]},
-  {"id": "barrel", "weight": 12, "rolls": 2, "loot": [
-    {"item": "water", "n": [1, 1], "w": 30},
-    {"item": "coconut", "n": [1, 2], "w": 22},
-    {"item": "banana", "n": [1, 2], "w": 16},
-    {"item": "pineapple", "n": [1, 1], "w": 8},
-    {"item": "plank", "n": [2, 3], "w": 12},
-    {"item": "plastic", "n": [1, 2], "w": 8},
-    {"item": "rope", "n": [1, 2], "w": 4}
-  ]}
-]}
+{
+ "debris": [
+  {
+   "id": "plank",
+   "weight": 38,
+   "loot": [
+    {
+     "item": "plank",
+     "n": [
+      1,
+      1
+     ],
+     "w": 1
+    }
+   ],
+   "lift": 0.03
+  },
+  {
+   "id": "plastic",
+   "weight": 24,
+   "loot": [
+    {
+     "item": "plastic",
+     "n": [
+      1,
+      1
+     ],
+     "w": 1
+    }
+   ],
+   "lift": 0.03
+  },
+  {
+   "id": "leaf",
+   "weight": 26,
+   "loot": [
+    {
+     "item": "leaf",
+     "n": [
+      1,
+      1
+     ],
+     "w": 1
+    }
+   ],
+   "lift": 0.08
+  },
+  {
+   "id": "barrel",
+   "weight": 12,
+   "rolls": 2,
+   "loot": [
+    {
+     "item": "water",
+     "n": [
+      1,
+      1
+     ],
+     "w": 30
+    },
+    {
+     "item": "coconut",
+     "n": [
+      1,
+      2
+     ],
+     "w": 22
+    },
+    {
+     "item": "banana",
+     "n": [
+      1,
+      2
+     ],
+     "w": 16
+    },
+    {
+     "item": "pineapple",
+     "n": [
+      1,
+      1
+     ],
+     "w": 8
+    },
+    {
+     "item": "plank",
+     "n": [
+      2,
+      3
+     ],
+     "w": 12
+    },
+    {
+     "item": "plastic",
+     "n": [
+      1,
+      2
+     ],
+     "w": 8
+    },
+    {
+     "item": "rope",
+     "n": [
+      1,
+      2
+     ],
+     "w": 4
+    }
+   ],
+   "lift": 0.0
+  }
+ ]
+}

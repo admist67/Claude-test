@@ -111,6 +111,12 @@ def sfx():
     for p in rng.integers(0, len(crackle) - 300, 25):
         crackle[p:p + 300] += highpass(noise(300 / SR), 0.8) * env(300, 0.0005, 300) * rng.uniform(0.3, 1.0)
     s["ignite"] = mix(lowpass(noise(0.6), 0.12) * np.sin(np.linspace(0, np.pi, int(SR * 0.6))) * 1.5, crackle * 0.6)
+    crunch = np.concatenate([highpass(noise(0.05), 0.3) * env(int(SR * 0.05), 0.001, 30) for _ in range(4)])
+    s["bite"] = mix(crunch, bell([95, 190], 0.4, 9) * 0.8, lowpass(noise(0.4), 0.06) * env(int(SR * 0.4), 0.002, 9))
+    s["shark_hit"] = mix(bell([120, 260], 0.3, 18), lowpass(noise(0.5), 0.25) * env(int(SR * 0.5), 0.003, 8) * 0.8)
+    t = t_axis(1.1)
+    drone = np.sin(2 * np.pi * 73.4 * t) * 0.6 + np.sin(2 * np.pi * 77.8 * t) * 0.4
+    s["warning"] = drone * (env(len(t), 0.02, 2.4) + np.concatenate([np.zeros(int(SR * 0.45)), env(len(t) - int(SR * 0.45), 0.02, 3.0)]))
     os.makedirs(OUT, exist_ok=True)
     for name, x in s.items():
         write_wav(os.path.join(OUT, name + ".wav"), norm(x, 0.7))

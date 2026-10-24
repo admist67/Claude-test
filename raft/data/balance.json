@@ -39,15 +39,19 @@
     "despawn_behind": 30.0,
     "max": 45,
     "prefill": 22,
-    "sink": 0.06
+    "sink": 0.02
   },
   "raft": {
     "tile": 1.5,
-    "float": 0.22,
+    "float": 0.16,
     "follow": 3.2,
     "tilt": 0.45,
     "tile_bob": 0.3,
-    "build_reach": 5.5
+    "build_reach": 5.5,
+    "tile_hp": 3,
+    "repair_cost": {
+      "plank": 1
+    }
   },
   "ocean": {
     "size": 150.0,
@@ -57,25 +61,25 @@
       [
         0.15,
         1.0,
-        0.18,
+        0.12,
         21.0
       ],
       [
         -0.55,
         0.8,
-        0.1,
+        0.065,
         12.5
       ],
       [
         0.8,
         0.5,
-        0.055,
+        0.035,
         7.5
       ],
       [
         -0.3,
         -1.0,
-        0.03,
+        0.02,
         5.2
       ]
     ]
@@ -105,5 +109,24 @@
         "w": 28
       }
     ]
+  },
+  "shark": {
+    "first_delay": 180.0,
+    "interval": [
+      75.0,
+      125.0
+    ],
+    "night_mult": 0.7,
+    "orbit_radius": 8.0,
+    "speed": 2.6,
+    "approach_speed": 4.0,
+    "bite_every": 2.4,
+    "hp": 5,
+    "flee_time": 28.0,
+    "respawn": 200.0,
+    "hit_reach": 3.2,
+    "drop": {
+      "shark_meat": 3
+    }
   }
 }

@@ -22,7 +22,7 @@ void sky() {
 	vec3 d = EYEDIR;
 	float e = d.y;
 	vec3 col = mix(horizon_color, top_color, pow(clamp(e, 0.0, 1.0), 0.5));
-	col = mix(col, horizon_color * 0.8, smoothstep(0.0, -0.1, e));
+	col = mix(col, vec3(0.01, 0.07, 0.11) * (0.3 + 0.7 * (1.0 - night)), smoothstep(0.0, -0.06, e));
 	float sd = max(dot(d, normalize(sun_dir)), 0.0);
 	col += sun_color * (pow(sd, 900.0) * 14.0 + pow(sd, 12.0) * 0.28 + pow(sd, 3.0) * 0.06);
 	if (night > 0.01) {

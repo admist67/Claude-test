@@ -5,11 +5,13 @@ extends Node3D
 
 signal changed
 
+static var _mesh_cache: Dictionary = {}
+
 var tiles: Dictionary = {}          # Vector2i -> StaticBody3D
 var stations: Dictionary = {}       # Vector2i -> Station
+var hp: Dictionary = {}             # Vector2i -> bites left; missing = whole tile
 var tile_size := 1.5
 var cfg: Dictionary
-var _meshes: Array[ArrayMesh] = []
 var _y := 0.0
 var _pitch := 0.0
 var _roll := 0.0
@@ -20,8 +22,6 @@ var _ext := 1.5
 func _ready() -> void:
 	cfg = Data.b["raft"]
 	tile_size = float(cfg["tile"])
-	for i in 3:
-		_meshes.append(build_tile_mesh(tile_size, i))
 
 
 func cell_center(c: Vector2i) -> Vector3:
@@ -62,7 +62,7 @@ func add_tile(c: Vector2i) -> void:
 	body.add_child(cs)
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
-	mi.mesh = _meshes[absi(c.x * 7 + c.y * 13) % _meshes.size()]
+	mi.mesh = _mesh_for(c)
 	mi.rotation.y = PI if (c.x + c.y) % 2 == 0 else 0.0
 	body.add_child(mi)
 	add_child(body)
@@ -74,6 +74,7 @@ func add_tile(c: Vector2i) -> void:
 func remove_tile(c: Vector2i) -> void:
 	if not tiles.has(c) or tiles.size() <= 1:
 		return
+	hp.erase(c)
 	if stations.has(c):
 		stations[c].queue_free()
 		stations.erase(c)
@@ -90,6 +91,7 @@ func clear() -> void:
 	for c: Vector2i in stations:
 		stations[c].free()
 	stations.clear()
+	hp.clear()
 	_recalc()
 
 
@@ -111,6 +113,80 @@ func count_stations(kind: String) -> int:
 		if stations[c].kind == kind:
 			n += 1
 	return n
+
+
+func max_hp() -> int:
+	return int(cfg["tile_hp"])
+
+
+func tile_hp(c: Vector2i) -> int:
+	return hp.get(c, max_hp())
+
+
+func damaged(c: Vector2i) -> bool:
+	return tiles.has(c) and tile_hp(c) < max_hp()
+
+
+## A shark bite. Returns true when the tile broke off and sank (the last tile never does).
+func damage_tile(c: Vector2i) -> bool:
+	if not tiles.has(c):
+		return false
+	var left := tile_hp(c) - 1
+	if left <= 0 and tiles.size() > 1:
+		remove_tile(c)
+		return true
+	hp[c] = maxi(1, left)
+	refresh_tile(c)
+	var mi: Node3D = tiles[c].get_node("Mesh")
+	var tw := create_tween()
+	tw.tween_property(mi, "rotation:z", 0.08, 0.06)
+	tw.tween_property(mi, "rotation:z", -0.05, 0.08)
+	tw.tween_property(mi, "rotation:z", 0.0, 0.1)
+	return false
+
+
+func repair_tile(c: Vector2i) -> void:
+	hp.erase(c)
+	if tiles.has(c):
+		refresh_tile(c)
+
+
+## Tiles with a free side: what a shark can reach.
+func edge_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for c: Vector2i in tiles:
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if not tiles.has(c + d):
+				out.append(c)
+				break
+	return out
+
+
+func refresh_tile(c: Vector2i) -> void:
+	var mi: MeshInstance3D = tiles[c].get_node("Mesh")
+	mi.mesh = _mesh_for(c)
+
+
+func _mesh_for(c: Vector2i) -> ArrayMesh:
+	var variant := absi(c.x * 7 + c.y * 13) % 3
+	var missing := max_hp() - tile_hp(c)
+	var key := "%d/%d" % [variant, missing]
+	if not _mesh_cache.has(key):
+		_mesh_cache[key] = build_tile_mesh(tile_size, variant, missing)
+	return _mesh_cache[key]
+
+
+## The center of the tile nearest to a raft-local point (safe spot for the player).
+func nearest_tile(local: Vector3) -> Vector3:
+	var best := Vector3.ZERO
+	var bd := INF
+	for c: Vector2i in tiles:
+		var p := cell_center(c)
+		var d := Vector2(p.x - local.x, p.z - local.z).length()
+		if d < bd:
+			bd = d
+			best = p
+	return best
 
 
 func cells() -> Array:
@@ -172,19 +248,23 @@ static func tile_preview_mesh() -> ArrayMesh:
 
 ## A foundation tile: five nailed planks on two dark beams, rope lashings at the corners
 ## and two plastic barrels underneath as floats. One mesh, one atlas material.
-static func build_tile_mesh(ts: float, seed_i: int) -> ArrayMesh:
+static func build_tile_mesh(ts: float, seed_i: int, missing := 0) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11 + seed_i * 31
 	var st := Mk.st_begin()
 	var n := 5
 	var w := (ts - 0.02) / float(n)
 	var beam_x := ts * 0.33
+	# Bitten tiles lose planks from the edge inwards.
+	var gone := [0, 4, 1, 3].slice(0, missing)
 	for i in n:
 		var z := -ts / 2.0 + 0.01 + w * (i + 0.5)
 		var pl := ts - rng.randf_range(0.0, 0.07)
 		var tint := Color(1.0, 0.93, 0.82).darkened(rng.randf_range(-0.06, 0.16))
 		var px := rng.randf_range(-0.025, 0.025)
 		var y := -0.04 + rng.randf_range(-0.008, 0.008)
+		if i in gone:
+			continue
 		Mk.st_box(st, Vector3(pl, 0.07, w - 0.028), Vector3(px, y, z), tint, "wood", Vector3(rng.randf_range(-0.01, 0.01), rng.randf_range(-0.015, 0.015), 0.0))
 		for bx: float in [-beam_x, beam_x]:
 			for dz: float in [-w * 0.24, w * 0.24]:

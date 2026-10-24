@@ -99,6 +99,13 @@ func _cost(cost: Dictionary) -> HBoxContainer:
 	return row
 
 
+## Shows the bag; a short shield swallows the tap that opened it.
+func open() -> void:
+	refresh()
+	visible = true
+	add_child(TapShield.new())
+
+
 func refresh() -> void:
 	for box: Node in [_res, _list, _builds]:
 		for c in box.get_children():

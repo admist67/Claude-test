@@ -16,6 +16,11 @@
    "kind": "tool"
   },
   {
+   "id": "spear",
+   "name": "Копьё",
+   "kind": "tool"
+  },
+  {
    "id": "plank",
    "name": "Доска",
    "kind": "resource"
@@ -97,6 +102,20 @@
    "kind": "food",
    "food": 0,
    "water": 40
+  },
+  {
+   "id": "shark_meat",
+   "name": "Сырое акулье мясо",
+   "kind": "food",
+   "food": 8,
+   "water": 0
+  },
+  {
+   "id": "shark_steak",
+   "name": "Акулий стейк",
+   "kind": "food",
+   "food": 55,
+   "water": 2
   }
  ]
 }

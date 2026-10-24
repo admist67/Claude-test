@@ -20,7 +20,7 @@ func setup(d: Dictionary, r: Raft, cfg: Dictionary, rng: RandomNumberGenerator) 
 	id = d["id"]
 	raft = r
 	drift = float(cfg["drift_speed"]) * rng.randf_range(0.85, 1.15)
-	sink = float(cfg["sink"])
+	sink = float(cfg["sink"]) - float(d.get("lift", 0.0))
 	spin = rng.randf_range(-0.3, 0.3)
 	rotation.y = rng.randf() * TAU
 	_t = rng.randf() * 10.0

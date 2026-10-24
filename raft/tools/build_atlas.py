@@ -75,8 +75,8 @@ def gen_palm():
             ang = math.radians(rnd.uniform(32, 44))
             tip = (cx + side * length * math.cos(ang) * 1.0, y - length * math.sin(ang) * 0.75)
             w = s * 0.042 * (1.0 - 0.45 * t)
-            g = rnd.randint(110, 160)
-            col = (rnd.randint(55, 80), g, rnd.randint(35, 55), 255)
+            g = rnd.randint(150, 200)
+            col = (rnd.randint(80, 110), g, rnd.randint(40, 60), 255)
             nx, ny = -(tip[1] - y), tip[0] - cx
             nl = math.hypot(nx, ny) or 1
             nx, ny = nx / nl * w, ny / nl * w

@@ -23,7 +23,7 @@ VERIFIED: yes
 RUN: пользователь играет на телефоне — BUILD, затем отправка build/plot.apk в чат
 TEST: godot --headless --path . -s res://tests/test_logic.gd
 BUILD: godot --headless --path . --export-debug "Android" build/plot.apk
-CAPTURE: xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --resolution 1280x720 res://tools/capture.tscn -- --out .studioigor/captures/v2
+CAPTURE: xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --resolution 1280x720 res://tools/capture.tscn -- --out .studioigor/captures/v3
 EDITOR: нет (облако без экрана)
 
 ## Pitfalls
@@ -34,4 +34,5 @@ EDITOR: нет (облако без экрана)
 - set_anchors_and_offsets_preset, а не set_anchors_preset — иначе Control под CanvasLayer остаётся нулевого размера.
 - Металл из атласа без отражений неба выходит чёрным: metallic-множитель 0.45.
 - Иконки предметов перегенерировать после правок view/looks.gd: xvfb-run … godot --path . --rendering-driver opengl3 res://tools/render_icons.tscn
+- Новый экран, открытый по тапу, ловит тот же тап эмуляцией мыши, пока кнопки лежат в (0,0): открывать call_deferred + TapShield.
 - data/*.json не ресурсы: include_filter="data/*.json" в export_presets.cfg.

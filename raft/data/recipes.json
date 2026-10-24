@@ -24,6 +24,16 @@
     "rope": 3
    },
    "once": true
+  },
+  {
+   "id": "spear",
+   "out": 1,
+   "cost": {
+    "plank": 3,
+    "rope": 2,
+    "plastic": 2
+   },
+   "once": true
   }
  ]
 }

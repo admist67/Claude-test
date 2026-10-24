@@ -24,6 +24,7 @@ var raft: Raft
 var player: Player
 var hook: Hook
 var rod: Rod
+var shark: Shark
 var field: DebrisField
 var builder: Builder
 var touch: TouchControls
@@ -114,6 +115,22 @@ func _build_world() -> void:
 		hud.toast(text, "fish")
 		Sfx.play("build_fail", -10.0)
 	)
+	shark = Shark.new()
+	shark.raft = raft
+	shark.daynight = daynight
+	add_child(shark)
+	shark.attacked.connect(_on_shark_attack)
+	shark.bit.connect(_on_shark_bite)
+	shark.hurt.connect(func(_left: int) -> void:
+		Sfx.play("shark_hit")
+		_burst(shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
+	)
+	shark.fled.connect(func() -> void:
+		stats["shark_driven"] = int(stats.get("shark_driven", 0)) + 1
+		hud.toast("Акула уплыла зализывать раны", "spear")
+		_check_goals()
+	)
+	shark.died.connect(_on_shark_died)
 	daynight.new_day.connect(func(d: int) -> void:
 		hud.toast("Наступил день %d" % d, "sun")
 		_check_goals()
@@ -183,6 +200,7 @@ func _new_state() -> void:
 	sel = 0
 	daynight.phase = float(Data.b["day"]["start_phase"])
 	daynight.day = 1
+	shark.reset(float(Data.b["shark"]["first_delay"]))
 	player.place(raft.centroid())
 	_reset_sea()
 
@@ -207,6 +225,7 @@ func _state() -> Dictionary:
 		"yaw": player.yaw,
 		"stations": raft.stations.values().map(func(st: Station) -> Dictionary: return st.to_dict()),
 		"phase": daynight.phase,
+		"hp": raft.hp.keys().map(func(c: Vector2i) -> Array: return [c.x, c.y, raft.hp[c]]),
 		"day": daynight.day,
 	}
 
@@ -223,6 +242,12 @@ func _apply_save(d: Dictionary) -> void:
 			var c := Vector2i(int(sd["cell"][0]), int(sd["cell"][1]))
 			if raft.has_tile(c):
 				raft.add_station(sd["kind"], c, Data.build_by_id[sd["kind"]]).load_state(sd)
+	for e: Array in d.get("hp", []):
+		var hc := Vector2i(int(e[0]), int(e[1]))
+		if raft.has_tile(hc):
+			raft.hp[hc] = int(e[2])
+			raft.refresh_tile(hc)
+	shark.reset(float(Data.b["shark"]["first_delay"]))
 	daynight.phase = float(d.get("phase", Data.b["day"]["start_phase"]))
 	daynight.day = int(d.get("day", 1))
 	inv.from_dict(d["inv"])
@@ -233,7 +258,7 @@ func _apply_save(d: Dictionary) -> void:
 	played = float(d["played"])
 	var p: Array = d["pos"]
 	var pos := Vector3(p[0], p[1], p[2])
-	player.place(pos if raft.on_raft(pos) else raft.centroid(), float(d["yaw"]))
+	player.place(pos if raft.on_raft(pos) else raft.nearest_tile(pos), float(d["yaw"]))
 	_reset_sea()
 
 
@@ -309,8 +334,7 @@ func _resume() -> void:
 func _open_bag() -> void:
 	mode = Mode.BAG
 	_freeze_input()
-	bag.refresh()
-	bag.visible = true
+	bag.open()
 
 
 func _close_bag() -> void:
@@ -332,7 +356,7 @@ func _die() -> void:
 func _respawn() -> void:
 	vitals.respawn(Data.b["vitals"])
 	inv.lose_share(float(Data.b["vitals"]["death_keep"]), Data.items)
-	player.place(raft.centroid(), player.yaw)
+	player.place(raft.nearest_tile(raft.centroid()), player.yaw)
 	menus.hide_all()
 	mode = Mode.PLAY
 	touch.enabled = true
@@ -388,12 +412,13 @@ func _on_pressed(b: String) -> void:
 			_action_down()
 		"use":
 			_use()
+		# Open screens on the next frame: the same tap must not reach their fresh buttons.
 		"bag":
 			Sfx.play("click", -6.0)
-			_open_bag()
+			_open_bag.call_deferred()
 		"pause":
 			Sfx.play("click", -6.0)
-			_pause()
+			_pause.call_deferred()
 		_:
 			if b.begins_with("slot"):
 				sel = int(b.substr(4))
@@ -420,11 +445,14 @@ func _action_down() -> void:
 		hook.press()
 	elif id == "rod":
 		rod.press()
+	elif id == "spear":
+		_stab()
 	elif id == "hammer":
+		var fixing := builder.repair
 		if builder.place():
 			player.swing()
 			Sfx.play("hammer")
-			hud.toast("Плот стал больше!", "tile")
+			hud.toast("Клетка починена" if fixing else ("Плот стал больше!" if builder.kind == "tile" else "Построено: " + builder.def()["name"]), "hammer" if fixing else builder.kind)
 			_check_goals()
 		else:
 			Sfx.play("build_fail", -4.0)
@@ -456,6 +484,69 @@ func _use() -> void:
 	elif grab_target:
 		player.swing()
 		_collect(grab_target)
+
+
+func _stab() -> void:
+	player.swing()
+	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z):
+		hud.toast("Попал!" if shark.hp > 0 else "Акула повержена!", "spear")
+	else:
+		Sfx.play("throw", -6.0, 0.2)
+
+
+func _on_shark_attack(_cell: Vector2i) -> void:
+	Sfx.play("warning", -2.0)
+	hud.toast("Акула грызёт плот!", "spear")
+	if inv.count("spear") == 0 and not stats.has("spear_hint"):
+		stats["spear_hint"] = 1
+		hud.toast("Сделай копьё в сумке, чтобы отбиться", "spear")
+
+
+func _on_shark_bite(cell: Vector2i, sank: bool) -> void:
+	Sfx.play("bite")
+	var p := raft.to_global(raft.cell_center(cell))
+	_burst(p, Color("#8a6a48"), 14)
+	_on_splash(p)
+	Input.vibrate_handheld(120)
+	if sank:
+		hud.toast("Акула утащила клетку плота!", "tile")
+		if not raft.on_raft(player.position):
+			player.place(raft.nearest_tile(player.position), player.yaw)
+	else:
+		hud.toast("Чини молотком: 1 доска", "hammer")
+
+
+func _on_shark_died(pos: Vector3) -> void:
+	stats["shark_kills"] = int(stats.get("shark_kills", 0)) + 1
+	for id: String in Data.b["shark"]["drop"]:
+		var n := int(Data.b["shark"]["drop"][id])
+		inv.add(id, n)
+		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
+	_burst(pos, Color("#b8231d"), 30)
+	Sfx.play("goal")
+	_check_goals()
+
+
+## Small flying chips (wood, blood) at a point.
+func _burst(pos: Vector3, col: Color, n: int) -> void:
+	var p := CPUParticles3D.new()
+	var m := BoxMesh.new()
+	m.size = Vector3.ONE * 0.06
+	m.material = Mk.mat(col, 0.8)
+	p.mesh = m
+	p.amount = n
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.lifetime = 0.9
+	p.direction = Vector3.UP
+	p.spread = 60.0
+	p.initial_velocity_min = 1.5
+	p.initial_velocity_max = 3.5
+	p.gravity = Vector3(0, -9.8, 0)
+	add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
 
 
 func _on_fish(id: String) -> void:
@@ -590,25 +681,27 @@ func use_view() -> Dictionary:
 
 func action_view() -> Dictionary:
 	var id := selected()
-	if id == "hook":
-		var label := "Бросить"
-		match hook.state:
-			Hook.State.CHARGE:
-				label = "Отпусти!"
-			Hook.State.FLY:
-				label = "…"
-			Hook.State.WATER:
-				label = "Тянуть"
-		return {"icon": "hook", "label": label, "ok": true}
-	if id == "rod":
-		var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Тяни!"}
-		return {"icon": "rod", "label": labels[rod.state], "ok": true}
-	if id == "hammer":
-		return {"icon": builder.kind, "label": "Строить", "ok": builder.has_target and builder.valid and builder.affordable(), "cost": builder.cost()}
-	if id != "":
-		var def := Data.item(id)
-		return {"icon": id, "label": "Выпить" if float(def.get("water", 0)) > float(def.get("food", 0)) else "Съесть", "ok": true}
-	return {"icon": "hand", "label": "", "ok": false}
+	var out := {"icon": id, "label": "", "ok": true}
+	match id:
+		"":
+			out = {"icon": "hand", "label": "", "ok": false}
+		"hook":
+			var labels := {Hook.State.IDLE: "Бросить", Hook.State.CHARGE: "Отпусти!", Hook.State.FLY: "…", Hook.State.WATER: "Тянуть"}
+			out["label"] = labels[hook.state]
+		"rod":
+			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Тяни!"}
+			out["label"] = labels[rod.state]
+		"spear":
+			out = {"icon": "spear", "label": "Ударить", "ok": shark.alive_near()}
+		"hammer":
+			if builder.repair:
+				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
+			else:
+				out = {"icon": builder.kind, "label": "Строить", "ok": builder.has_target and builder.valid and builder.affordable(), "cost": builder.cost()}
+		_:
+			var def := Data.item(id)
+			out["label"] = "Выпить" if float(def.get("water", 0)) > float(def.get("food", 0)) else "Съесть"
+	return out
 
 
 # ---------------------------------------------------------------- frame

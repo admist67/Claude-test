@@ -89,7 +89,7 @@ func _init() -> void:
 			check("station out %s" % d["out"], items.has(d["out"]))
 	for e: Dictionary in bal["fishing"]["catch"]:
 		check("catch %s" % e["item"], items.has(e["item"]))
-	var stats := ["tiles", "minutes", "days", "barrels", "fish", "cooked"]
+	var stats := ["tiles", "minutes", "days", "barrels", "fish", "cooked", "shark_driven", "shark_kills"]
 	for g: Dictionary in _json("res://data/goals.json")["goals"]:
 		var st: String = g["stat"]
 		var known := st in stats or st.begins_with("built_") or st.begins_with("got_") or st.begins_with("made_")
