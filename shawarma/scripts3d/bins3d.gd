@@ -85,12 +85,32 @@ func _pile(n: Node3D, id: String) -> void:
 			for p in spots.slice(0, 3):
 				M3.model(n, K + "onion-half.glb", p, 0.32, p.x * 30.0).rotation.z = PI / 2.0
 		"cabbage":
-			M3.model(n, K + "cabbage.glb", Vector3(0, 0.07, 0), 0.38)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 3
+			for k in 26:
+				var p := Vector3(rng.randf_range(-0.08, 0.08), 0.078 + rng.randf_range(0, 0.02), rng.randf_range(-0.11, 0.11))
+				M3.box(n, Vector3(0.07, 0.008, 0.012), p, M3.mat(Color("#dff2c0") if k % 3 else Color("#b9dc8f")), Vector3(0, rng.randf() * PI, 0))
 		"cheese":
 			for k in 3:
 				M3.model(n, K + "cheese-cut.glb", Vector3(-0.07, 0.078 + k * 0.006, -0.08 + k * 0.03), 0.38, 0.2 * k)
 		"fries":
 			M3.model(n, K + "fries.glb", Vector3(-0.02, 0.07, 0.01), 0.45)
+		"jalapeno":
+			for k in spots.size():
+				var p: Vector3 = spots[k]
+				var pep := Node3D.new()
+				pep.position = p + Vector3(0, 0.012, 0)
+				pep.rotation = Vector3(0, k * 1.3, 0)
+				n.add_child(pep)
+				var body := MeshInstance3D.new()
+				var cm := CapsuleMesh.new()
+				cm.radius = 0.014
+				cm.height = 0.08
+				body.mesh = cm
+				body.rotation.z = PI / 2.0
+				body.material_override = M3.mat(Color("#2f9e44"), 0.4)
+				pep.add_child(body)
+				M3.box(pep, Vector3(0.016, 0.006, 0.006), Vector3(-0.045, 0.004, 0), M3.mat(Color("#6b8e23")))
 		_:
 			for p in spots:
 				var mi := M3.cyl(n, 0.03, 0.03, 0.01, p, M3.mat(Bal.color(id)), 12)

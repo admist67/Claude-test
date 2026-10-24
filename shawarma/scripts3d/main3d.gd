@@ -1,18 +1,19 @@
 extends Node3D
-## 3D game flow: menu → uncle's note → shift in first person → summary.
+## 3D game flow: menu → uncle's note → shift in first person → summary → shop.
 ## Same rules as the 2D version (Order, balance, customers); input is joystick + look +
-## taps on objects (raycast) + vertical swipes on the spit / board.
+## taps on objects (raycast) + vertical swipes on the spit / board. With the café, guests
+## also sit at terrace tables (and may want a drink); hired staff help (staff3d.gd).
 
 enum G { MENU, NOTE, PLAYING, SUMMARY }
 
 const SAVE_PATH := "user://save3d.json"
 const REACH := 2.1
-const SLOT_X := [-1.1, 0.0, 1.1]
+const SLOT_X := [-1.15, -0.1, 0.8]
 const WINDOW_Z := -2.0
 const LANE_Z := -3.0
 const MONEY_PILL := Vector2(40, 36)
-const CHARACTERS := ["female-a", "female-b", "female-c", "female-d", "female-e", "female-f",
-	"male-a", "male-b", "male-c", "male-d", "male-e", "male-f"]
+const CHARACTERS := ["female-a", "female-b", "female-c", "female-e",
+	"male-a", "male-b", "male-d", "male-e", "male-f"]   # male-c, female-d, female-f are the staff
 
 const WorldS := preload("res://scripts3d/world3d.gd")
 const SpitS := preload("res://scripts3d/spit3d.gd")
@@ -26,6 +27,8 @@ const FxS := preload("res://scripts/fx.gd")
 const HintsS := preload("res://scripts/hints.gd")
 const HudS := preload("res://scripts/hud.gd")
 const OrdersS := preload("res://scripts3d/orders_ui.gd")
+const CafeS := preload("res://scripts3d/cafe3d.gd")
+const StaffS := preload("res://scripts3d/staff3d.gd")
 const LAST_DAY := 15
 
 var g := G.MENU
@@ -42,6 +45,9 @@ var fx: Node2D
 var hints: Node2D
 var hud: CanvasLayer
 var orders: Node2D
+var cafe: Node3D
+var staff: Node3D
+var shop_tab := "kitchen"
 
 var day := 1
 var bank := 0
@@ -55,7 +61,8 @@ var closing_t := 0.0
 var spawn_t := 0.0
 var rush := false
 var rush_k := 0.0
-var slots: Array = [null, null, null]
+var slots: Array = [null, null, null]     # window (takeaway) customers
+var diners: Array = []                    # café guests at tables
 var stats := {}
 var ratings: Array = []
 var goal := 1500
@@ -84,8 +91,13 @@ func _ready() -> void:
 	add_child(bins)
 	grill = GrillS.new()
 	grill.bal = Bal.b
-	grill.position = Vector3(1.72, 1.0, 0.3)
+	grill.position = Vector3(1.72, 1.0, 0.55)
 	add_child(grill)
+	cafe = CafeS.new()
+	add_child(cafe)
+	staff = StaffS.new()
+	staff.game = self
+	add_child(staff)
 	M3.model(self, "res://assets/models/furniture/trashcan.glb", Vector3(1.15, 0, 1.05), 2.2)
 	M3.solid(self, Vector3(0.5, 0.95, 0.5), Vector3(1.15, 0.47, 1.05), M3.LAYER_USE, "trash")
 	M3.solid(self, Vector3(0.45, 0.95, 0.45), Vector3(1.15, 0.47, 1.05))
@@ -118,6 +130,10 @@ func _ready() -> void:
 	hud.shop_pressed.connect(_show_shop)
 	hud.shop_closed.connect(_shop_closed)
 	hud.buy_pressed.connect(_buy)
+	hud.shop_tab.connect(func(tab: String):
+		shop_tab = tab
+		_show_shop()
+	)
 	hud.endless_pressed.connect(_show_shop)
 	hud.new_game_pressed.connect(_new_game)
 	hud.menu_pressed.connect(_to_menu)
@@ -135,7 +151,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	Sfx.set_enabled(sound_on)
-	world.set_decor(up)
+	_apply_cafe()
 	_to_menu()
 
 
@@ -180,6 +196,7 @@ func _start_shift() -> void:
 	_clear_table()
 	bins.set_unlocked(unlocked)
 	_apply_upgrades()
+	_apply_cafe()
 	event = Bal.event_for(day)
 	mods["patience"] *= float(event.get("patience", 1.0))
 	mods["spawn"] *= float(event.get("spawn", 1.0))
@@ -187,7 +204,7 @@ func _start_shift() -> void:
 	Sfx.set_rain(event.get("rain", false))
 	combo = 0
 	hud.bar.combo = 0
-	stats = {"served": 0, "lost": 0, "revenue": 0, "tips": 0}
+	stats = {"served": 0, "lost": 0, "revenue": 0, "tips": 0, "dine": 0}
 	ratings.clear()
 	money_today = 0
 	hud.bar.money = 0
@@ -218,10 +235,12 @@ func _close() -> void:
 func _end_shift() -> void:
 	g = G.SUMMARY
 	touch.enabled = false
-	for c in slots:
-		if c != null and is_instance_valid(c):
-			c.leave(_exit_x(c), "Завтра зайду", "meh")
+	for c in all_customers():
+		if c.st == CustomerS.St.WAIT:
+			c.leave(_exit_path(c), "Завтра зайду", "meh")
 	slots = [null, null, null]
+	diners.clear()
+	staff.reset_all()
 	board.clear()
 	grill.clear_all()
 	player.drop()
@@ -235,12 +254,13 @@ func _end_shift() -> void:
 		stars = 2
 	if money_today >= goal * 2:
 		stars = 3
-	bank += money_today
+	var wages := _wages()
+	bank += money_today - wages
 	stars_hist.append(stars)
 	world.set_rain(false)
 	Sfx.set_rain(false)
 	var summary := {"stars": stars, "served": stats["served"], "lost": stats["lost"], "revenue": stats["revenue"],
-		"tips": stats["tips"], "rating": _rating(), "total": money_today, "goal": goal}
+		"tips": stats["tips"], "rating": _rating(), "total": money_today - wages, "goal": goal, "wages": wages}
 	day += 1
 	_save()
 	Sfx.play("jingle", 0.0)
@@ -251,6 +271,10 @@ func _clear_table() -> void:
 	for c in customers_root.get_children():
 		c.queue_free()
 	slots = [null, null, null]
+	diners.clear()
+	for i in cafe.tables.size():
+		cafe.set_state(i, "free")
+	staff.reset_all()
 	orders.customers = []
 	board.clear()
 	grill.clear_all()
@@ -313,30 +337,39 @@ func _apply_upgrades() -> void:
 	world.set_decor(up)
 
 
-func _shop_items() -> Array:
+## Shop cards for one tab ("" = all tabs).
+func _shop_items(tab := "") -> Array:
 	var items: Array = []
 	for u in Bal.upgrades:
+		if tab != "" and u.get("tab", "kitchen") != tab:
+			continue
 		var lv := _lv(u["id"])
 		var prices: Array = u["prices"]
-		items.append({"id": u["id"], "name": u["name"], "desc": u["desc"], "level": lv, "max": prices.size(),
-			"price": int(prices[lv]) if lv < prices.size() else -1})
+		var desc: String = u["desc"]
+		if u.has("wage"):
+			desc += " · зарплата %d ₽ за смену" % int(u["wage"])
+		var locked := ""
+		if u.has("requires") and _lv(u["requires"]) == 0:
+			locked = "Нужно кафе"
+		items.append({"id": u["id"], "name": u["name"], "desc": desc, "level": lv, "max": prices.size(),
+			"price": int(prices[lv]) if lv < prices.size() else -1, "locked": locked})
 	return items
 
 
 func _show_shop() -> void:
 	touch.enabled = false
-	hud.show_shop(bank, _shop_items())
+	hud.show_shop(bank, _shop_items(shop_tab), shop_tab)
 
 
 func _buy(id: String) -> void:
 	for it in _shop_items():
-		if it["id"] == id and it["price"] >= 0 and it["price"] <= bank:
+		if it["id"] == id and it["locked"] == "" and it["price"] >= 0 and it["price"] <= bank:
 			bank -= it["price"]
 			up[id] = _lv(id) + 1
 			_save()
 			world.set_decor(up)
-			fx.float_text(Vector2(get_viewport().get_visible_rect().size.x / 2.0, 120), "Куплено: " + it["name"], DU.GREEN, 32)
-	hud.show_shop(bank, _shop_items())
+			_apply_cafe()
+	hud.show_shop(bank, _shop_items(shop_tab), shop_tab)
 
 
 func _shop_closed() -> void:
@@ -365,7 +398,30 @@ func _new_game() -> void:
 	stars_hist = []
 	_save()
 	world.set_decor(up)
+	_apply_cafe()
 	_to_menu()
+
+
+## Builds the café terrace, the kiosk passage and the hired staff from the upgrades.
+func _apply_cafe() -> void:
+	var on := _lv("cafe") > 0
+	var count := 2 + 2 * _lv("tables") if on else 0
+	if cafe.enabled != on or cafe.tables.size() != count:
+		world.set_cafe(on)
+		cafe.build(on, count)
+	var roles: Array = []
+	for r in ["helper", "waiter", "cleaner"]:
+		if _lv(r) > 0:
+			roles.append(r)
+	staff.hire(roles)
+
+
+func _wages() -> int:
+	var total := 0
+	for u in Bal.upgrades:
+		if u.has("wage") and _lv(u["id"]) > 0:
+			total += int(u["wage"])
+	return total
 
 
 func _combo_mult() -> float:
@@ -404,7 +460,7 @@ func _process(delta: float) -> void:
 			Sfx.music.pitch_scale = 1.0
 		spawn_t -= delta
 		if spawn_t <= 0.0:
-			if _free_slot() >= 0:
+			if _free_slot() >= 0 or (cafe.enabled and cafe.free_table() >= 0):
 				_spawn()
 				spawn_t = _next_interval(shift_t / shift_len)
 			else:
@@ -421,7 +477,8 @@ func _process(delta: float) -> void:
 	hud.bar.clock = _clock_text()
 	hud.bar.rush = rush
 	Sfx.set_sizzle(grill.busy_count() / 3.0)
-	orders.customers = slots
+	staff.tick(delta)
+	orders.customers = all_customers()
 	orders.board_open = board.state == BoardS.S.OPEN
 	orders.board_items = board.items
 	orders.board_meat = board.meat
@@ -463,11 +520,50 @@ func _free_slot() -> int:
 
 
 func _customer_count() -> int:
-	var n := 0
+	return all_customers().size()
+
+
+## Every customer still in the scene (window and café tables).
+func all_customers() -> Array:
+	var list: Array = []
 	for c in slots:
-		if c != null:
-			n += 1
-	return n
+		if c != null and is_instance_valid(c):
+			list.append(c)
+	for c in diners:
+		if is_instance_valid(c):
+			list.append(c)
+	return list
+
+
+func _waiting() -> Array:
+	var list: Array = []
+	for c in all_customers():
+		if c.st == CustomerS.St.WAIT:
+			list.append(c)
+	list.sort_custom(func(a, b): return a.patience < b.patience)
+	return list
+
+
+## The waiting customer a finished roll is for (exact fillings), most impatient first.
+func customer_for(made: Dictionary):
+	for c in _waiting():
+		if c.got_roll.is_empty() and not c.has_meta("waiter_roll") and c.order.matches(made):
+			return c
+	return null
+
+
+## Next waiting customer whose roll nobody is making yet (for the helper cook).
+func next_uncovered():
+	var taken: Array = []
+	for i in grill.unlocked:
+		if grill.slots[i] != null:
+			taken.append(customer_for(grill.slots[i]["made"]))
+	if not player.held.is_empty() and not player.held.has("drink"):
+		taken.append(customer_for(player.held))
+	for c in _waiting():
+		if c.got_roll.is_empty() and not c.has_meta("waiter_roll") and not taken.has(c):
+			return c
+	return null
 
 
 func _pick_type() -> Dictionary:
@@ -490,6 +586,10 @@ func _pick_type() -> Dictionary:
 
 func _spawn() -> void:
 	var slot := _free_slot()
+	var table: int = cafe.free_table() if cafe.enabled else -1
+	var dine := table >= 0 and (slot < 0 or rng.randf() < Bal.f("dine_chance"))
+	if not dine and slot < 0:
+		return
 	var ct := _pick_type()
 	var defs: Array = []
 	for id in unlocked:
@@ -497,62 +597,126 @@ func _spawn() -> void:
 		if kind == "veg" or kind == "sauce":
 			defs.append(Bal.ing_by_id[id])
 	var order := Order.generate(rng, defs, ct, Bal.b)
+	order.drink = dine and rng.randf() < Bal.f("drink_chance")
 	var pat := (Bal.f("patience_base") + Bal.f("patience_per_item") * order.items.size()) * float(ct["patience_mult"])
+	if dine:
+		pat *= Bal.f("dine_patience")
 	if rush:
 		pat *= Bal.f("rush_patience_mult")
 	if tutorial_left > 0:
 		pat *= 3.0
 	pat *= Bal.tune["patience"] * 1.25 * mods["patience"]   # walking around the kiosk takes time
 	var used: Array = []
-	for c in slots:
-		if c != null:
-			used.append(c.get_meta("model"))
+	for c in all_customers():
+		used.append(c.get_meta("model"))
 	var model_name: String = CHARACTERS[rng.randi_range(0, CHARACTERS.size() - 1)]
-	while used.has(model_name):
+	var tries := 0
+	while used.has(model_name) and tries < 20:
 		model_name = CHARACTERS[rng.randi_range(0, CHARACTERS.size() - 1)]
+		tries += 1
 	var c := CustomerS.new()
 	c.set_meta("model", model_name)
 	customers_root.add_child(c)
-	c.setup(ct, order, pat, slot, "res://assets/models/characters/character-%s.glb" % model_name)
-	var side := -1.0 if SLOT_X[slot] < 0.0 or (slot == 1 and rng.randf() < 0.5) else 1.0
-	c.arrive(Vector3(side * 9.0, 0, LANE_Z), Vector3(SLOT_X[slot], 0, WINDOW_Z))
+	c.setup(ct, order, pat, "res://assets/models/characters/character-%s.glb" % model_name)
 	c.gave_up.connect(_on_gave_up)
+	var side := -1.0 if rng.randf() < 0.5 else 1.0
+	if dine:
+		c.dine = true
+		c.table = table
+		cafe.set_state(table, "busy")
+		diners.append(c)
+		c.arrive(cafe.path_in(side, table))
+		return
+	c.slot = slot
 	slots[slot] = c
+	var x: float = SLOT_X[slot]
+	if cafe.enabled:
+		c.arrive([Vector3(side * 9.0, 0, CafeS.LANE_Z), Vector3(CafeS.GAP_X, 0, CafeS.LANE_Z),
+			Vector3(CafeS.GAP_X, 0, CafeS.INNER_Z), Vector3(x, 0, -2.6), Vector3(x, 0, WINDOW_Z)])
+	else:
+		c.arrive([Vector3(side * 9.0, 0, LANE_Z), Vector3(x, 0, LANE_Z), Vector3(x, 0, WINDOW_Z)])
 
 
-func _exit_x(c: Node3D) -> float:
-	return -10.0 if c.position.x < 0.0 else 10.0
+func _exit_path(c: Node3D) -> Array:
+	var side := -1.0 if c.position.x < 0.0 else 1.0
+	if c.dine:
+		return cafe.path_out(c.position, side)
+	if cafe.enabled:
+		return [Vector3(c.position.x, 0, -2.6), Vector3(CafeS.GAP_X, 0, CafeS.INNER_Z),
+			Vector3(CafeS.GAP_X, 0, CafeS.LANE_Z), Vector3(side * 10.0, 0, CafeS.LANE_Z)]
+	return [Vector3(c.position.x, 0, -2.8), Vector3(side * 10.0, 0, -2.8)]
+
+
+## Frees the customer's place (window slot or table) when they stop waiting.
+func _release(c, dirty: bool) -> void:
+	if c.dine:
+		diners.erase(c)
+		if c.table >= 0 and c.table < cafe.tables.size():
+			if dirty:
+				var t: int = c.table
+				get_tree().create_timer(Bal.f("eat_seconds") + 1.2).timeout.connect(func():
+					if t < cafe.tables.size() and cafe.tables[t]["state"] == "busy":
+						cafe.set_state(t, "dirty")
+				)
+			else:
+				cafe.set_state(c.table, "free")
+	elif c.slot >= 0 and slots[c.slot] == c:
+		slots[c.slot] = null
 
 
 func _on_gave_up(c) -> void:
-	if slots[c.slot] != c:
+	if c.st != CustomerS.St.WAIT:
 		return
-	slots[c.slot] = null
+	_release(c, not c.got_roll.is_empty() or c.got_drink)
 	stats["lost"] += 1
 	ratings.append(1)
 	hud.bar.rating = _rating()
 	_set_combo(0)
 	var phrases: Array = c.ctype["angry"]
-	c.leave(_exit_x(c), phrases[rng.randi_range(0, phrases.size() - 1)], "angry")
+	c.leave(_exit_path(c), phrases[rng.randi_range(0, phrases.size() - 1)], "angry")
 	Sfx.play("angry")
 	Sfx.buzz(70)
 	_float(c.head_global() + Vector3(0, 0.6, 0), "Ушёл!", DU.RED, 36)
 
 
+## Hands a roll or a drink to a customer (by the cook or a waiter). Returns false if they
+## don't need it. When the whole order has arrived the customer pays.
+func give(c, item: Dictionary, by_staff := false) -> bool:
+	if c.st != CustomerS.St.WAIT or item.is_empty():
+		return false
+	if item.has("drink"):
+		if not c.order.drink or c.got_drink:
+			return false
+		c.got_drink = true
+	else:
+		if not c.got_roll.is_empty():
+			return false
+		c.got_roll = item
+	Sfx.play("plop", 0.1, -2.0)
+	if c.complete():
+		_serve(c, c.got_roll)
+	elif not by_staff:
+		_float(c.head_global() + Vector3(0, 0.5, 0), "Ещё напиток!" if not c.got_drink else "Теперь шаурму!", DU.CREAM, 30)
+	return true
+
+
 func _serve(c, made: Dictionary) -> void:
-	slots[c.slot] = null
+	_release(c, true)
 	var ev: Dictionary = c.order.evaluate(made, Bal.b)
 	var refuse := float(c.ctype.get("refuse_below", Bal.f("refuse_below_quality")))
 	var perfect: bool = ev["toast"] == "perfect" and ev["accuracy"] >= 1.0
 	_set_combo(combo + 1 if perfect and ev["quality"] >= refuse else 0)
 	var tip_mult: float = float(c.ctype["tip_mult"]) * (Bal.f("rush_tip_mult") if rush else 1.0) * mods["tips"] * _combo_mult()
 	var pay: Dictionary = c.order.payment(ev["quality"], c.patience_frac(), tip_mult, refuse, Bal.b)
+	if c.dine and not pay["refused"]:
+		pay["pay"] = roundi(pay["pay"] * Bal.f("dine_bonus"))
+		pay["tip"] = roundi(pay["tip"] * Bal.f("dine_bonus"))
 	var head: Vector3 = c.head_global() + Vector3(0, 0.55, 0)
 	ratings.append(pay["stars"])
 	hud.bar.rating = _rating()
 	if pay["refused"]:
 		stats["lost"] += 1
-		c.leave(_exit_x(c), "Это не мой заказ!" if ev["accuracy"] < 0.6 else "Это есть нельзя!", "angry")
+		c.leave(_exit_path(c), "Это не мой заказ!" if ev["accuracy"] < 0.6 else "Это есть нельзя!", "angry")
 		Sfx.play("angry")
 		Sfx.buzz(70)
 		_float(head, "Отказ!", DU.RED, 40)
@@ -565,7 +729,12 @@ func _serve(c, made: Dictionary) -> void:
 	hud.bar.money = money_today
 	var happy: Array = c.ctype["happy"]
 	var good: bool = ev["quality"] >= 0.75
-	c.leave(_exit_x(c), happy[rng.randi_range(0, happy.size() - 1)] if good else "Ну… сойдёт", "happy" if good else "meh")
+	var phrase: String = happy[rng.randi_range(0, happy.size() - 1)] if good else "Ну… сойдёт"
+	if c.dine:
+		stats["dine"] += 1
+		c.eat_then_leave(Bal.f("eat_seconds"), _exit_path(c), phrase, "happy" if good else "meh")
+	else:
+		c.leave(_exit_path(c), phrase, "happy" if good else "meh")
 	Sfx.play("cash", 0.03)
 	Sfx.buzz(30)
 	var sp := _screen(head)
@@ -645,12 +814,30 @@ func _tap(pos: Vector2) -> void:
 		_grill_tap(int(kind.substr(6)), pos)
 	elif kind == "customer":
 		var c = hit["node"].get_meta("customer")
-		if not player.held.is_empty() and c.st == CustomerS.St.WAIT:
-			_serve(c, player.drop())
-		elif player.held.is_empty():
+		if c.st != CustomerS.St.WAIT:
+			return
+		if player.held.is_empty():
 			_error(pos, "Сначала приготовь заказ")
+		elif give(c, player.held):
+			player.drop()
+		else:
+			_error(pos, "Ему это не нужно" if player.held.has("drink") else "Он уже получил шаурму")
 	elif kind == "trash":
 		_trash(pos)
+	elif kind == "drinks":
+		if not player.held.is_empty():
+			_error(pos, "Руки заняты")
+		else:
+			player.hold({"drink": true})
+			Sfx.play("clank", 0.1, -6.0)
+			Sfx.buzz(15)
+	elif kind.begins_with("table:"):
+		var t := int(kind.substr(6))
+		if t < cafe.tables.size() and cafe.tables[t]["state"] == "dirty":
+			cafe.set_state(t, "free")
+			_puff(CafeS.TABLES[t] + Vector3(0, 0.9, 0), Color.WHITE, 12, true)
+			Sfx.play("plop", 0.1)
+			Sfx.buzz(15)
 
 
 func _swipe(pos: Vector2, down: bool) -> void:
@@ -693,6 +880,12 @@ func _bin(id: String, pos: Vector2) -> void:
 		Sfx.play("plop")
 		Sfx.buzz(10)
 		_fly(bins.target(id), board.center_global(), M3.mat(Bal.color(id)), Vector3(0.03, 0.01, 0.03), 3)
+		var wanted := false
+		for c in _waiting():
+			if c.got_roll.is_empty() and c.order.items.has(id):
+				wanted = true
+		if not wanted:
+			fx.float_text(pos + Vector2(0, -80), "Этого никто не заказывал!", DU.GOLD, 26, 50.0)
 	else:
 		_error(pos, "Уже есть")
 
@@ -742,6 +935,9 @@ func _grill_tap(i: int, pos: Vector2) -> void:
 		_error(pos, "Закрыто")
 		return
 	if not player.held.is_empty():
+		if player.held.has("drink"):
+			_error(pos, "Это напиток — отнеси гостю")
+			return
 		if grill.slots[i] != null:
 			_error(pos, "Занято")
 			return
@@ -849,7 +1045,7 @@ func _update_hints() -> void:
 		return
 	var from := Bal.f("grill_perfect_from")
 	if not player.held.is_empty():
-		if float(player.held["toast"]) < from and grill.free_slot() >= 0:
+		if not player.held.has("drink") and float(player.held["toast"]) < from and grill.free_slot() >= 0:
 			_hint_at("tap", grill.slot_global(grill.free_slot()), "Положи на гриль")
 		else:
 			_hint_at("tap", c.head_global(), "Отдай клиенту — нажми на него")

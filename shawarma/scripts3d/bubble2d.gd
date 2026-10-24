@@ -9,6 +9,8 @@ const CELL := 64.0
 static func draw(ci: CanvasItem, tip: Vector2, order: Order, patience: float, type_id: String, s := 1.0, glow := false, checks := {}) -> void:
 	var icons: Array = ["meat"]
 	icons.append_array(order.items)
+	if order.drink:
+		icons.append("drink")
 	var cols := mini(icons.size(), 3)
 	var rows := int(ceil(icons.size() / 3.0))
 	var bw := cols * CELL + 30.0

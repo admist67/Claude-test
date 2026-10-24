@@ -30,11 +30,23 @@
   "penalty_missing": 0.25,
   "penalty_extra": 0.15,
   "penalty_meat_count": 0.15,
-  "toast_quality": {"raw": 0.55, "under": 0.75, "perfect": 1.0, "over": 0.85, "burnt": 0.25},
+  "toast_quality": {
+    "raw": 0.55,
+    "under": 0.75,
+    "perfect": 1.0,
+    "over": 0.85,
+    "burnt": 0.25
+  },
   "order_veg_min": 1,
   "order_veg_max": 3,
   "double_meat_chance": 0.2,
   "goal_base": 1500,
   "goal_step": 400,
-  "tutorial_serves": 2
+  "tutorial_serves": 2,
+  "price_drink": 60,
+  "dine_bonus": 1.3,
+  "dine_patience": 1.6,
+  "dine_chance": 0.55,
+  "drink_chance": 0.6,
+  "eat_seconds": 6.0
 }

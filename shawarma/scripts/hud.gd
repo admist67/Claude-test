@@ -11,6 +11,7 @@ signal sound_toggled
 signal shop_pressed
 signal shop_closed
 signal buy_pressed(id: String)
+signal shop_tab(tab: String)
 signal endless_pressed
 signal new_game_pressed
 
@@ -178,8 +179,9 @@ func _label(parent: Control, text: String, size := 28, color := DU.INK, center :
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(width, 0)
+	if width > 0.0:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(width, 0)
 	if center:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	parent.add_child(l)
@@ -257,6 +259,8 @@ func show_summary(st: Dictionary) -> void:
 		["Чаевые", "%d ₽" % st["tips"]],
 		["Рейтинг", "—" if st["rating"] <= 0.0 else "%.1f ★" % st["rating"]],
 	]
+	if int(st.get("wages", 0)) > 0:
+		rows.append(["Зарплаты персоналу", "-%d ₽" % st["wages"]])
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 40)
@@ -280,15 +284,29 @@ func show_summary(st: Dictionary) -> void:
 	_button(v, "В меню", func(): menu_pressed.emit(), false)
 
 
-## items: [{id, name, desc, level, max, price}] — price < 0 when maxed out.
-func show_shop(bank: int, items: Array) -> void:
+## items: [{id, name, desc, level, max, price, locked}] — price < 0 when maxed out,
+## locked = reason text when it can't be bought yet.
+func show_shop(bank: int, items: Array, tab := "kitchen") -> void:
 	set_bar_visible(false)
 	var box := _new_screen(0.62)
 	box.add_theme_constant_override("separation", 10)
-	var title := _label(box, "Магазин дяди Ромы", 42, DU.CREAM)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 24)
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(head)
+	var title := _label(head, "Магазин дяди Ромы", 38, DU.CREAM, false, 0.0)
 	title.add_theme_constant_override("outline_size", 12)
-	var cash := _label(box, "В кассе: %d ₽" % bank, 28, DU.GOLD)
+	var cash := _label(head, "В кассе: %d ₽" % bank, 28, DU.GOLD, false, 0.0)
 	cash.add_theme_constant_override("outline_size", 8)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 14)
+	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(tabs)
+	for spec in [["kitchen", "Кухня"], ["cafe", "Кафе и персонал"]]:
+		var tid: String = spec[0]
+		var tb := _button(tabs, spec[1], func(): shop_tab.emit(tid), tid == tab)
+		tb.custom_minimum_size = Vector2(300, 60)
+		tb.add_theme_font_size_override("font_size", 26)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 14)
@@ -325,12 +343,13 @@ func show_shop(bank: int, items: Array) -> void:
 		desc_l.custom_minimum_size = Vector2(340, 0)
 		col.add_child(desc_l)
 		var price: int = it["price"]
+		var locked: String = it.get("locked", "")
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(176, 64)
 		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		btn.add_theme_font_size_override("font_size", 24)
-		btn.text = "Куплено" if price < 0 else "%d ₽" % price
-		btn.disabled = price < 0 or price > bank
+		btn.add_theme_font_size_override("font_size", 24 if locked == "" else 18)
+		btn.text = locked if locked != "" else ("Куплено" if price < 0 else "%d ₽" % price)
+		btn.disabled = locked != "" or price < 0 or price > bank
 		var id: String = it["id"]
 		btn.pressed.connect(func():
 			Sfx.play("cash", 0.02)

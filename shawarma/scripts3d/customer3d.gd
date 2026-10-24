@@ -1,11 +1,12 @@
 extends Node3D
-## A 3D customer outside the window: Kenney character with animations, a speech line and
-## patience. The order bubble is drawn in screen space by orders_ui.gd.
-## Tappable kind: "customer" (its StaticBody's parent is this node).
+## A 3D customer: Kenney character with animations, a speech line and patience. Takeaway
+## customers wait at the window; café guests (dine) sit at a table, may want a drink, eat
+## and leave the table dirty. The order bubble is drawn in screen space by orders_ui.gd.
+## Tappable kind: "customer" (the StaticBody's meta "customer" points here).
 
 signal gave_up(c)
 
-enum St { ENTER, WAIT, LEAVE }
+enum St { ENTER, WAIT, EAT, LEAVE }
 
 const SCALE := 2.05
 const WALK_SPEED := 1.7
@@ -15,30 +16,35 @@ var ctype: Dictionary
 var order: Order
 var patience := 40.0
 var patience_max := 40.0
-var slot := 0
+var slot := -1             # window slot, or -1 for café guests
+var dine := false
+var table := -1
+var got_roll: Dictionary = {}
+var got_drink := false
+var bubble_h := 1.95       # bubble anchor height (lower when seated)
 var model: Node3D
 var anim: AnimationPlayer
-var bubble_pop := 0.0      # order bubble scale, drawn in screen space by orders_ui.gd
+var body: StaticBody3D
+var bubble_pop := 0.0
 var say_label: Label3D
 var say_t := 0.0
 
 
-func setup(type_def: Dictionary, o: Order, patience_s: float, slot_i: int, model_path: String) -> void:
+func setup(type_def: Dictionary, o: Order, patience_s: float, model_path: String) -> void:
 	ctype = type_def
 	order = o
 	patience = patience_s
 	patience_max = patience_s
-	slot = slot_i
 	model = M3.model(self, model_path, Vector3.ZERO, SCALE)
 	anim = model.find_child("AnimationPlayer", true, false)
 	if anim:
-		for a in ["idle", "walk"]:
+		for a in ["idle", "walk", "sit"]:
 			if anim.has_animation(a):
 				anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
 	say_label = M3.label(self, "", Vector3(0, 2.42, 0), 56, DU.CREAM, 16, 0.0032)
 	say_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	say_label.visible = false
-	var body := M3.solid(self, Vector3(0.8, 1.3, 0.7), Vector3(0, 1.45, 0), M3.LAYER_USE, "customer")
+	body = M3.solid(self, Vector3(0.8, 1.3, 0.7), Vector3(0, 1.45, 0), M3.LAYER_USE, "customer")
 	body.set_meta("customer", self)
 	var greet: Array = type_def["greet"]
 	say_label.text = greet[randi() % greet.size()]
@@ -54,23 +60,41 @@ func _face(dir: Vector3) -> void:
 		rotation.y = atan2(dir.x, dir.z)
 
 
-## Walks from `from` along the street lane, then steps up to the window at `to`.
-func arrive(from: Vector3, to: Vector3) -> void:
-	position = from
-	var lane := Vector3(to.x, 0, from.z)
-	_play("walk")
-	_face(lane - from)
+func _face_to(q: Vector3) -> void:
+	_face(q - position)
+
+
+## Walks through the points in order; calls `then` at the end.
+func walk(points: Array, then := Callable()) -> Tween:
 	var tw := create_tween()
-	tw.tween_property(self, "position", lane, from.distance_to(lane) / WALK_SPEED)
-	tw.tween_callback(func(): _face(to - lane))
-	tw.tween_property(self, "position", to, lane.distance_to(to) / WALK_SPEED)
-	tw.tween_callback(_on_arrived)
+	tw.tween_callback(_play.bind("walk"))
+	var prev := position
+	for p in points:
+		var q: Vector3 = p
+		tw.tween_callback(_face_to.bind(q))
+		tw.tween_property(self, "position", q, maxf(0.05, prev.distance_to(q) / WALK_SPEED))
+		prev = q
+	if then.is_valid():
+		tw.tween_callback(then)
+	return tw
+
+
+## Starts at points[0] and walks the rest; at the end waits (standing or seated).
+func arrive(points: Array) -> void:
+	position = points[0]
+	walk(points.slice(1), _on_arrived)
 
 
 func _on_arrived() -> void:
 	st = St.WAIT
 	_face(Vector3(0, 0, 1))
-	_play("idle")
+	if dine:
+		_play("sit")
+		model.position.y = 0.2   # up onto the chair seat
+		bubble_h = 1.75
+		body.position.y = 1.0
+	else:
+		_play("idle")
 	bubble_pop = 0.0
 	create_tween().tween_property(self, "bubble_pop", 1.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_say(say_label.text, 2.4)
@@ -83,24 +107,41 @@ func _say(text: String, dur: float) -> void:
 	say_t = dur
 
 
-## mood: "happy" / "meh" / "angry"
-func leave(exit_x: float, phrase: String, mood: String) -> void:
+## True once everything ordered has been handed over.
+func complete() -> bool:
+	return not got_roll.is_empty() and (got_drink or not order.drink)
+
+
+## Café guest eats for a while, then leaves along `exit`.
+func eat_then_leave(dur: float, exit: Array, phrase: String, mood: String) -> void:
+	st = St.EAT
+	bubble_pop = 0.0
+	_say(phrase, 2.0)
+	_play("emote-yes" if mood == "happy" else "sit")
+	var tw := create_tween()
+	tw.tween_interval(1.0)
+	tw.tween_callback(_play.bind("sit"))
+	tw.tween_interval(maxf(0.5, dur - 1.0))
+	tw.tween_callback(func():
+		st = St.LEAVE
+		body.position.y = 1.45
+		model.position.y = 0.0
+		walk(exit, queue_free)
+	)
+
+
+## mood: "happy" / "meh" / "angry". Window customers step back first.
+func leave(exit: Array, phrase: String, mood: String) -> void:
 	st = St.LEAVE
 	bubble_pop = 0.0
 	_say(phrase, 2.0)
+	if dine:
+		body.position.y = 1.45
+		model.position.y = 0.0
 	_play("emote-no" if mood == "angry" else ("emote-yes" if mood == "happy" else "idle"))
-	var back := Vector3(position.x, 0, position.z - 0.8)
-	var out := Vector3(exit_x, 0, back.z)
 	var tw := create_tween()
 	tw.tween_interval(1.1)
-	tw.tween_callback(func():
-		_play("walk")
-		_face(back - position)
-	)
-	tw.tween_property(self, "position", back, 0.8 / WALK_SPEED)
-	tw.tween_callback(func(): _face(out - back))
-	tw.tween_property(self, "position", out, back.distance_to(out) / WALK_SPEED)
-	tw.tween_callback(queue_free)
+	tw.tween_callback(func(): walk(exit, queue_free))
 
 
 func patience_frac() -> float:
@@ -108,7 +149,7 @@ func patience_frac() -> float:
 
 
 func head_global() -> Vector3:
-	return to_global(Vector3(0, 1.7, 0))
+	return to_global(Vector3(0, 1.3 if dine and st != St.LEAVE else 1.7, 0))
 
 
 func _process(delta: float) -> void:

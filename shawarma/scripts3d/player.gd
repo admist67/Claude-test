@@ -13,6 +13,7 @@ var pitch := -0.25
 var move_input := Vector2.ZERO
 var held: Dictionary = {}
 var held_mesh: MeshInstance3D
+var held_can: Node3D
 var hand: Node3D
 var bob := 0.0
 var speed_mult := 1.0
@@ -41,6 +42,8 @@ func _ready() -> void:
 	held_mesh.rotation = Vector3(0.3, 0.9, PI / 2.0)
 	held_mesh.visible = false
 	hand.add_child(held_mesh)
+	held_can = M3.model(hand, "res://assets/models/food/soda-can.glb", Vector3(0, -0.08, 0), 0.45)
+	held_can.visible = false
 
 
 func look(rel: Vector2) -> void:
@@ -49,10 +52,13 @@ func look(rel: Vector2) -> void:
 	pitch = clampf(pitch - rel.y * k, -1.3, 1.0)
 
 
+## Holds a roll (made dict) or a drink ({"drink": true}).
 func hold(made: Dictionary) -> void:
 	held = made
-	held_mesh.visible = true
-	M3.set_toast(held_mesh, made["toast"], Bal.b)
+	held_can.visible = made.has("drink")
+	held_mesh.visible = not made.has("drink")
+	if held_mesh.visible:
+		M3.set_toast(held_mesh, made["toast"], Bal.b)
 	hand.position.y = -0.44
 	create_tween().tween_property(hand, "position:y", -0.24, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
@@ -61,6 +67,7 @@ func drop() -> Dictionary:
 	var made := held
 	held = {}
 	held_mesh.visible = false
+	held_can.visible = false
 	return made
 
 

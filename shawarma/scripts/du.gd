@@ -19,7 +19,9 @@ const MEAT_DARK := Color("#8a4a22")
 
 
 static func rrect_pts(r: Rect2, rad: float, seg := 5) -> PackedVector2Array:
-	rad = minf(rad, minf(r.size.x, r.size.y) * 0.5)
+	# Keep a sliver of straight edge: touching corner arcs give duplicate points and the
+	# polygon fails to triangulate.
+	rad = minf(rad, minf(r.size.x, r.size.y) * 0.5 - 0.6)
 	if rad < 1.0:
 		return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
 	var pts := PackedVector2Array()
@@ -125,10 +127,21 @@ static func ing(ci: CanvasItem, id: String, c: Vector2, s: float, ow := 3.0) -> 
 				var a := k * TAU / 5.0
 				ci.draw_circle(c + Vector2(cos(a), sin(a)) * s * 0.36, s * 0.09, Color("#8cc063"))
 		"cabbage":
+			# Shredded cabbage: a pale leaf with veins and loose strips.
+			var leaf := PackedVector2Array()
+			for i in 15:
+				var a := PI * 1.1 + PI * 0.8 * i / 14.0
+				var wob := 1.0 + 0.08 * sin(i * 2.7)
+				leaf.append(c + Vector2(cos(a) * s * wob, sin(a) * s * 0.9 * wob + s * 0.35))
+			leaf.append(c + Vector2(s * 0.2, s * 0.55))
+			poly(ci, leaf, Color("#e4f5c8"), ow)
+			ci.draw_line(c + Vector2(0, s * 0.45), c + Vector2(-s * 0.1, -s * 0.5), Color("#9cc77a"), maxf(2.0, s * 0.1), true)
 			for k in 3:
-				var off := Vector2((k - 1) * s * 0.42, (k % 2) * -s * 0.22 + s * 0.1)
-				circle(ci, c + off, s * 0.55, Color("#d9efb6"), ow)
-				ci.draw_arc(c + off, s * 0.32, 3.4, 5.8, 8, Color("#9cc77a"), maxf(2.0, s * 0.1), true)
+				ci.draw_line(c + Vector2(-s * 0.05, s * (0.2 - k * 0.25)), c + Vector2(-s * 0.55, s * (-0.05 - k * 0.22)), Color("#9cc77a"), maxf(1.5, s * 0.07), true)
+			for k in 3:
+				var p0 := c + Vector2(-s * 0.7 + k * s * 0.6, s * 0.75)
+				ci.draw_line(p0, p0 + Vector2(s * 0.45, -s * 0.12), INK, maxf(3.0, s * 0.2), true)
+				ci.draw_line(p0, p0 + Vector2(s * 0.45, -s * 0.12), Color("#cfe8a9"), maxf(1.5, s * 0.12), true)
 		"onion":
 			ci.draw_arc(c, s * 0.8, 0.0, TAU, 28, INK, s * 0.42 + ow * 2.0, true)
 			ci.draw_arc(c, s * 0.8, 0.0, TAU, 28, Color("#c99ad6"), s * 0.42, true)
@@ -145,11 +158,23 @@ static func ing(ci: CanvasItem, id: String, c: Vector2, s: float, ow := 3.0) -> 
 			ci.draw_circle(c + Vector2(-s * 0.25, s * 0.42), s * 0.11, Color("#e8b92e"))
 			ci.draw_circle(c + Vector2(s * 0.55, -s * 0.2), s * 0.09, Color("#e8b92e"))
 		"jalapeno":
-			circle(ci, c, s, Color("#2f8a3e"), ow)
-			ci.draw_circle(c, s * 0.62, Color("#b9e08a"))
-			for k in 4:
-				var a := k * TAU / 4.0 + 0.8
-				ci.draw_circle(c + Vector2(cos(a), sin(a)) * s * 0.3, s * 0.1, Color("#fffbe8"))
+			# A whole green chili with a stem.
+			var body := PackedVector2Array()
+			for i in 13:
+				var u := i / 12.0
+				body.append(c + Vector2(-s * 0.75 + u * s * 1.5, -s * 0.28 + sin(u * PI) * -s * 0.18 + u * u * s * 0.45))
+			for i in 13:
+				var u := 1.0 - i / 12.0
+				body.append(c + Vector2(-s * 0.75 + u * s * 1.5, s * 0.22 + sin(u * PI) * -s * 0.05 + u * u * s * 0.55 - u * s * 0.1))
+			poly(ci, body, Color("#2f9e44"), ow)
+			ci.draw_line(c + Vector2(-s * 0.5, -s * 0.1), c + Vector2(s * 0.3, -s * 0.05), Color("#7bd88f"), maxf(2.0, s * 0.12), true)
+			ci.draw_line(c + Vector2(-s * 0.72, -s * 0.05), c + Vector2(-s * 1.0, -s * 0.45), INK, maxf(4.0, s * 0.22), true)
+			ci.draw_line(c + Vector2(-s * 0.72, -s * 0.05), c + Vector2(-s * 1.0, -s * 0.45), Color("#6b8e23"), maxf(2.0, s * 0.12), true)
+		"drink":
+			# A soda can.
+			rect(ci, Rect2(c.x - s * 0.5, c.y - s * 0.8, s * 1.0, s * 1.6), s * 0.18, Color("#e8443a"), ow, 0.0)
+			ci.draw_rect(Rect2(c.x - s * 0.5 + 2, c.y - s * 0.2, s * 1.0 - 4, s * 0.35), Color.WHITE)
+			ci.draw_rect(Rect2(c.x - s * 0.5 + 2, c.y - s * 0.8 + 2, s * 1.0 - 4, s * 0.14), Color("#c7c2dc"))
 		"garlic", "hot":
 			var col := Color("#fff8e6") if id == "garlic" else Color("#ff5a2a")
 			var pts := PackedVector2Array()
@@ -179,6 +204,9 @@ static func piece(ci: CanvasItem, id: String, c: Vector2, s: float, rot: float) 
 		"cheese":
 			var pts := Transform2D(rot, c) * rrect_pts(Rect2(-s * 0.6, -s * 0.6, s * 1.2, s * 1.2), 2.0)
 			poly(ci, pts, Color("#ffd84d"), 2.5)
+		"jalapeno":
+			ci.draw_arc(c, s * 0.5, 0.0, TAU, 10, INK, s * 0.4, true)
+			ci.draw_arc(c, s * 0.5, 0.0, TAU, 10, Color("#2f9e44"), s * 0.24, true)
 		_:
 			ing(ci, id, c, s * 0.75, 2.5)
 

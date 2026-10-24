@@ -150,7 +150,19 @@ func _rebuild(fresh := "") -> void:
 func _piece(id: String, p: Vector3, rot: float) -> MeshInstance3D:
 	var col := Bal.color(id)
 	match id:
-		"tomato", "cucumber", "jalapeno":
+		"jalapeno":
+			var mi := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.008
+			tm.outer_radius = 0.016
+			tm.rings = 10
+			tm.ring_segments = 6
+			mi.mesh = tm
+			mi.material_override = M3.mat(col)
+			mi.position = p
+			fillings.add_child(mi)
+			return mi
+		"tomato", "cucumber":
 			var mi := M3.cyl(fillings, 0.024, 0.024, 0.008, p, M3.mat(col), 12)
 			M3.cyl(mi, 0.017, 0.017, 0.009, Vector3.ZERO, M3.mat(col.lightened(0.35)), 12)
 			return mi

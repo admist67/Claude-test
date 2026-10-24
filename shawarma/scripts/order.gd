@@ -4,6 +4,7 @@ extends RefCounted
 
 var meat := 1
 var items: Array[String] = []   # veggie ids, then one sauce id
+var drink := false              # café guests may also want a soda
 
 
 static func generate(rng: RandomNumberGenerator, defs: Array, ctype: Dictionary, bal: Dictionary) -> Order:
@@ -45,7 +46,7 @@ func matches(made: Dictionary) -> bool:
 
 func price(bal: Dictionary) -> int:
 	return int(bal["price_base"]) + int(bal["price_per_item"]) * items.size() \
-		+ int(bal["price_extra_meat"]) * (meat - 1)
+		+ int(bal["price_extra_meat"]) * (meat - 1) + (int(bal.get("price_drink", 0)) if drink else 0)
 
 
 static func toast_state(t: float, bal: Dictionary) -> String:
