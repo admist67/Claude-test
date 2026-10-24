@@ -34,6 +34,26 @@
     "plastic": 2
    },
    "once": true
+  },
+  {
+   "id": "metal_hook",
+   "out": 1,
+   "cost": {
+    "hook": 1,
+    "scrap": 4,
+    "rope": 3
+   },
+   "once": true
+  },
+  {
+   "id": "metal_spear",
+   "out": 1,
+   "cost": {
+    "spear": 1,
+    "scrap": 3,
+    "rope": 1
+   },
+   "once": true
   }
  ]
 }

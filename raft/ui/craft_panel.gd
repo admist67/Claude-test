@@ -9,7 +9,7 @@ signal closed
 var inv: Inventory
 var _res: GridContainer
 var _list: VBoxContainer
-var _builds: HBoxContainer
+var _builds: GridContainer
 
 
 func _ready() -> void:
@@ -23,7 +23,7 @@ func _ready() -> void:
 	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(cc)
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(1060, 600)
+	pc.custom_minimum_size = Vector2(1100, 630)
 	cc.add_child(pc)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -37,30 +37,44 @@ func _ready() -> void:
 	top.add_child(UiTheme.round_button("cross", func() -> void: closed.emit(), 64.0))
 	root.add_child(top)
 	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 28)
+	cols.add_theme_constant_override("separation", 24)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(cols)
+	# Left: what you carry. Right: recipes and buildings. Both scroll when long.
 	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(360, 0)
+	left.custom_minimum_size = Vector2(372, 0)
 	left.add_child(UiTheme.label("Припасы", 26, UiTheme.WOOD, true))
 	_res = GridContainer.new()
 	_res.columns = 4
 	_res.add_theme_constant_override("h_separation", 8)
 	_res.add_theme_constant_override("v_separation", 8)
-	left.add_child(_res)
+	left.add_child(_scroll(_res))
 	cols.add_child(left)
-	var right := VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 8)
-	right.add_child(UiTheme.label("Создать", 26, UiTheme.WOOD, true))
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 8)
+	body.add_child(UiTheme.label("Создать", 26, UiTheme.WOOD, true))
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 8)
-	right.add_child(_list)
-	right.add_child(UiTheme.label("Построить молотком", 26, UiTheme.WOOD, true))
-	_builds = HBoxContainer.new()
-	_builds.add_theme_constant_override("separation", 10)
-	right.add_child(_builds)
+	body.add_child(_list)
+	body.add_child(UiTheme.label("Построить молотком", 26, UiTheme.WOOD, true))
+	_builds = GridContainer.new()
+	_builds.columns = 3
+	_builds.add_theme_constant_override("h_separation", 8)
+	_builds.add_theme_constant_override("v_separation", 8)
+	body.add_child(_builds)
+	var right := _scroll(body)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.add_child(right)
+
+
+func _scroll(content: Control) -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(content)
+	return sc
 
 
 ## A dark rounded card (recipe rows, resource slots).
@@ -88,14 +102,18 @@ func _slot(id: String, n: int) -> Control:
 	return c
 
 
-func _cost(cost: Dictionary) -> HBoxContainer:
-	var row := HBoxContainer.new()
+## Cost chips "icon have/need"; compact ones wrap onto several lines (building cards).
+func _cost(cost: Dictionary, compact := false) -> Container:
+	var row: Container = HFlowContainer.new() if compact else HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	for id: String in cost:
 		var need := int(cost[id])
-		row.add_child(IconRect.new(id, 38.0))
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 2)
+		chip.add_child(IconRect.new(id, 28.0 if compact else 38.0))
 		var ok := inv.count(id) >= need
-		row.add_child(UiTheme.label("%d/%d " % [inv.count(id), need], 20, UiTheme.CREAM if ok else UiTheme.DANGER))
+		chip.add_child(UiTheme.label("%d/%d " % [inv.count(id), need], 16 if compact else 20, UiTheme.CREAM if ok else UiTheme.DANGER))
+		row.add_child(chip)
 	return row
 
 
@@ -139,13 +157,16 @@ func refresh() -> void:
 		row.add_child(b)
 		_list.add_child(c)
 	for d: Dictionary in Data.build:
-		var c := card(Vector2(0, 0))
+		var c := card(Vector2(200, 0))
 		var v := VBoxContainer.new()
 		c.add_child(v)
 		var head := HBoxContainer.new()
 		head.add_child(IconRect.new(d["id"], 52.0))
-		head.add_child(UiTheme.label(d["name"], 19, UiTheme.CREAM))
+		var nl := UiTheme.label(d["name"], 18, UiTheme.CREAM)
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.custom_minimum_size = Vector2(120, 0)
+		nl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		head.add_child(nl)
 		v.add_child(head)
-		var cost := _cost(d["cost"])
-		v.add_child(cost)
+		v.add_child(_cost(d["cost"], true))
 		_builds.add_child(c)

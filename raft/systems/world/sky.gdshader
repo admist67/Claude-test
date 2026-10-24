@@ -12,6 +12,7 @@ uniform vec3 cloud_lit = vec3(1.0, 1.0, 1.0);
 uniform vec3 cloud_shade = vec3(0.7, 0.75, 0.82);
 uniform float cloud_cover = 0.48;
 uniform float t;
+uniform float flash = 0.0;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 
 float hash(vec3 p) {
@@ -41,5 +42,5 @@ void sky() {
 		vec3 cc = mix(cloud_shade, cloud_lit, lit * (1.0 - (n - 0.5)));
 		col = mix(col, cc, c * 0.92);
 	}
-	COLOR = col;
+	COLOR = col + vec3(0.8, 0.85, 1.0) * flash * smoothstep(-0.1, 0.4, e);
 }

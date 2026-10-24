@@ -1,8 +1,8 @@
 class_name Station
 extends StaticBody3D
-## A cooking station on a raft tile. The purifier boils seawater into a cup of fresh
-## water, the grill cooks fish. Fuel (leaves, planks) burns only while something cooks;
-## the result waits on the station until the player takes it.
+## A station on a raft tile. The purifier boils seawater into a cup of fresh water, the
+## grill cooks fish and meat, the planter grows seeds into pineapples. Fuel (leaves,
+## planks) burns only while something cooks; the result waits until the player takes it.
 
 signal finished(station: Station)
 
@@ -17,6 +17,7 @@ var _fire: Node3D
 var _light: OmniLight3D
 var _steam: CPUParticles3D
 var _food: MeshInstance3D
+var _crop: Node3D
 var _t := 0.0
 
 
@@ -74,6 +75,15 @@ func setup(k: String, c: Vector2i, d: Dictionary) -> void:
 	_food = MeshInstance3D.new()
 	_food.position = Vector3(0, 0.47, 0) if kind == "grill" else Vector3(0.3, 0.37, 0.2)
 	add_child(_food)
+	if kind == "planter":
+		_food.position = Vector3(0, 0.3, 0)
+		_crop = Node3D.new()
+		for i in 2:
+			var fruit := Looks.held("pineapple")
+			fruit.scale = Vector3.ONE * 2.2
+			fruit.position = Vector3(-0.22 + i * 0.44, 0.36, 0.1 - i * 0.2)
+			_crop.add_child(fruit)
+		add_child(_crop)
 	_refresh()
 
 
@@ -105,9 +115,12 @@ func busy() -> bool:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if cooking != "" and fuel > 0.0:
-		fuel = maxf(0.0, fuel - delta)
+	if cooking != "" and (fuel > 0.0 or not needs_fuel()):
+		if needs_fuel():
+			fuel = maxf(0.0, fuel - delta)
 		progress += delta
+		if kind == "planter":
+			_food.scale = Vector3.ONE * (0.3 + 0.9 * progress / float(def["time"]))
 		if progress >= float(def["time"]):
 			ready_item = _output(cooking)
 			cooking = ""
@@ -116,7 +129,7 @@ func _process(delta: float) -> void:
 			Sfx.play("ready", -6.0)
 			Events.toast.emit("Готово: " + Data.item_name(ready_item), ready_item)
 			finished.emit(self)
-	var lit := cooking != "" and fuel > 0.0
+	var lit := cooking != "" and fuel > 0.0 and needs_fuel()
 	_fire.visible = lit
 	_light.visible = lit
 	if lit:
@@ -127,14 +140,23 @@ func _process(delta: float) -> void:
 		_steam.emitting = lit
 
 
+func needs_fuel() -> bool:
+	return def.has("fuel")
+
+
+## What goes in → what comes out: grill "cook", planter "grow".
+func _table() -> Dictionary:
+	return def.get("cook", def.get("grow", {}))
+
+
 func _output(input: String) -> String:
 	if kind == "purifier":
 		return def["out"]
-	return def["cook"].get(input, "")
+	return _table().get(input, "")
 
 
 func _raw_in(inv: Inventory) -> String:
-	for id: String in def.get("cook", {}):
+	for id: String in _table():
 		if inv.count(id) > 0:
 			return id
 	return ""
@@ -152,40 +174,50 @@ func prompt(inv: Inventory) -> Dictionary:
 	if ready_item != "":
 		return {"text": "Забрать", "ok": true, "icon": ready_item}
 	if cooking != "":
-		if fuel <= 0.0:
+		if needs_fuel() and fuel <= 0.0:
 			return {"text": "Подбросить", "ok": _fuel_in(inv) != "", "icon": "leaf"}
 		return {"text": "%d%%" % int(progress / float(def["time"]) * 100.0), "ok": false, "icon": kind}
 	var raw := "seawater" if kind == "purifier" else _raw_in(inv)
 	if raw == "":
-		return {"text": "Нет рыбы", "ok": false, "icon": "fish"}
-	var ok := fuel > 0.0 or _fuel_in(inv) != ""
-	return {"text": "Кипятить" if kind == "purifier" else "Жарить", "ok": ok, "icon": kind}
+		return {"text": "Нет семян" if kind == "planter" else "Нет рыбы", "ok": false, "icon": "seeds" if kind == "planter" else "fish"}
+	var ok := not needs_fuel() or fuel > 0.0 or _fuel_in(inv) != ""
+	var verbs := {"purifier": "Кипятить", "grill": "Жарить", "planter": "Посадить"}
+	return {"text": verbs[kind], "ok": ok, "icon": raw if kind == "planter" else kind}
 
 
 ## Does what prompt() says. Returns [message, item taken or ""].
 func interact(inv: Inventory) -> Array:
 	if ready_item != "":
 		var got := ready_item
-		inv.add(got)
+		var n := int(def.get("count", 1))
+		inv.add(got, n)
 		ready_item = ""
 		_refresh()
-		return ["+1 " + Data.item_name(got), got]
+		return ["+%d %s" % [n, Data.item_name(got)], got]
 	if cooking != "":
-		if fuel <= 0.0:
-			return ["Подброшено топливо" if _add_fuel(inv) else "Нужно топливо: лист или доска", ""]
-		return ["Ещё готовится…", ""]
+		return [_feed_fire(inv), ""]
 	var raw := "seawater" if kind == "purifier" else _raw_in(inv)
 	if raw == "":
-		return ["Нужна сырая рыба — поймай удочкой", ""]
-	if fuel <= 0.0 and not _add_fuel(inv):
+		return ["Нужны семена — ищи в бочках" if kind == "planter" else "Нужна сырая рыба или мясо", ""]
+	if needs_fuel() and fuel <= 0.0 and not _add_fuel(inv):
 		return ["Нужно топливо: лист или доска", ""]
 	if raw != "seawater":
 		inv.remove(raw)
 	cooking = raw
 	progress = 0.0
 	_refresh()
+	if kind == "planter":
+		Sfx.play("craft", -6.0)
+		return ["Семена посажены", ""]
 	Sfx.play("ignite", -6.0)
-	return ["Вода закипает…" if kind == "purifier" else "Рыба на гриле", ""]
+	return ["Вода закипает…" if kind == "purifier" else "На гриле: " + Data.item_name(raw), ""]
+
+
+## While cooking: throw on more fuel if the fire went out.
+func _feed_fire(inv: Inventory) -> String:
+	if not needs_fuel() or fuel > 0.0:
+		return "Ещё готовится…"
+	return "Подброшено топливо" if _add_fuel(inv) else "Нужно топливо: лист или доска"
 
 
 func _add_fuel(inv: Inventory) -> bool:
@@ -197,6 +229,12 @@ func _add_fuel(inv: Inventory) -> bool:
 
 
 func _refresh() -> void:
+	if kind == "planter":
+		_food.visible = cooking != "" or ready_item != ""
+		_food.mesh = Looks.mesh("sprout")
+		_food.scale = Vector3.ONE * (1.2 if ready_item != "" else 0.3 + 0.9 * progress / float(def["time"]))
+		_crop.visible = ready_item != ""
+		return
 	var show := ready_item if ready_item != "" else (cooking if cooking != "seawater" else "")
 	_food.visible = show != ""
 	if show != "":

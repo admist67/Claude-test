@@ -34,7 +34,7 @@ static func held(id: String) -> Node3D:
 		mi.mesh = mesh(id)
 		root.add_child(mi)
 		match id:
-			"hook":
+			"hook", "metal_hook":
 				mi.scale = Vector3.ONE * 0.45
 				mi.rotation = Vector3(0.5, 0.4, -0.2)
 				mi.position = Vector3(0.06, -0.08, -0.05)
@@ -42,7 +42,7 @@ static func held(id: String) -> Node3D:
 				mi.scale = Vector3.ONE * 0.7
 				mi.rotation = Vector3(0.3, -0.4, 0.2)
 				mi.position = Vector3(0.06, -0.12, 0.0)
-			"spear":
+			"spear", "metal_spear":
 				mi.scale = Vector3.ONE * 0.8
 				mi.rotation = Vector3(-1.35, 0.05, -0.15)
 				mi.position = Vector3(0.0, -0.05, 0.25)
@@ -87,6 +87,16 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.3, 0.8, Vector3(0, 0.05, 0), Color(1, 0.9, 0.8), "wood_warm", Vector3(0, 0, PI / 2.0), 14, 1.2, 0.12)
 			for x: float in [-0.26, 0.26]:
 				Mk.st_cyl(st, 0.325, 0.05, Vector3(x, 0.05, 0), Color(0.6, 0.62, 0.66), "metal", Vector3(0, 0, PI / 2.0), 14)
+		"metal_hook":
+			Mk.st_cyl(st, 0.026, 0.34, Vector3(0, 0.12, 0), Color(1, 1, 1), "metal", Vector3.ZERO, 8)
+			for a in 4:
+				var yaw := a * TAU / 4.0
+				var out := Vector3(sin(yaw), 0, cos(yaw))
+				Mk.st_box(st, Vector3(0.035, 0.035, 0.18), out * 0.08 + Vector3(0, -0.03, 0), Color(1, 1, 1), "metal", Vector3(0.0, yaw, 0.0))
+				Mk.st_box(st, Vector3(0.035, 0.13, 0.035), out * 0.16 + Vector3(0, 0.03, 0), Color(1, 1, 1), "metal", Vector3(0.0, yaw, 0.0))
+			for k in 3:
+				Mk.st_cyl(st, 0.038, 0.03, Vector3(0, 0.22 + k * 0.03, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
+			Mk.st_cyl(st, 0.055, 0.06, Vector3(0, 0.31, 0), Color("#2f6fb0"), "plastic", Vector3.ZERO, 10)
 		"hook", "hook_head":
 			Mk.st_cyl(st, 0.022, 0.32, Vector3(0, 0.12, 0), Color(0.8, 0.82, 0.86), "metal", Vector3.ZERO, 8)
 			for a in 3:
@@ -111,6 +121,14 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.03, 0.14, Vector3(0, 0.82, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
 			Mk.st_box(st, Vector3(0.06, 0.2, 0.015), Vector3(0, 0.97, 0), Color(0.8, 0.82, 0.86), "metal")
 			Mk.st_box(st, Vector3(0.035, 0.07, 0.016), Vector3(0, 1.1, 0), Color(0.85, 0.87, 0.9), "metal")
+		"metal_spear", "metal_spear_icon":
+			var r := 0.045 if id.ends_with("icon") else 0.022
+			Mk.st_cyl(st, r, 1.3 if r < 0.03 else 1.0, Vector3(0, 0.2 if r < 0.03 else 0.1, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
+			var tip := 0.82 if r < 0.03 else 0.6
+			var k := 1.0 if r < 0.03 else 1.6
+			Mk.st_cyl(st, r * 1.5, 0.12 * k, Vector3(0, tip, 0), Color(0.75, 0.77, 0.8), "metal", Vector3.ZERO, 8)
+			Mk.st_box(st, Vector3(0.09 * k, 0.26 * k, 0.02 * k), Vector3(0, tip + 0.18 * k, 0), Color(1, 1, 1), "metal")
+			Mk.st_box(st, Vector3(0.05 * k, 0.1 * k, 0.022 * k), Vector3(0, tip + 0.35 * k, 0), Color(1, 1, 1), "metal")
 		"spear_icon":
 			Mk.st_cyl(st, 0.045, 1.0, Vector3(0, 0.1, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
 			Mk.st_cyl(st, 0.055, 0.16, Vector3(0, 0.58, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
@@ -133,14 +151,29 @@ static func mesh(id: String) -> ArrayMesh:
 			var big := id.begins_with("big")
 			var cooked := id.ends_with("cooked")
 			_fish(st, 0.36 if big else 0.24, Color("#a9784a") if cooked else (Color("#7fa0b8") if big else Color("#b9c8d2")))
+		"scrap":
+			Mk.st_box(st, Vector3(0.36, 0.03, 0.24), Vector3(0, 0.02, 0), Color(0.85, 0.8, 0.75), "metal", Vector3(0, 0.3, 0.1))
+			Mk.st_cyl(st, 0.05, 0.3, Vector3(0.05, 0.07, 0.04), Color(0.7, 0.62, 0.55), "metal", Vector3(0, 0.8, PI / 2.0), 8)
+			Mk.st_box(st, Vector3(0.14, 0.12, 0.1), Vector3(-0.1, 0.07, -0.05), Color(0.6, 0.55, 0.5), "metal", Vector3(0.2, 0.5, 0))
+		"seeds":
+			Mk.st_cyl(st, 0.08, 0.12, Vector3(0, 0.06, 0), Color("#e2cd98"), "canvas", Vector3.ZERO, 10, 0.5, 0.25)
+			Mk.st_cyl(st, 0.03, 0.04, Vector3(0, 0.14, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.5)
+			Mk.st_box(st, Vector3(0.05, 0.05, 0.05), Vector3(0.0, 0.18, 0), Color("#6a8a3a"), "white", Vector3(0, 0.6, 0.3))
+		"sprout":
+			leaf = true
+			for a in 5:
+				var yaw := a * TAU / 5.0
+				var b := Basis(Vector3.UP, yaw)
+				var r := Mk.cell("palm")
+				Mk.st_quad(st, [b * Vector3(-0.05, 0.0, 0.0), b * Vector3(0.05, 0.0, 0.0), b * Vector3(0.09, 0.42, 0.18), b * Vector3(-0.09, 0.42, 0.18)], r, Color(0.8, 1, 0.75))
 		"cup_water":
 			Mk.st_cyl(st, 0.07, 0.12, Vector3(0, 0.06, 0), Color(1, 0.95, 0.9), "clay", Vector3.ZERO, 12, 0.5)
 			Mk.st_cyl(st, 0.062, 0.005, Vector3(0, 0.11, 0), Color("#5fb4e8"), "white", Vector3.ZERO, 12)
 		"tile":
 			return Raft.tile_preview_mesh()
-		"purifier", "grill":
+		"purifier", "grill", "planter":
 			_station(st, id)
-		"wall", "window", "door", "door_frame", "door_leaf", "pillar", "lantern", "roof", "stairs", "net":
+		"wall", "window", "door", "door_frame", "door_leaf", "pillar", "lantern", "roof", "stairs", "net", "hammock":
 			_structure(st, id)
 		_:
 			Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
@@ -183,6 +216,13 @@ static func _fish(st: SurfaceTool, length: float, c: Color) -> void:
 ## Station bodies (fire, steam and food are separate nodes in Station).
 static func _station(st: SurfaceTool, kind: String) -> void:
 	var brick := Color(1, 0.92, 0.85)
+	if kind == "planter":
+		for x: float in [-0.55, 0.55]:
+			Mk.st_box(st, Vector3(0.08, 0.36, 1.2), Vector3(x, 0.18, 0), Color(1, 0.93, 0.84), "wood")
+		for z: float in [-0.56, 0.56]:
+			Mk.st_box(st, Vector3(1.18, 0.36, 0.08), Vector3(0, 0.18, z), Color(1, 0.93, 0.84), "wood")
+		Mk.st_box(st, Vector3(1.04, 0.3, 1.04), Vector3(0, 0.15, 0), Color(0.45, 0.32, 0.22), "clay", Vector3.ZERO, 1.0)
+		return
 	if kind == "purifier":
 		Mk.st_box(st, Vector3(0.62, 0.36, 0.62), Vector3(0, 0.18, 0), brick, "bricks", Vector3.ZERO, 1.0)
 		Mk.st_box(st, Vector3(0.3, 0.16, 0.05), Vector3(0, 0.1, 0.3), Color(0.15, 0.13, 0.12), "ash")
@@ -346,6 +386,23 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 				Mk.st_box(st, Vector3(0.08, 0.16, slen), Vector3(x, H / 2.0 - 0.05, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
 				Mk.st_box(st, Vector3(0.05, 0.05, slen), Vector3(x, H / 2.0 + 0.85, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
 				Mk.st_box(st, Vector3(0.05, 0.9, 0.05), Vector3(x, 0.45, -T / 2.0 + 0.05), dark, "wood_dark")
+		"hammock":
+			for x: float in [-0.66, 0.66]:
+				Mk.st_box(st, Vector3(0.1, 1.15, 0.1), Vector3(x, 0.575, 0), dark, "wood_dark")
+				Mk.st_cyl(st, 0.07, 0.08, Vector3(x, 1.0, 0), Color(1, 0.96, 0.9), "rope", Vector3.ZERO, 8, 0.6)
+			var segs := 8
+			for i in segs:
+				var u0 := float(i) / segs
+				var u1 := float(i + 1) / segs
+				var x0 := lerpf(-0.6, 0.6, u0)
+				var x1 := lerpf(-0.6, 0.6, u1)
+				var y0 := 0.95 - sin(PI * u0) * 0.45
+				var y1 := 0.95 - sin(PI * u1) * 0.45
+				var mid := Vector3((x0 + x1) / 2.0, (y0 + y1) / 2.0, 0)
+				var ang := atan2(y1 - y0, x1 - x0)
+				Mk.st_box(st, Vector3(Vector2(x1 - x0, y1 - y0).length() + 0.01, 0.025, 0.62), mid, Color("#e8d8b0"), "canvas", Vector3(0, 0, ang), 1.0)
+			for z: float in [-0.31, 0.31]:
+				Mk.st_box(st, Vector3(0.02, 0.02, 0.02), Vector3(0, 0.5, z), Color("#b03a2a"), "white")
 		"net":
 			for x: float in [-0.7, 0.7]:
 				Mk.st_box(st, Vector3(0.07, 1.15, 0.07), Vector3(x, 0.05, 0), dark, "wood_dark")

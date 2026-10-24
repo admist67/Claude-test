@@ -45,14 +45,14 @@ func _render(id: String) -> void:
 		model = Mk.model(root, Looks.MODELS[id][0])
 	else:
 		var mi := MeshInstance3D.new()
-		mi.mesh = Looks.mesh(id + "_icon" if id in ["rod", "spear"] else id)
+		mi.mesh = Looks.mesh(id + "_icon" if id in ["rod", "spear", "metal_spear"] else id)
 		root.add_child(mi)
 		model = mi
-	if id in ["rod", "spear"]:
+	if id in ["rod", "spear", "metal_spear"]:
 		model.rotation = Vector3(0, 0, -0.7)
 	elif id == "leaf":
 		model.rotation = Vector3(0.9, 0.6, 0)
-	elif id in ["hook", "hammer"]:
+	elif id in ["hook", "hammer", "metal_hook"]:
 		model.rotation = Vector3(0, 0, -0.5)
 	var box := _aabb(root)
 	var center := box.get_center()

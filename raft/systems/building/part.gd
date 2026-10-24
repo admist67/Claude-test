@@ -1,17 +1,20 @@
 class_name Part
 extends StaticBody3D
 ## One raft structure: wall, window, door, net (on a tile edge), pillar, lantern (on a
-## corner), roof or stairs (on a cell). Doors swing open when the player comes close,
+## corner), roof or stairs (on a cell). Doors open and close with the use button,
 ## nets hold the debris that drifts into them, lanterns light up at night.
 
 const H := 2.4
+const USE_LAYER := 4             # ray-only bodies the player never bumps into
 
 var kind := ""
 var key: Variant                  # Vector3i edge, Vector2i corner or cell
 var dir := 0                      # stairs: 0..3 = +Z, +X, -Z, -X; nets: outward side
 var caught: Array = []            # nets: Debris held in the mesh
 var capacity := 8
+var is_open := false
 var _leaf: Node3D
+var _leaf_shape: CollisionShape3D
 var _open := 0.0
 var _light: OmniLight3D
 var _glow: MeshInstance3D
@@ -38,6 +41,8 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			lm.mesh = Looks.mesh("door_leaf")
 			_leaf.add_child(lm)
 			add_child(_leaf)
+			_leaf_shape = _box(Vector3(1.12, 2.05, 0.08), Vector3(0, 1.03, 0))
+			_use_box(Vector3(1.14, 2.05, 0.3), Vector3(0, 1.03, 0))
 		"pillar":
 			_box(Vector3(0.18, H, 0.18), Vector3(0, H / 2.0, 0))
 		"lantern":
@@ -74,23 +79,48 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			cs.shape = shape
 			add_child(cs)
 		"net":
-			_box(Vector3(1.4, 1.0, 0.2), Vector3(0, 0.05, 0))
-			collision_layer = 1
+			_use_box(Vector3(1.4, 1.0, 0.3), Vector3(0, 0.05, 0))
+		"hammock":
+			for x: float in [-0.66, 0.66]:
+				_box(Vector3(0.12, 1.15, 0.12), Vector3(x, 0.575, 0))
+			_use_box(Vector3(1.2, 0.6, 0.7), Vector3(0, 0.65, 0))
 
 
-func _box(size: Vector3, pos: Vector3) -> void:
+func _box(size: Vector3, pos: Vector3) -> CollisionShape3D:
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
 	cs.shape = shape
 	cs.position = pos
 	add_child(cs)
+	return cs
 
 
-## Door swing toward `open` (0..1); lantern light on/off.
-func tick(delta: float, player_near: bool, night: bool) -> void:
+## A body only the use ray sees (door opening, net), pointing back to this part.
+func _use_box(size: Vector3, pos: Vector3) -> void:
+	var b := StaticBody3D.new()
+	b.collision_layer = USE_LAYER
+	b.collision_mask = 0
+	b.set_meta("part", self)
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	cs.shape = shape
+	cs.position = pos
+	b.add_child(cs)
+	add_child(b)
+
+
+func toggle() -> void:
+	is_open = not is_open
+	_leaf_shape.disabled = is_open
+	Sfx.play("door", -4.0)
+
+
+## Door swing; lantern light on/off.
+func tick(delta: float, night: bool) -> void:
 	if _leaf:
-		_open = move_toward(_open, 1.0 if player_near else 0.0, delta * 2.5)
+		_open = move_toward(_open, 1.0 if is_open else 0.0, delta * 2.5)
 		_leaf.rotation.y = -_open * 1.6
 	if _light:
 		_light.visible = night
@@ -99,9 +129,14 @@ func tick(delta: float, player_near: bool, night: bool) -> void:
 
 func to_dict() -> Dictionary:
 	var k: Array = [key.x, key.y, key.z] if key is Vector3i else [key.x, key.y]
-	return {"kind": kind, "key": k, "dir": dir}
+	return {"kind": kind, "key": k, "dir": dir, "open": is_open}
 
 
-## Nets: the use button.
+## Nets and doors: the use button.
 func prompt(_inv: Inventory) -> Dictionary:
+	if kind == "door":
+		return {"text": "Закрыть" if is_open else "Открыть", "ok": true, "icon": "door"}
+	if kind == "hammock":
+		var dn: DayNight = get_parent().daynight
+		return {"text": "Спать", "ok": dn != null and dn.is_night(), "icon": "hammock"}
 	return {"text": "Собрать (%d)" % caught.size() if not caught.is_empty() else "Пусто", "ok": not caught.is_empty(), "icon": "net"}

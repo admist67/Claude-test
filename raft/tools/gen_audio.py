@@ -117,6 +117,11 @@ def sfx():
     t = t_axis(1.1)
     drone = np.sin(2 * np.pi * 73.4 * t) * 0.6 + np.sin(2 * np.pi * 77.8 * t) * 0.4
     s["warning"] = drone * (env(len(t), 0.02, 2.4) + np.concatenate([np.zeros(int(SR * 0.45)), env(len(t) - int(SR * 0.45), 0.02, 3.0)]))
+    creak = sweep(180, 120, 0.35) * (0.6 + 0.4 * np.sin(np.linspace(0, 40, int(SR * 0.35)))) * env(int(SR * 0.35), 0.02, 5)
+    s["door"] = mix(creak * 0.7, np.concatenate([np.zeros(int(SR * 0.3)), bell([140, 320], 0.2, 25)]))
+    rumble = lowpass(noise(2.4), 0.012) * 9.0
+    crack = highpass(noise(0.25), 0.5) * env(int(SR * 0.25), 0.001, 14)
+    s["thunder"] = mix(crack * 0.6, rumble * env(int(SR * 2.4), 0.05, 1.6))
     os.makedirs(OUT, exist_ok=True)
     for name, x in s.items():
         write_wav(os.path.join(OUT, name + ".wav"), norm(x, 0.7))
@@ -143,7 +148,24 @@ def ocean():
     os.remove(wav)
 
 
+def rain():
+    """A seamless 8 s rain loop: bright hiss with soft patter."""
+    dur = 8.0
+    x = highpass(lowpass(noise(dur), 0.55), 0.08) * 0.5
+    for p in rng.integers(0, len(x) - 200, 900):
+        x[p:p + 200] += highpass(noise(200 / SR), 0.7) * env(200, 0.0005, 400) * rng.uniform(0.1, 0.5)
+    fade = int(SR * 0.5)
+    head = x[:fade].copy()
+    x[-fade:] = x[-fade:] * np.linspace(1, 0, fade) + head * np.linspace(0, 1, fade)
+    x = x[fade:]
+    wav = os.path.join(OUT, "_rain.wav")
+    write_wav(wav, norm(x, 0.55))
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav, "-c:a", "libvorbis", "-q:a", "3", os.path.join(OUT, "rain.ogg")], check=True)
+    os.remove(wav)
+
+
 if __name__ == "__main__":
     sfx()
     ocean()
+    rain()
     print("ok:", sorted(os.listdir(OUT)))

@@ -178,7 +178,7 @@ func _draw_crosshair(vs: Vector2) -> void:
 	elif game.rod.state == Rod.State.CHARGE:
 		power = game.rod.power
 	if power >= 0.0:
-		_power_bar(Rect2(c + Vector2(-120, 48), Vector2(240, 26)), power)
+		_power_bar(Rect2(c + Vector2(-80, 44), Vector2(160, 18)), power)
 	if game.rod.state == Rod.State.BITE:
 		var s := 1.0 + 0.15 * sin(Time.get_ticks_msec() / 50.0)
 		Icons.draw(self, "exclamation", c + Vector2(0, -80), 70.0 * s, Color("#ffd24a"))
@@ -190,7 +190,7 @@ func _power_bar(r: Rect2, power: float) -> void:
 	var h := r.size.y
 	_round_rect(r.grow(2.0), Color(0.02, 0.06, 0.08, 0.75), (h + 4.0) / 2.0)
 	_round_rect_border(r, Color(0.04, 0.12, 0.15, 0.95), UiTheme.GOLD, h / 2.0, 2)
-	var inner := r.grow(-5.0)
+	var inner := r.grow(-4.0)
 	var ih := inner.size.y
 	var w := ih + (inner.size.x - ih) * power
 	var fill := Rect2(inner.position, Vector2(w, ih))
@@ -230,7 +230,7 @@ func _draw_buttons() -> void:
 		draw_arc(a["c"], a["r"] - 6, -PI / 2.0, -PI / 2.0 + TAU * float(act["cooldown"]), 48, UiTheme.GOLD, 6.0, true)
 	_label_pill(act["label"], a["c"] + Vector2(0, a["r"] - 4))
 	if act.has("cost"):
-		_cost_row(act["cost"], a["c"] + Vector2(-a["r"] - 30, a["r"] - 4), true)
+		_cost_row(act["cost"], a["c"] + Vector2(a["r"] + 10, -a["r"] - 24), true)
 	var u: Dictionary = b["use"]
 	if u["on"]:
 		var use: Dictionary = game.use_view()

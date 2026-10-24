@@ -38,6 +38,7 @@ func _ghost_mat(c: Color) -> StandardMaterial3D:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.no_depth_test = true
+	m.render_priority = 100     # after the see-through water, or it veils the ghost
 	return m
 
 
@@ -91,7 +92,7 @@ func _process(delta: float) -> void:
 		"stairs":
 			pos = raft.cell_center(cell)
 			var dv: Vector2i = RaftParts.DIRS[dir]
-			yaw = atan2(float(dv.x), float(dv.y))
+			yaw = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
 		_:
 			pos = raft.cell_center(cell)
 			yaw = PI if gk in ["purifier", "grill"] else 0.0
@@ -169,9 +170,9 @@ func _find_deck_cell() -> void:
 	cell = c
 	has_target = true
 	var standing := raft.cell_at(player.position) == c
-	if kind == "stairs":
+	if kind == "stairs" or kind == "hammock":
 		dir = RaftParts.DIRS.find(_look_dir())
-		valid = raft.parts.can_stairs(c) and not standing
+		valid = (raft.parts.can_stairs(c) if kind == "stairs" else raft.parts.can_bed(c)) and not standing
 	else:
 		valid = not raft.stations.has(c) and not raft.parts.cell_busy(c) and not standing
 

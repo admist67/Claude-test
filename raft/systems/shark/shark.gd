@@ -94,17 +94,18 @@ func _next_attack() -> float:
 
 
 ## A spear thrust from `eye` along `fwd`. Returns true on a hit.
-func try_hit(eye: Vector3, fwd: Vector3) -> bool:
+## `power` hits at once (metal spear: 2), `reach` added to the spear's range.
+func try_hit(eye: Vector3, fwd: Vector3, power := 1, reach := 0.0) -> bool:
 	if not alive_near() or state == State.FLEE:
 		return false
 	var to := global_position - eye
 	var flat := Vector2(to.x, to.z)
-	if flat.length() > float(cfg["hit_reach"]) + 1.0:
+	if flat.length() > float(cfg["hit_reach"]) + 1.0 + reach:
 		return false
 	var f2 := Vector2(fwd.x, fwd.z).normalized()
 	if flat.normalized().dot(f2) < 0.5:
 		return false
-	_hits += 1
+	_hits += power
 	_hurt_t = 0.4
 	hurt.emit(hits_left())
 	if _hits >= need:

@@ -11,6 +11,7 @@ enum State { IDLE, CHARGE, FLY, WATER }
 var state := State.IDLE
 var power := 0.0
 var reeling := false
+var upgraded := false            # metal hook: reels faster, reaches farther, holds more
 var caught: Array[Debris] = []
 var player: Player
 var field: DebrisField
@@ -45,6 +46,10 @@ func _ready() -> void:
 	_rope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_rope)
 	visible = false
+
+
+func _f(key: String) -> float:
+	return float(Data.b["hook_upgrade"].get(key, cfg[key])) if upgraded else float(cfg[key])
 
 
 func busy() -> bool:
@@ -82,7 +87,7 @@ func cancel() -> void:
 
 func _throw() -> void:
 	var p := power
-	var dist := lerpf(float(cfg["min_dist"]), float(cfg["max_dist"]) * float(Data.tune["hook"]), p)
+	var dist := lerpf(float(cfg["min_dist"]), _f("max_dist") * float(Data.tune["hook"]), p)
 	_from = player.hand_tip()
 	_to = _from + player.flat_forward() * dist
 	_to.y = Ocean.height_at(_to.x, _to.z)
@@ -125,21 +130,21 @@ func _in_water(delta: float) -> void:
 		if d < float(cfg["return_dist"]):
 			_deliver()
 			return
-		p += v / d * minf(d, float(cfg["reel_speed"]) * delta)
+		p += v / d * minf(d, _f("reel_speed") * delta)
 	p.y = Ocean.height_at(p.x, p.z) + 0.05
 	global_position = p
 	_head.rotation.x = sin(Ocean.time * 2.0) * 0.2
-	if caught.size() < int(cfg["max_items"]):
+	if caught.size() < int(_f("max_items")):
 		for d in field.items:
-			if d.hook == null and d.net == null and Vector2(d.global_position.x - p.x, d.global_position.z - p.z).length() < float(cfg["catch_radius"]):
+			if d.hook == null and d.net == null and Vector2(d.global_position.x - p.x, d.global_position.z - p.z).length() < _f("catch_radius"):
 				d.hook = self
 				d.hook_offset = Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
 				caught.append(d)
 				Sfx.play("snag", -6.0, 0.15)
-				if caught.size() >= int(cfg["max_items"]):
+				if caught.size() >= int(_f("max_items")):
 					break
 	# Drifted out of reach (the raft can't move away, but just in case): pull back.
-	if Vector2(p.x - player.global_position.x, p.z - player.global_position.z).length() > float(cfg["max_dist"]) * 1.6:
+	if Vector2(p.x - player.global_position.x, p.z - player.global_position.z).length() > _f("max_dist") * 1.6:
 		reeling = true
 
 

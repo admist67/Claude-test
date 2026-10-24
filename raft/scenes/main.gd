@@ -16,7 +16,7 @@ var hotbar: Array[String] = []
 var sel := 0
 var grab_target: Debris
 var station_target: Station
-var net_target: Part
+var net_target: Part              # a net or a door under the crosshair
 var rng := RandomNumberGenerator.new()
 
 var ocean: Ocean
@@ -26,6 +26,8 @@ var player: Player
 var hook: Hook
 var rod: Rod
 var shark: Shark
+var storm: Storm
+var fade: ColorRect
 var field: DebrisField
 var builder: Builder
 var touch: TouchControls
@@ -129,8 +131,20 @@ func _build_world() -> void:
 		_burst(shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
 	)
 	shark.fled.connect(_on_shark_driven)
-	raft.parts.player = player
 	raft.parts.daynight = daynight
+	storm = Storm.new()
+	add_child(storm)
+	daynight.storm = storm
+	storm.warned.connect(func() -> void:
+		hud.toast("Надвигается шторм!", "warning")
+		Sfx.play("warning", -6.0)
+	)
+	storm.started.connect(func() -> void: hud.toast("Шторм! Держись за плот", "warning"))
+	storm.ended.connect(func() -> void:
+		stats["storms"] = int(stats.get("storms", 0)) + 1
+		hud.toast("Шторм стих — море несёт много обломков", "plank")
+		_check_goals()
+	)
 	daynight.new_day.connect(func(d: int) -> void:
 		hud.toast("Наступил день %d" % d, "sun")
 		_check_goals()
@@ -174,6 +188,11 @@ func _build_ui() -> void:
 		_close_build()
 	)
 	build_panel.closed.connect(_close_build)
+	fade = ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(fade)
 	menus = Menus.new()
 	layer.add_child(menus)
 	menus.new_game.connect(func() -> void:
@@ -210,6 +229,7 @@ func _new_state() -> void:
 	daynight.phase = float(Data.b["day"]["start_phase"])
 	daynight.day = 1
 	shark.reset(float(Data.b["shark"]["first_delay"]))
+	storm.restore(float(Data.b["storm"]["first"]))
 	player.place(raft.centroid())
 	_reset_sea()
 
@@ -235,6 +255,7 @@ func _state() -> Dictionary:
 		"stations": raft.stations.values().map(func(st: Station) -> Dictionary: return st.to_dict()),
 		"parts": raft.parts.to_list(),
 		"phase": daynight.phase,
+		"storm_t": storm.timer if storm.state == Storm.State.CALM else float(Data.b["storm"]["interval"][0]),
 		"hp": raft.hp.keys().map(func(c: Vector2i) -> Array: return [c.x, c.y, raft.hp[c]]),
 		"day": daynight.day,
 	}
@@ -260,6 +281,7 @@ func _apply_save(d: Dictionary) -> void:
 			raft.refresh_tile(hc)
 	shark.reset(float(Data.b["shark"]["first_delay"]))
 	daynight.phase = float(d.get("phase", Data.b["day"]["start_phase"]))
+	storm.restore(float(d.get("storm_t", Data.b["storm"]["first"])))
 	daynight.day = int(d.get("day", 1))
 	inv.from_dict(d["inv"])
 	vitals = Vitals.new()
@@ -309,6 +331,7 @@ func _to_menu() -> void:
 	rod.cancel()
 	menu_cam.current = true
 	ocean.cam = menu_cam
+	storm.cam = menu_cam
 	menus.has_save = SaveGame.exists()
 	menus.show_main()
 	Sfx.ambience(true)
@@ -319,6 +342,7 @@ func _start() -> void:
 	menus.hide_all()
 	player.cam.current = true
 	ocean.cam = player.cam
+	storm.cam = player.cam
 	touch.enabled = true
 	touch.reset()
 	_refresh_hotbar()
@@ -399,20 +423,27 @@ func _select(id: String) -> void:
 		_apply_selection()
 
 
+## What the selected item does: tools act by their "use" (the metal hook is a hook).
+func tool_use() -> String:
+	return Data.item(selected()).get("use", selected())
+
+
 func _apply_selection() -> void:
 	var id := selected()
-	if id != "hook" and hook.busy():
+	var use := tool_use()
+	if use != "hook" and hook.busy():
 		hook.cancel()
-	if id != "rod" and rod.busy():
+	if use != "rod" and rod.busy():
 		rod.cancel()
+	hook.upgraded = id == "metal_hook"
 	player.hold(id)
-	builder.active = id == "hammer"
+	builder.active = use == "hammer"
 	touch.set_builds(build_choices().size())
 
 
 ## The build button above the hotbar while the hammer is out: shows what gets built.
 func build_choices() -> Array:
-	return [builder.kind] if selected() == "hammer" else []
+	return [builder.kind] if tool_use() == "hammer" else []
 
 
 func _open_build() -> void:
@@ -453,21 +484,22 @@ func _on_pressed(b: String) -> void:
 
 
 func _on_released(b: String) -> void:
-	if b == "action" and selected() == "hook":
+	if b == "action" and tool_use() == "hook":
 		hook.release()
-	elif b == "action" and selected() == "rod":
+	elif b == "action" and tool_use() == "rod":
 		rod.release()
 
 
 func _action_down() -> void:
 	var id := selected()
-	if id == "hook":
+	var use := tool_use()
+	if use == "hook":
 		hook.press()
-	elif id == "rod":
+	elif use == "rod":
 		rod.press()
-	elif id == "spear":
+	elif use == "spear":
 		_stab()
-	elif id == "hammer":
+	elif use == "hammer":
 		var fixing := builder.repair
 		if builder.place():
 			player.swing()
@@ -487,6 +519,12 @@ func _action_down() -> void:
 
 ## The use button: take from / feed a station, or pick up floating debris by hand.
 func _use() -> void:
+	if net_target and net_target.kind == "door":
+		net_target.toggle()
+		return
+	if net_target and net_target.kind == "hammock":
+		_sleep()
+		return
 	if net_target:
 		var got: Array = net_target.caught.duplicate()
 		net_target.caught.clear()
@@ -497,13 +535,18 @@ func _use() -> void:
 				_collect(d)
 		return
 	if station_target:
+		var was_busy := station_target.busy()
 		var res: Array = station_target.interact(inv)
 		var got: String = res[1]
+		if station_target.kind == "planter" and not was_busy and station_target.busy():
+			stats["planted"] = int(stats.get("planted", 0)) + 1
 		player.swing()
 		if got != "":
 			stats["got_" + got] = int(stats.get("got_" + got, 0)) + 1
 			if station_target.kind == "grill":
 				stats["cooked"] = int(stats.get("cooked", 0)) + 1
+			if station_target.kind == "planter":
+				stats["harvest"] = int(stats.get("harvest", 0)) + 1
 			Sfx.play("pop", -2.0)
 			hud.toast(res[0], got)
 		else:
@@ -520,7 +563,9 @@ func _stab() -> void:
 		return
 	_spear_cd = float(Data.b["player"]["spear_cooldown"])
 	player.swing()
-	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z):
+	var metal := selected() == "metal_spear"
+	var ms: Dictionary = Data.b["shark"]["metal_spear"]
+	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z, int(ms["power"]) if metal else 1, float(ms["reach"]) if metal else 0.0):
 		if shark.hits_left() > 0:
 			hud.toast("Попал!", "spear")
 	else:
@@ -581,6 +626,35 @@ func _burst(pos: Vector3, col: Color, n: int) -> void:
 	p.global_position = pos
 	p.emitting = true
 	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+
+
+## Sleep in a hammock: the night passes in a fade, hunger and thirst drop a bit.
+func _sleep() -> void:
+	if not daynight.is_night():
+		hud.toast("Спать можно только ночью", "moon")
+		return
+	_freeze_input()
+	mode = Mode.PAUSE
+	var tw := create_tween()
+	tw.tween_property(fade, "color:a", 1.0, 0.7)
+	tw.tween_callback(func() -> void:
+		daynight.phase = 0.03
+		daynight.day += 1
+		daynight.apply()
+		var sl: Dictionary = Data.b["sleep"]
+		vitals.hunger = maxf(5.0, vitals.hunger - float(sl["hunger"]))
+		vitals.thirst = maxf(5.0, vitals.thirst - float(sl["thirst"]))
+		stats["slept"] = int(stats.get("slept", 0)) + 1
+	)
+	tw.tween_interval(0.6)
+	tw.tween_property(fade, "color:a", 0.0, 0.9)
+	tw.tween_callback(func() -> void:
+		mode = Mode.PLAY
+		touch.enabled = true
+		hud.toast("Доброе утро! День %d" % daynight.day, "sun")
+		_check_goals()
+		_save()
+	)
 
 
 func _on_fish(id: String) -> void:
@@ -721,7 +795,7 @@ func goal_view() -> Dictionary:
 func use_view() -> Dictionary:
 	if net_target:
 		var p: Dictionary = net_target.prompt(inv)
-		return {"icon": "net", "label": p["text"], "ok": p["ok"]}
+		return {"icon": p["icon"], "label": p["text"], "ok": p["ok"]}
 	if station_target:
 		var p: Dictionary = station_target.prompt(inv)
 		var out := {"icon": p["icon"], "label": p["text"], "ok": p["ok"]}
@@ -734,7 +808,7 @@ func use_view() -> Dictionary:
 func action_view() -> Dictionary:
 	var id := selected()
 	var out := {"icon": id, "label": "", "ok": true}
-	match id:
+	match tool_use():
 		"":
 			out = {"icon": "hand", "label": "", "ok": false}
 		"hook":
@@ -744,7 +818,7 @@ func action_view() -> Dictionary:
 			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Тяни!"}
 			out["label"] = labels[rod.state]
 		"spear":
-			out = {"icon": "spear", "label": "Ударить", "ok": shark.alive_near() and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
+			out = {"icon": id, "label": "Ударить", "ok": shark.alive_near() and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
 		"hammer":
 			if builder.repair:
 				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
@@ -776,10 +850,11 @@ func _process(delta: float) -> void:
 		if int(played / 60.0) != prev_min:
 			_check_goals()
 	_spear_cd = maxf(0.0, _spear_cd - delta)
+	field.extra_mult = storm.debris_mult()
 	if mode == Mode.PLAY:
 		var aimed := _aimed_body()
 		station_target = aimed as Station
-		net_target = aimed if aimed is Part and aimed.kind == "net" else null
+		net_target = aimed if aimed is Part and aimed.kind in ["net", "door", "hammock"] else null
 		grab_target = null if station_target or net_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
 		for d in field.items:
 			d.highlight = d == grab_target
@@ -799,6 +874,9 @@ func _process(delta: float) -> void:
 func _aimed_body() -> Node:
 	var from := player.cam.global_position
 	var to := from + -player.cam.global_basis.z * (float(Data.b["player"]["use_reach"]) + 0.6)
-	var q := PhysicsRayQueryParameters3D.create(from, to, 1, [player.get_rid()])
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | Part.USE_LAYER, [player.get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	return null if hit.is_empty() else hit["collider"]
+	if hit.is_empty():
+		return null
+	var body: Node = hit["collider"]
+	return body.get_meta("part") if body.has_meta("part") else body

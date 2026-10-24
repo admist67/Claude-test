@@ -3,22 +3,38 @@
   {
    "id": "hook",
    "name": "Крюк",
-   "kind": "tool"
+   "kind": "tool",
+   "use": "hook"
   },
   {
    "id": "hammer",
    "name": "Молоток",
-   "kind": "tool"
+   "kind": "tool",
+   "use": "hammer"
   },
   {
    "id": "rod",
    "name": "Удочка",
-   "kind": "tool"
+   "kind": "tool",
+   "use": "rod"
   },
   {
    "id": "spear",
    "name": "Копьё",
-   "kind": "tool"
+   "kind": "tool",
+   "use": "spear"
+  },
+  {
+   "id": "metal_hook",
+   "name": "Металлический крюк",
+   "kind": "tool",
+   "use": "hook"
+  },
+  {
+   "id": "metal_spear",
+   "name": "Металлическое копьё",
+   "kind": "tool",
+   "use": "spear"
   },
   {
    "id": "plank",
@@ -38,6 +54,16 @@
   {
    "id": "rope",
    "name": "Верёвка",
+   "kind": "resource"
+  },
+  {
+   "id": "scrap",
+   "name": "Металлолом",
+   "kind": "resource"
+  },
+  {
+   "id": "seeds",
+   "name": "Семена ананаса",
    "kind": "resource"
   },
   {

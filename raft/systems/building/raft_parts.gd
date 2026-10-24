@@ -9,12 +9,12 @@ const H := 2.4
 const DIRS: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
 
 var raft: Raft
-var player: Node3D
 var daynight: DayNight
 var edges: Dictionary = {}      # Vector3i -> Part
 var corners: Dictionary = {}    # Vector2i -> Part
 var roofs: Dictionary = {}      # Vector2i -> Part
 var stairs: Dictionary = {}     # Vector2i -> Part
+var beds: Dictionary = {}       # Vector2i -> Part (hammocks)
 
 
 # ---------------------------------------------------------------- geometry
@@ -102,11 +102,15 @@ func can_roof(c: Vector2i) -> bool:
 
 
 func can_stairs(c: Vector2i) -> bool:
-	return raft.has_tile(c) and not stairs.has(c) and not roofs.has(c) and not raft.stations.has(c)
+	return raft.has_tile(c) and not cell_busy(c) and not roofs.has(c) and not raft.stations.has(c)
+
+
+func can_bed(c: Vector2i) -> bool:
+	return raft.has_tile(c) and not cell_busy(c) and not raft.stations.has(c)
 
 
 func cell_busy(c: Vector2i) -> bool:
-	return stairs.has(c)
+	return stairs.has(c) or beds.has(c)
 
 
 ## Can the player be at this raft-local point? Upper floor = roofs and stairs.
@@ -139,18 +143,18 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 		"roof":
 			p.position = raft.cell_center(k)
 			roofs[k] = p
-		"stairs":
+		"stairs", "hammock":
 			var dv: Vector2i = DIRS[d]
 			p.position = raft.cell_center(k)
-			p.rotation.y = atan2(float(dv.x), float(dv.y))
-			stairs[k] = p
+			p.rotation.y = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
+			(stairs if kind == "stairs" else beds)[k] = p
 	add_child(p)
 	return p
 
 
 func count(kind: String) -> int:
 	var n := 0
-	for dict: Dictionary in [edges, corners, roofs, stairs]:
+	for dict: Dictionary in [edges, corners, roofs, stairs, beds]:
 		for k: Variant in dict:
 			if dict[k].kind == kind:
 				n += 1
@@ -159,7 +163,7 @@ func count(kind: String) -> int:
 
 ## A tile sank: drop what stood on it or no longer touches the raft.
 func on_tile_removed(c: Vector2i) -> void:
-	for dict: Dictionary in [roofs, stairs]:
+	for dict: Dictionary in [roofs, stairs, beds]:
 		if dict.has(c):
 			dict[c].queue_free()
 			dict.erase(c)
@@ -176,7 +180,7 @@ func on_tile_removed(c: Vector2i) -> void:
 
 
 func clear() -> void:
-	for dict: Dictionary in [edges, corners, roofs, stairs]:
+	for dict: Dictionary in [edges, corners, roofs, stairs, beds]:
 		for k: Variant in dict:
 			_release(dict[k])
 			dict[k].free()
@@ -185,7 +189,7 @@ func clear() -> void:
 
 func to_list() -> Array:
 	var out: Array = []
-	for dict: Dictionary in [edges, corners, roofs, stairs]:
+	for dict: Dictionary in [edges, corners, roofs, stairs, beds]:
 		for k: Variant in dict:
 			out.append(dict[k].to_dict())
 	return out
@@ -195,7 +199,9 @@ func from_list(list: Array) -> void:
 	for e: Dictionary in list:
 		var a: Array = e["key"]
 		var k: Variant = Vector3i(int(a[0]), int(a[1]), int(a[2])) if a.size() == 3 else Vector2i(int(a[0]), int(a[1]))
-		add(e["kind"], k, int(e.get("dir", 0)))
+		var p := add(e["kind"], k, int(e.get("dir", 0)))
+		if e.get("open", false):
+			p.toggle()
 
 
 # ---------------------------------------------------------------- nets
@@ -229,10 +235,8 @@ func _release(p: Part) -> void:
 
 func _process(delta: float) -> void:
 	var night := daynight != null and daynight.is_night()
-	var pp := player.position if player else Vector3(999, 0, 999)
 	for k: Variant in edges:
-		var p: Part = edges[k]
-		if p.kind == "door":
-			p.tick(delta, Vector2(p.position.x - pp.x, p.position.z - pp.z).length() < 1.4 and pp.y < 1.5, night)
+		if edges[k].kind == "door":
+			edges[k].tick(delta, night)
 	for k: Variant in corners:
-		corners[k].tick(delta, false, night)
+		corners[k].tick(delta, night)

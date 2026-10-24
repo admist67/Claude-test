@@ -5,6 +5,7 @@ render_mode specular_schlick_ggx, cull_back, blend_mix, depth_draw_always;
 
 uniform vec4 waves[4];          // dir.x, dir.z, amplitude, wavelength
 uniform float t;
+uniform float amp_mult = 1.0;
 uniform sampler2D ripple : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform vec3 deep_color = vec3(0.02, 0.12, 0.2);
@@ -25,8 +26,8 @@ vec3 wave_sum(vec2 p) {         // x: height, y: d/dx, z: d/dz
 		vec4 w = waves[i];
 		float k = 6.2831853 / w.w;
 		float ph = k * dot(w.xy, p) - sqrt(9.8 * k) * t;
-		s.x += w.z * sin(ph);
-		float c = w.z * k * cos(ph);
+		s.x += w.z * amp_mult * sin(ph);
+		float c = w.z * amp_mult * k * cos(ph);
 		s.y += c * w.x;
 		s.z += c * w.y;
 	}

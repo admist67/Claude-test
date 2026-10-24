@@ -6,6 +6,7 @@ extends MeshInstance3D
 
 static var waves: Array[Vector4] = []
 static var time := 0.0
+static var amp_mult := 1.0          # storms make the waves bigger
 
 var cam: Camera3D
 var _cell := 1.0
@@ -17,7 +18,7 @@ static func height_at(x: float, z: float) -> float:
 	for w in waves:
 		var k := TAU / w.w
 		s += w.z * sin(k * (w.x * x + w.y * z) - sqrt(9.8 * k) * time)
-	return s
+	return s * amp_mult
 
 
 func _ready() -> void:
@@ -51,6 +52,7 @@ func set_sky(top: Color, horizon: Color, light: float) -> void:
 func _process(delta: float) -> void:
 	time += delta
 	_mat.set_shader_parameter("t", time)
+	_mat.set_shader_parameter("amp_mult", amp_mult)
 	if cam:
 		var p := cam.global_position
 		global_position = Vector3(snappedf(p.x, _cell), 0.0, snappedf(p.z, _cell))

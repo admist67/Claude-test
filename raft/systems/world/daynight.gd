@@ -24,6 +24,7 @@ var moon: DirectionalLight3D
 var env: Environment
 var sky_mat: ShaderMaterial
 var ocean: Ocean
+var storm: Storm
 var cfg: Dictionary
 var _t := 0.0
 
@@ -57,6 +58,15 @@ func _process(delta: float) -> void:
 
 func apply() -> void:
 	var k := _sample()
+	var sk := storm.k if storm else 0.0
+	var fl := storm.flash if storm else 0.0
+	if sk > 0.0:
+		var grey := Color("#4a535c")
+		k["top"] = k["top"].lerp(Color("#2c343c"), sk * 0.85)
+		k["horizon"] = k["horizon"].lerp(grey, sk * 0.75)
+		k["ambient"] = k["ambient"].lerp(Color("#5a646e"), sk * 0.6)
+		k["energy"] = k["energy"] * (1.0 - 0.8 * sk)
+		k["light"] = k["light"] * (1.0 - 0.45 * sk)
 	var sun_angle := phase * TAU            # 0 rising in the east, PI setting in the west
 	var sun_dir := Vector3(cos(sun_angle) * 0.75, sin(sun_angle), -0.45).normalized()
 	var moon_dir := -sun_dir
@@ -69,7 +79,7 @@ func apply() -> void:
 	moon.light_energy = 0.22 * night
 	moon.visible = night > 0.05
 	env.ambient_light_color = k["ambient"]
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.55 + fl * 1.6
 	env.fog_light_color = k["horizon"]
 	sky_mat.set_shader_parameter("top_color", _v(k["top"]))
 	sky_mat.set_shader_parameter("horizon_color", _v(k["horizon"]))
@@ -80,6 +90,8 @@ func apply() -> void:
 	sky_mat.set_shader_parameter("cloud_lit", _v(Color.WHITE.lerp(k["sun"], 0.35)) * clampf(k["light"], 0.12, 1.0))
 	sky_mat.set_shader_parameter("cloud_shade", _v(k["horizon"].lerp(Color("#8090a0"), 0.5)) * clampf(k["light"], 0.1, 1.0))
 	sky_mat.set_shader_parameter("t", _t)
+	sky_mat.set_shader_parameter("flash", fl)
+	sky_mat.set_shader_parameter("cloud_cover", 0.48 + 0.45 * sk)
 	ocean.set_sky(k["top"], k["horizon"], k["light"])
 
 

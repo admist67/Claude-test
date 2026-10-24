@@ -131,6 +131,37 @@
     ],
     "reward": {
       "shark_meat": 1
+    },
+    "metal_spear": {
+      "power": 2,
+      "reach": 0.8
     }
+  },
+  "hook_upgrade": {
+    "reel_speed": 8.5,
+    "max_items": 5,
+    "max_dist": 20.0,
+    "catch_radius": 1.5
+  },
+  "storm": {
+    "first": 900.0,
+    "interval": [
+      700.0,
+      1000.0
+    ],
+    "duration": 100.0,
+    "ramp": 18.0,
+    "waves": 2.4,
+    "debris_mult": 1.8,
+    "after": 60.0,
+    "warn": 25.0,
+    "lightning": [
+      3.0,
+      9.0
+    ]
+  },
+  "sleep": {
+    "hunger": 14.0,
+    "thirst": 16.0
   }
 }

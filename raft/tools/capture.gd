@@ -316,6 +316,57 @@ func _run() -> void:
 	await _wait(0.5)
 	await _shot("34_lantern_night")
 	daynight.phase = 0.2
+	# v0.5: metal tools, planter, hammock, storm.
+	inv.add("scrap", 10)
+	inv.add("seeds", 2)
+	inv.add("plank", 20)
+	inv.add("rope", 10)
+	for r: Dictionary in Data.recipes:
+		if r["id"] in ["metal_hook", "metal_spear"]:
+			_craft(r)
+	print("metal: ", inv.count("metal_hook"), inv.count("metal_spear"), " hook left ", inv.count("hook"))
+	_select("hammer")
+	player.place(cc.call(1, 0), 0.0)
+	await _build_at("planter", cc.call(2, 1))
+	player.place(cc.call(1, 1), 0.0)
+	await _build_at("hammock", cc.call(1, 2))
+	_select("metal_hook")
+	_look_cell(Vector2i(2, 1), 0.3)
+	await _wait(0.3)
+	_on_pressed("use")
+	for st: Station in raft.stations.values():
+		if st.kind == "planter":
+			st.progress = float(st.def["time"]) * 0.6
+	await _wait(0.4)
+	await _shot("36_planter_growing")
+	for st: Station in raft.stations.values():
+		if st.kind == "planter":
+			st.progress = float(st.def["time"]) - 0.2
+	await _wait(0.6)
+	await _shot("37_planter_ready")
+	_on_pressed("use")
+	print("pineapples ", inv.count("pineapple"), " planted ", stats.get("planted", 0), " harvest ", stats.get("harvest", 0))
+	daynight.phase = 0.7
+	player.place(cc.call(1, 1), 0.0)
+	_look_cell(Vector2i(1, 2), 0.6)
+	await _wait(0.4)
+	await _shot("38_hammock_night")
+	_on_pressed("use")
+	await _wait(3.0)
+	print("after sleep day ", daynight.day, " phase ", snappedf(daynight.phase, 0.01), " slept ", stats.get("slept", 0))
+	storm.state = Storm.State.WARN
+	storm.timer = 0.05
+	await _wait(0.5)
+	storm._elapsed = 40.0
+	player.place(cc.call(2, 0), 0.0)
+	_aim(0.3, -0.05)
+	await _wait(1.5)
+	await _shot("39_storm")
+	storm.flash = 1.0
+	await _shot("40_lightning")
+	storm.timer = 0.05
+	await _wait(0.3)
+	print("storms ", stats.get("storms", 0), " amp ", Ocean.amp_mult)
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

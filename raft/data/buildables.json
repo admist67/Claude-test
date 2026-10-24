@@ -119,6 +119,31 @@
     "leaf": 20.0,
     "plank": 40.0
    }
+  },
+  {
+   "id": "planter",
+   "name": "Грядка",
+   "on": "deck",
+   "cost": {
+    "plank": 4,
+    "plastic": 2,
+    "leaf": 2
+   },
+   "time": 180.0,
+   "grow": {
+    "seeds": "pineapple"
+   },
+   "count": 2
+  },
+  {
+   "id": "hammock",
+   "name": "Гамак",
+   "on": "stairs",
+   "cost": {
+    "plank": 4,
+    "rope": 4,
+    "leaf": 4
+   }
   }
  ]
 }

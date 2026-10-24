@@ -6,6 +6,7 @@ var raft: Raft
 var items: Array[Debris] = []
 var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
+var extra_mult := 1.0             # storms
 var _timer := 0.0
 var _total_w := 0.0
 
@@ -55,7 +56,7 @@ func _spawn(z: float) -> void:
 
 func _process(delta: float) -> void:
 	var c := raft.centroid()
-	_timer -= delta * float(Data.tune["debris"])
+	_timer -= delta * float(Data.tune["debris"]) * extra_mult
 	if _timer <= 0.0:
 		_timer = float(cfg["interval"]) + rng.randf_range(-1.0, 1.0) * float(cfg["jitter"])
 		if items.size() < int(cfg["max"]):
