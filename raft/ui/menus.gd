@@ -1,14 +1,15 @@
 class_name Menus
 extends Control
-## Main menu, pause (with playtest tuning sliders) and the death screen.
+## Main menu, worlds (up to SaveGame.MAX named saves: play, rename, delete), pause (save,
+## save as a new world, playtest tuning sliders) and the death screen.
 
-signal new_game
-signal continue_game
+signal new_game(world_name: String)
+signal play_world(id: int)
+signal save_now
+signal save_as(world_name: String)
 signal resume
 signal to_menu
 signal respawn
-
-var has_save := false
 
 var _screen: Control
 
@@ -26,7 +27,7 @@ func hide_all() -> void:
 	visible = false
 
 
-func _open(dim: float, framed := false) -> VBoxContainer:
+func _open(dim: float, framed := false, top_half := false) -> VBoxContainer:
 	hide_all()
 	visible = true
 	_screen = Control.new()
@@ -38,6 +39,8 @@ func _open(dim: float, framed := false) -> VBoxContainer:
 	_screen.add_child(bg)
 	var cc := CenterContainer.new()
 	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if top_half:
+		cc.anchor_bottom = 0.55     # above the on-screen keyboard
 	_screen.add_child(cc)
 	var v := VBoxContainer.new()
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -75,15 +78,155 @@ func show_main() -> void:
 	v.add_child(_title("ПЛОТ", 150, UiTheme.CREAM))
 	v.add_child(_centered("выживание посреди океана", 30))
 	v.add_child(_gap(22))
-	if has_save:
-		v.add_child(UiTheme.button("Продолжить", func() -> void: continue_game.emit()))
-	v.add_child(UiTheme.button("Новая игра", func() -> void: new_game.emit()))
+	var last := SaveGame.last()
+	if last >= 0:
+		v.add_child(UiTheme.button("Продолжить", func() -> void: play_world.emit(last)))
+		v.add_child(_centered(SaveGame.info(last)["name"] + " · " + _when(SaveGame.info(last)), 20, Color(1, 1, 1, 0.8)))
+	v.add_child(UiTheme.button("Новая игра", _ask_new))
+	if not SaveGame.worlds().is_empty():
+		v.add_child(UiTheme.button("Миры (%d из %d)" % [SaveGame.worlds().size(), SaveGame.MAX], show_worlds))
 
 
-func show_pause() -> void:
+func _ask_new() -> void:
+	if not SaveGame.can_add():
+		_full(show_main)
+		return
+	ask_name("Новый мир", SaveGame.next_name(), "Начать", func(n: String) -> void: new_game.emit(n), show_main)
+
+
+func _full(back: Callable) -> void:
+	show_message("Миров уже %d" % SaveGame.MAX, "Удали лишний мир в меню «Миры», чтобы начать новый.", "Назад", back)
+
+
+## Day, time played and when the world was saved, for the lists.
+func _when(w: Dictionary) -> String:
+	var mins := int(float(w["played"]) / 60.0)
+	var played := "%d мин" % mins if mins < 60 else "%d ч %d мин" % [mins / 60, mins % 60]
+	var t := Time.get_datetime_dict_from_unix_time(int(float(w["time"])) + int(Time.get_time_zone_from_system()["bias"]) * 60)
+	return "день %d · %s · %02d.%02d %02d:%02d" % [int(w["day"]), played, t["day"], t["month"], t["hour"], t["minute"]]
+
+
+func show_worlds() -> void:
+	var v := _open(0.45, true)
+	var list := SaveGame.worlds()
+	v.add_child(_title("Миры", 56, UiTheme.GOLD))
+	v.add_child(_centered("%d из %d" % [list.size(), SaveGame.MAX], 20, Color(1, 1, 1, 0.75)))
+	var sc := TouchScroll.new()
+	sc.custom_minimum_size = Vector2(880, mini(list.size(), 4) * 92)
+	v.add_child(sc)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", 8)
+	sc.add_child(rows)
+	for w: Dictionary in list:
+		var id := int(w["id"])
+		var c := CraftPanel.card(Vector2(860, 84), id == SaveGame.last())
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		c.add_child(row)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_child(UiTheme.label(w["name"], 26, UiTheme.CREAM, true))
+		info.add_child(UiTheme.label(_when(w), 18, Color(1, 1, 1, 0.75)))
+		row.add_child(info)
+		var btns := [["Играть", 170, func() -> void: play_world.emit(id)], ["Имя", 110, _rename.bind(w)], ["Удалить", 140, _confirm_delete.bind(w)]]
+		for b: Array in btns:
+			var btn := UiTheme.button(b[0], func() -> void: pass, 22)
+			btn.custom_minimum_size = Vector2(b[1], 60)
+			btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(btn)
+			sc.on_tap(btn, b[2])
+		rows.add_child(c)
+	sc.settle(rows)
+	var back := UiTheme.button("Назад", show_main, 24)
+	back.custom_minimum_size = Vector2(250, 64)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(back)
+
+
+func _rename(w: Dictionary) -> void:
+	ask_name("Название мира", w["name"], "Готово", _renamed.bind(int(w["id"])), show_worlds)
+
+
+func _renamed(world_name: String, id: int) -> void:
+	SaveGame.rename(id, world_name)
+	show_worlds()
+
+
+func _delete(id: int) -> void:
+	SaveGame.remove(id)
+	if SaveGame.worlds().is_empty():
+		show_main()
+	else:
+		show_worlds()
+
+
+func _confirm_delete(w: Dictionary) -> void:
+	var v := _open(0.5, true)
+	v.add_child(_title("Удалить «%s»?" % w["name"], 44, UiTheme.DANGER))
+	v.add_child(_centered("Плот, припасы и постройки этого мира пропадут.", 24))
+	v.add_child(_gap(8))
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	var yes := UiTheme.button("Удалить", _delete.bind(int(w["id"])), 24)
+	yes.custom_minimum_size = Vector2(230, 64)
+	row.add_child(yes)
+	var no := UiTheme.button("Отмена", show_worlds, 24)
+	no.custom_minimum_size = Vector2(230, 64)
+	row.add_child(no)
+	v.add_child(row)
+
+
+## A name box (opens the phone keyboard), above the keyboard.
+func ask_name(title: String, def: String, ok: String, done: Callable, back: Callable) -> void:
+	var v := _open(0.5, true, true)
+	v.add_child(_title(title, 48, UiTheme.GOLD))
+	var le := LineEdit.new()
+	le.text = def
+	le.max_length = 24
+	le.select_all_on_focus = true
+	le.custom_minimum_size = Vector2(560, 66)
+	le.add_theme_font_size_override("font_size", 30)
+	le.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(le)
+	var go := func() -> void:
+		var n := le.text.strip_edges()
+		done.call(n if n != "" else def)
+	le.text_submitted.connect(func(_t: String) -> void: go.call())
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	var yes := UiTheme.button(ok, go, 24)
+	yes.custom_minimum_size = Vector2(230, 64)
+	row.add_child(yes)
+	var no := UiTheme.button("Назад", back, 24)
+	no.custom_minimum_size = Vector2(230, 64)
+	row.add_child(no)
+	v.add_child(row)
+
+
+func _ask_save_as(world_name: String) -> void:
+	var back := func() -> void: show_pause(world_name)
+	if not SaveGame.can_add():
+		_full(back)
+		return
+	ask_name("Сохранить как новый мир", world_name + " 2", "Сохранить", func(n: String) -> void: save_as.emit(n), back)
+
+
+func show_pause(world_name: String, note := "") -> void:
 	var v := _open(0.45, true)
 	v.add_child(_title("Пауза", 56, UiTheme.GOLD))
-	v.add_child(UiTheme.button("Продолжить", func() -> void: resume.emit()))
+	v.add_child(_centered("Мир: " + world_name + ("   ✓ " + note if note != "" else ""), 20, Color("#9be59b") if note != "" else Color(1, 1, 1, 0.75)))
+	var top := HBoxContainer.new()
+	top.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_theme_constant_override("separation", 14)
+	var btns := [["Продолжить", 250, func() -> void: resume.emit()], ["Сохранить", 210, func() -> void: save_now.emit()], ["Сохранить как…", 250, _ask_save_as.bind(world_name)]]
+	for b: Array in btns:
+		var btn := UiTheme.button(b[0], b[2], 24)
+		btn.custom_minimum_size = Vector2(b[1], 64)
+		top.add_child(btn)
+	v.add_child(top)
 	v.add_child(_gap(4))
 	v.add_child(UiTheme.label("Настройки для теста", 22, UiTheme.WOOD, true))
 	v.add_child(_slider("Чувствительность обзора", "look", 0.4, 2.0))
@@ -102,7 +245,7 @@ func show_pause() -> void:
 	)
 	snd.custom_minimum_size = Vector2(250, 64)
 	row.add_child(snd)
-	var menu := UiTheme.button("В меню", func() -> void: to_menu.emit(), 24)
+	var menu := UiTheme.button("В меню (миры)", func() -> void: to_menu.emit(), 24)
 	menu.custom_minimum_size = Vector2(250, 64)
 	row.add_child(menu)
 	v.add_child(row)

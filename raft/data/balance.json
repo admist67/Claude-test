@@ -8,7 +8,8 @@
     "reach": 2.8,
     "use_reach": 2.4,
     "spear_cooldown": 0.7,
-    "stairs_speed": 1.6
+    "stairs_speed": 1.6,
+    "stairs_down_speed": 1.1
   },
   "vitals": {
     "start": 100,

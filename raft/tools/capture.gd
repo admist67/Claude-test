@@ -11,8 +11,8 @@ func _ready() -> void:
 		if args[i] == "--out":
 			out_dir = args[i + 1]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://" + out_dir))
-	SaveGame.path = "user://capture_save.json"
-	SaveGame.clear()
+	SaveGame.dir = "user://capture_saves/"
+	SaveGame.clear_all()
 	super()
 	_run()
 
@@ -58,10 +58,35 @@ func _look_cell(c: Vector2i, h := 0.0) -> void:
 	player.pitch = atan2(d.y, Vector2(d.x, d.z).length())
 
 
+## A finger press, drag by `dy` and release at a screen point, through the real input path.
+func _drag(at: Vector2, dy: float) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = at
+	e.global_position = at
+	Input.parse_input_event(e)
+	await _wait(0.05)
+	for i in 6:
+		var m := InputEventMouseMotion.new()
+		m.position = at + Vector2(0, dy * (i + 1) / 6.0)
+		m.global_position = m.position
+		m.button_mask = MOUSE_BUTTON_MASK_LEFT
+		Input.parse_input_event(m)
+		await _wait(0.03)
+	var r := InputEventMouseButton.new()
+	r.button_index = MOUSE_BUTTON_LEFT
+	r.pressed = false
+	r.position = at + Vector2(0, dy)
+	r.global_position = r.position
+	Input.parse_input_event(r)
+	await _wait(0.1)
+
+
 func _run() -> void:
 	await _wait(2.0)
 	await _shot("00_menu")
-	menus.new_game.emit()
+	menus.new_game.emit("Тестовый плот")
 	await _wait(1.5)
 	_aim(0.0, -0.12)
 	await _shot("01_start")
@@ -299,7 +324,7 @@ func _run() -> void:
 	player.move_input = Vector2.ZERO
 	await _wait(0.3)
 	await _build_at("wall", cc.call(-1, 1) + Vector3(-0.6, RaftParts.H, 0))
-	await _build_at("lantern_wall", cc.call(-1, 1) + Vector3(-0.6, RaftParts.H, 0))
+	await _build_at("lantern_wall", cc.call(-1, 1) + Vector3(-0.75, RaftParts.H + 1.3, 0))
 	print("upper_built ", stats.get("upper_built", 0), " level ", builder.level)
 	_select("hook")
 	player.pitch = -0.3
@@ -377,6 +402,75 @@ func _run() -> void:
 		await _wait(0.4)
 		await _shot("4%d_bag_tab%d" % [3 + i, i])
 		_close_bag()
+	# v0.7: a door opens one way and keeps its sweep clear; an open door is aimed at where
+	# its leaf is; wall lanterns go on the wall you look at, on your side.
+	_select("hammer")
+	player.place(cc.call(0, 1) + Vector3(0, 0, -0.4), 0.0)
+	builder.kind = "door"
+	builder.rot = 0
+	_aim_local(cc.call(0, 1) + Vector3(0, 0, 0.6))
+	await _wait(0.4)
+	await _shot("47_door_ghost")
+	await _build_at("door", cc.call(0, 1) + Vector3(0, 0, 0.6))
+	builder.kind = "grill"
+	_aim_local(cc.call(0, 2))
+	await _wait(0.3)
+	print("grill in door sweep: target ", builder.has_target, " valid ", builder.valid)
+	await _shot("48_swing_block")
+	var door2: Part = raft.parts.edges.get(Vector4i(0, 1, 1, 0))
+	if door2:
+		door2.toggle()
+		await _wait(1.0)
+		_select("hook")
+		for side: Vector3 in [cc.call(0, 2) + Vector3(0.35, 0, 0.35), cc.call(0, 1) + Vector3(0.3, 0, -0.35)]:
+			player.place(side, 0.0)
+			_aim_local(raft.to_local(door2.leaf_center()))
+			await _wait(0.2)
+			print("aim open leaf from ", raft.cell_at(side), ": ", _aimed_body() == door2)
+		await _shot("49_door_leaf_aim")
+		door2.toggle()
+	_select("hammer")
+	builder.kind = "lantern_wall"
+	player.place(cc.call(-1, 1), 0.0)
+	_aim_local(Vector3(-2.25, 1.6, 0))
+	await _wait(0.4)
+	print("wall lamp key ", builder.key, " target ", builder.has_target, " valid ", builder.valid)
+	await _shot("50_wall_lamp_ghost")
+	await _build_at("lantern_wall", Vector3(-2.25, 1.6, 0))
+	print("wall lamps ", raft.parts.lamps.keys())
+	# Hotbar in your own order; bag lists scroll by dragging on the cards.
+	_select("hook")
+	_open_bag()
+	bag._show(0)
+	bag._hotbar_tap("hook")
+	await _wait(0.3)
+	await _shot("51_hotbar_pick")
+	bag._hotbar_tap(hotbar[hotbar.size() - 1])
+	bag._hotbar_tap("rod")
+	layout.hide("rod")
+	bag._hotbar_done()
+	await _wait(0.3)
+	print("hotbar ", hotbar, " hidden ", layout.hidden)
+	await _shot("52_hotbar_hidden")
+	bag._show(2)
+	await _wait(0.3)
+	var sc_before := bag._scroller.scroll_vertical
+	await _drag(Vector2(640, 520), -260.0)
+	await _wait(0.5)
+	print("drag on cards scrolls ", sc_before, " -> ", bag._scroller.scroll_vertical)
+	bag._show(1)
+	await _wait(0.3)
+	var made := [false]
+	var on_craft := func(_r: Dictionary) -> void: made[0] = true
+	bag.craft_requested.connect(on_craft)
+	for tgt: Array in bag._scroller._taps:
+		if tgt[0] is Button and not tgt[0].disabled:
+			var r: Rect2 = tgt[0].get_global_rect()
+			await _drag(r.get_center(), 0.0)
+			break
+	bag.craft_requested.disconnect(on_craft)
+	print("tap on Сделать crafts ", made[0])
+	_close_bag()
 	# v0.5: metal tools, planter, hammock, storm.
 	inv.add("scrap", 10)
 	inv.add("seeds", 2)
@@ -454,5 +548,29 @@ func _run() -> void:
 	await _wait(0.4)
 	await _shot("17_night")
 	daynight.phase = 0.2
+	# Worlds: save as a second one, the menu, the list, the name box, load the first back.
+	var first := world
+	var tiles_first := raft.cells().size()
+	var parts_first := raft.parts.to_list().size()
+	var stations_first := raft.stations.size()
+	_pause()
+	await _wait(0.3)
+	menus.save_as.emit("Второй плот")
+	await _wait(0.3)
+	await _shot("53_saved_as")
+	print("worlds ", SaveGame.worlds().size(), " current ", _world_name())
+	menus.to_menu.emit()
+	await _wait(0.6)
+	await _shot("54_menu")
+	menus.show_worlds()
+	await _wait(0.3)
+	await _shot("55_worlds")
+	menus.ask_name("Новый мир", SaveGame.next_name(), "Начать", func(_n: String) -> void: pass, menus.show_main)
+	await _wait(0.3)
+	await _shot("56_name")
+	menus.play_world.emit(first)
+	await _wait(0.6)
+	print("world back ", _world_name(), " tiles ", raft.cells().size(), " was ", tiles_first, " parts ", raft.parts.to_list().size(), " was ", parts_first, " stations ", raft.stations.size(), " was ", stations_first)
+	print("world names ", SaveGame.worlds().map(func(w: Dictionary) -> String: return w["name"]))
 	print("CAPTURE DONE")
 	get_tree().quit()

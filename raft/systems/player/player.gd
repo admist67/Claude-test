@@ -123,8 +123,14 @@ func _physics_process(delta: float) -> void:
 		inp = kb.limit_length(1.0)
 	var dir := global_basis * Vector3(inp.x, 0, inp.y)
 	dir.y = 0.0
-	var on_stairs := raft.parts.on_stairs(position)
-	var target := dir * float(cfg["speed"]) * (float(cfg["stairs_speed"]) if on_stairs else 1.0)
+	var mult := 1.0
+	var st := raft.parts.stairs_at(position)
+	if st:
+		# Up the stairs quicker than walking, down them a little slower than that.
+		var dv: Vector2i = RaftParts.DIRS[st.dir]
+		var up := raft.global_basis * Vector3(dv.x, 0, dv.y)
+		mult = float(cfg["stairs_speed"]) if dir.dot(up) >= 0.0 else float(cfg["stairs_down_speed"])
+	var target := dir * float(cfg["speed"]) * mult
 	var acc := float(cfg["accel"]) * delta
 	velocity.x = move_toward(velocity.x, target.x, acc)
 	velocity.z = move_toward(velocity.z, target.z, acc)

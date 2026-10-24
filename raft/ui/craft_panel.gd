@@ -1,18 +1,23 @@
 class_name CraftPanel
 extends Control
-## The bag, in three tabs: what you carry (materials, food and water, tools), what you can
-## make (recipes by kind) and what the hammer builds (by group). The sea keeps moving.
+## The bag, in three tabs: what you carry (the hotbar to arrange, materials, food and
+## water, tools), what you can make (recipes by kind) and what the hammer builds (by group).
+## The lists scroll by dragging anywhere on them. The sea keeps moving.
 
 signal craft_requested(recipe: Dictionary)
+signal hotbar_changed
 signal closed
 
 const TABS := ["Припасы", "Создать", "Постройки"]
 
 var inv: Inventory
+var hotbar: HotbarLayout
+var carried: Callable            # -> Array[String]: the hotbar items the player has
 var tab := 0
 var _tabs: Array[Button] = []
 var _body: VBoxContainer
-var _scroller: ScrollContainer
+var _scroller: TouchScroll
+var _pick := ""                  # hotbar item picked to swap with the next one tapped
 
 
 func _ready() -> void:
@@ -45,8 +50,7 @@ func _ready() -> void:
 	top.add_child(sp)
 	top.add_child(UiTheme.round_button("cross", func() -> void: closed.emit(), 64.0))
 	root.add_child(top)
-	_scroller = ScrollContainer.new()
-	_scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroller = TouchScroll.new()
 	_scroller.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_scroller)
 	_body = VBoxContainer.new()
@@ -72,6 +76,7 @@ func open() -> void:
 
 func _show(i: int) -> void:
 	tab = i
+	_pick = ""
 	_scroller.scroll_vertical = 0
 	refresh()
 
@@ -81,6 +86,7 @@ func refresh() -> void:
 		_tabs[i].modulate = Color.WHITE if i == tab else Color(0.62, 0.62, 0.62)
 	for c in _body.get_children():
 		c.queue_free()
+	_scroller.clear_taps()
 	match tab:
 		0:
 			_supplies()
@@ -88,6 +94,7 @@ func refresh() -> void:
 			_recipes()
 		2:
 			_buildings()
+	_scroller.settle(_body)
 
 
 func _section(title: String) -> void:
@@ -104,6 +111,7 @@ func _grid(cols: int) -> GridContainer:
 
 
 func _supplies() -> void:
+	_hotbar_editor()
 	var groups := [["Материалы", "resource"], ["Еда и вода", "food"], ["Инструменты", "tool"]]
 	var any := false
 	for gr: Array in groups:
@@ -119,8 +127,76 @@ func _supplies() -> void:
 		_body.add_child(UiTheme.label("Пусто. Лови мусор крюком!", 24))
 
 
-func _slot(id: String, n: int) -> Control:
-	var c := card(Vector2(92, 92))
+## The hotbar as it is on screen: tap an item, then another — they trade places; a picked
+## item can be hidden, and a hidden one comes back with a tap.
+func _hotbar_editor() -> void:
+	var have: Array[String] = carried.call()
+	if have.is_empty():
+		return
+	var slots := hotbar.slots(have)
+	_section("Хотбар — нажми предмет, потом другой: поменяются местами")
+	var g := _grid(10)
+	for id in slots:
+		var s := _slot(id, inv.count(id), id == _pick)
+		g.add_child(s)
+		_scroller.on_tap(s, _hotbar_tap.bind(id))
+	if _pick != "":
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var hide_b := UiTheme.button("Скрыть из хотбара", func() -> void: pass, 22)
+		hide_b.custom_minimum_size = Vector2(280, 58)
+		hide_b.disabled = slots.size() <= 1 or _pick in hotbar.hidden
+		row.add_child(hide_b)
+		_scroller.on_tap(hide_b, func() -> void:
+			hotbar.hide(_pick)
+			_hotbar_done()
+		)
+		var cancel := UiTheme.button("Отмена", func() -> void: pass, 22)
+		cancel.custom_minimum_size = Vector2(170, 58)
+		row.add_child(cancel)
+		_scroller.on_tap(cancel, func() -> void:
+			_pick = ""
+			refresh()
+		)
+		_body.add_child(row)
+	var off: Array = have.filter(func(id: String) -> bool: return id in hotbar.hidden)
+	if off.is_empty():
+		return
+	_section("Скрыты — нажми, чтобы вернуть")
+	var hg := _grid(10)
+	for id: String in off:
+		var s := _slot(id, inv.count(id), id == _pick)
+		s.modulate = Color(1, 1, 1, 0.55)
+		hg.add_child(s)
+		_scroller.on_tap(s, func() -> void:
+			if _pick != "" and _pick != id:
+				hotbar.swap(_pick, id)
+			else:
+				hotbar.unhide(id)
+			_hotbar_done()
+		)
+
+
+func _hotbar_tap(id: String) -> void:
+	if _pick == "":
+		_pick = id
+		refresh()
+	elif _pick == id:
+		_pick = ""
+		refresh()
+	else:
+		hotbar.swap(_pick, id)
+		_hotbar_done()
+
+
+func _hotbar_done() -> void:
+	_pick = ""
+	hotbar_changed.emit()
+	refresh()
+
+
+func _slot(id: String, n: int, sel := false) -> Control:
+	var c := card(Vector2(92, 92), sel)
 	var box := Control.new()
 	c.add_child(box)
 	var ic := IconRect.new(id, 64.0)
@@ -178,11 +254,12 @@ func _recipe_card(r: Dictionary) -> Control:
 	v.add_child(UiTheme.label(name, 22, UiTheme.CREAM, true))
 	v.add_child(_cost(r["cost"], true))
 	row.add_child(v)
-	var b := UiTheme.button("Сделать", func() -> void: craft_requested.emit(r), 22)
+	var b := UiTheme.button("Сделать", func() -> void: pass, 22)
 	b.custom_minimum_size = Vector2(150, 60)
 	b.disabled = not inv.can_craft(r)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
+	_scroller.on_tap(b, func() -> void: craft_requested.emit(r))
 	return c
 
 

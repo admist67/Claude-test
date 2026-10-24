@@ -13,6 +13,8 @@ var stats: Dictionary = {}
 var goal_i := 0
 var played := 0.0
 var hotbar: Array[String] = []
+var layout := HotbarLayout.new()   # the player's hotbar order and hidden items
+var world := -1                    # the save slot being played
 var sel := 0
 var grab_target: Debris
 var station_target: Station
@@ -45,6 +47,7 @@ var _spear_cd := 0.0
 
 func _ready() -> void:
 	rng.randomize()
+	SaveGame.migrate()
 	_build_world()
 	_build_ui()
 	inv.changed.connect(_refresh_hotbar)
@@ -176,9 +179,12 @@ func _build_ui() -> void:
 	touch.looked.connect(func(rel: Vector2) -> void: player.look(rel))
 	bag = CraftPanel.new()
 	bag.inv = inv
+	bag.hotbar = layout
+	bag.carried = _carried
 	bag.visible = false
 	layer.add_child(bag)
 	bag.craft_requested.connect(_craft)
+	bag.hotbar_changed.connect(_refresh_hotbar)
 	bag.closed.connect(_close_bag)
 	build_panel = BuildPanel.new()
 	build_panel.inv = inv
@@ -196,14 +202,26 @@ func _build_ui() -> void:
 	layer.add_child(fade)
 	menus = Menus.new()
 	layer.add_child(menus)
-	menus.new_game.connect(func() -> void:
-		SaveGame.clear()
+	menus.new_game.connect(func(n: String) -> void:
+		world = SaveGame.create(n)
 		_new_state()
 		_start()
 	)
-	menus.continue_game.connect(func() -> void:
-		_apply_save(SaveGame.read())
+	menus.play_world.connect(func(id: int) -> void:
+		world = id
+		_apply_save(SaveGame.read(id))
 		_start()
+	)
+	menus.save_now.connect(func() -> void:
+		_save()
+		menus.show_pause(_world_name(), "сохранено")
+	)
+	menus.save_as.connect(func(n: String) -> void:
+		var id := SaveGame.create(n)
+		if id >= 0:
+			world = id
+			_save()
+		menus.show_pause(_world_name(), "сохранено как новый мир")
 	)
 	menus.resume.connect(_resume)
 	menus.to_menu.connect(func() -> void:
@@ -222,6 +240,8 @@ func _new_state() -> void:
 	for c in START_TILES:
 		raft.add_tile(c)
 	vitals = Vitals.new()
+	layout = HotbarLayout.new()
+	bag.hotbar = layout
 	inv.from_dict({"hook": 1})
 	stats = {}
 	goal_i = 0
@@ -259,6 +279,7 @@ func _state() -> Dictionary:
 		"storm_t": storm.timer if storm.state == Storm.State.CALM else float(Data.b["storm"]["interval"][0]),
 		"hp": raft.hp.keys().map(func(c: Vector2i) -> Array: return [c.x, c.y, raft.hp[c]]),
 		"day": daynight.day,
+		"hotbar": layout.to_dict(),
 	}
 
 
@@ -285,6 +306,9 @@ func _apply_save(d: Dictionary) -> void:
 	daynight.phase = float(d.get("phase", Data.b["day"]["start_phase"]))
 	storm.restore(float(d.get("storm_t", Data.b["storm"]["first"])))
 	daynight.day = int(d.get("day", 1))
+	layout = HotbarLayout.new()
+	layout.from_dict(d.get("hotbar", {}))
+	bag.hotbar = layout
 	inv.from_dict(d["inv"])
 	vitals = Vitals.new()
 	vitals.from_dict(d["vitals"])
@@ -298,8 +322,12 @@ func _apply_save(d: Dictionary) -> void:
 
 
 func _save() -> void:
-	if mode != Mode.MENU:
-		SaveGame.write(_state())
+	if mode != Mode.MENU and world >= 0:
+		SaveGame.write(world, _state())
+
+
+func _world_name() -> String:
+	return SaveGame.info(world).get("name", "")
 
 
 func _notification(what: int) -> void:
@@ -334,7 +362,6 @@ func _to_menu() -> void:
 	menu_cam.current = true
 	ocean.cam = menu_cam
 	storm.cam = menu_cam
-	menus.has_save = SaveGame.exists()
 	menus.show_main()
 	Sfx.ambience(true)
 
@@ -357,7 +384,7 @@ func _pause() -> void:
 		return
 	mode = Mode.PAUSE
 	_freeze_input()
-	menus.show_pause()
+	menus.show_pause(_world_name())
 	get_tree().paused = true
 
 
@@ -406,13 +433,20 @@ func selected() -> String:
 	return hotbar[sel] if sel < hotbar.size() else ""
 
 
-func _refresh_hotbar() -> void:
-	var cur := selected()
-	hotbar.clear()
+## Every tool and food the player carries, in item order.
+func _carried() -> Array[String]:
+	var out: Array[String] = []
 	for id: String in Data.items:
 		var k: String = Data.item(id)["kind"]
 		if (k == "tool" or k == "food") and inv.count(id) > 0:
-			hotbar.append(id)
+			out.append(id)
+	return out
+
+
+## The hotbar in the player's own order, without the items they hid.
+func _refresh_hotbar() -> void:
+	var cur := selected()
+	hotbar = layout.slots(_carried())
 	sel = maxi(0, hotbar.find(cur))
 	touch.set_slots(hotbar.size())
 	_apply_selection()
@@ -929,7 +963,8 @@ func _aimed_body() -> Node:
 		if body is Part or body is Station:
 			return body
 	for d: Part in raft.parts.doors():
-		var v := d.global_position + Vector3(0, 1.0, 0) - from
-		if v.length() < 3.0 and v.normalized().dot(fwd) > 0.82:
-			return d
+		for at: Vector3 in [d.global_position + Vector3(0, 1.0, 0), d.leaf_center()]:
+			var v := at - from
+			if v.length() < 3.0 and v.normalized().dot(fwd) > 0.82:
+				return d
 	return body

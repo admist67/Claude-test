@@ -70,7 +70,8 @@
     "plank": 5,
     "rope": 2
    },
-   "group": "Стены"
+   "group": "Стены",
+   "rotate": true
   },
   {
    "id": "lantern",
@@ -106,7 +107,6 @@
     "plastic": 2,
     "leaf": 1
    },
-   "rotate": true,
    "group": "Свет"
   },
   {

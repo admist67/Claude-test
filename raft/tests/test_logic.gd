@@ -112,5 +112,21 @@ func _init() -> void:
 	var back := SaveGame.cells_from_json(JSON.parse_string(JSON.stringify(SaveGame.cells_to_json(cells))))
 	check("cells round trip", Array(back) == cells)
 
+	# Hotbar layout: new items join at the end, swaps and hiding survive a save.
+	var hl := HotbarLayout.new()
+	var have: Array[String] = ["hook", "rod", "fish"]
+	check("hotbar default order", ",".join(hl.slots(have)) == "hook,rod,fish")
+	hl.swap("hook", "fish")
+	hl.hide("rod")
+	check("hotbar swap and hide", ",".join(hl.slots(have)) == "fish,hook")
+	var hl2 := HotbarLayout.new()
+	hl2.from_dict(JSON.parse_string(JSON.stringify(hl.to_dict())))
+	have.append("spear")
+	check("hotbar save + new item at end", ",".join(hl2.slots(have)) == "fish,hook,spear")
+	hl2.swap("hook", "rod")
+	check("swap with hidden trades visibility", ",".join(hl2.slots(have)) == "fish,rod,spear" and "hook" in hl2.hidden)
+	hl2.unhide("hook")
+	check("unhidden goes last", ",".join(hl2.slots(have)) == "fish,rod,spear,hook")
+
 	print("tests: %s" % ("OK" if fails == 0 else "%d failed" % fails))
 	quit(1 if fails > 0 else 0)

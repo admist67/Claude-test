@@ -92,7 +92,7 @@ func clear() -> void:
 	for c: Vector2i in tiles:
 		tiles[c].free()
 	tiles.clear()
-	for c: Vector2i in stations:
+	for c: Vector3i in stations:
 		stations[c].free()
 	stations.clear()
 	hp.clear()
@@ -124,7 +124,7 @@ func count_kind(kind: String) -> int:
 
 func count_stations(kind: String) -> int:
 	var n := 0
-	for c: Vector2i in stations:
+	for c: Vector3i in stations:
 		if stations[c].kind == kind:
 			n += 1
 	return n

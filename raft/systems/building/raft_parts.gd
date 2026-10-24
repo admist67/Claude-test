@@ -7,6 +7,7 @@ extends Node3D
 ## roofs Vector3i(x, z, L) — a floor slab with its top at L·H over cell (x, z), L ≥ 1;
 ## stairs, beds Vector3i(x, z, L) — standing on level L (stairs climb to L + 1);
 ## lamps Vector4i(x, z, side * 2 + face, L) — a lantern on one face of a wall.
+## A door's dir picks the cell its leaf swings into; nothing may stand in that sweep.
 
 const H := 2.4
 const MAX_LEVEL := 3
@@ -79,6 +80,49 @@ static func lamp_edge(k: Vector4i) -> Vector4i:
 	return Vector4i(k.x, k.y, k.z / 2, k.w)
 
 
+## Where a wall lantern's head is, raft-local.
+func lamp_head(k: Vector4i) -> Vector3:
+	var e := lamp_edge(k)
+	var yaw := edge_yaw(e) + (0.0 if k.z % 2 == 0 else PI)
+	return edge_center(e) + Basis(Vector3.UP, yaw) * Vector3(0, 1.69, 0.33)
+
+
+## Doors turn half a circle to open the other way (dir 1): the leaf swings into the cell
+## on local +Z.
+static func door_yaw(k: Vector4i, d: int) -> float:
+	return edge_yaw(k) + (PI if d % 2 == 1 else 0.0)
+
+
+static func swing_cell(k: Vector4i, d: int) -> Vector3i:
+	var c: Vector2i = edge_cells(k)[1 - d % 2]
+	return Vector3i(c.x, c.y, k.w)
+
+
+## True when raft-local `q` lies in the quarter circle the leaf of door (k, d) sweeps.
+func in_swing(k: Vector4i, d: int, q: Vector3) -> bool:
+	var rel := Basis(Vector3.UP, door_yaw(k, d)).inverse() * (q - edge_center(k))
+	return rel.z > -0.05 and rel.x > -0.65 and Vector2(rel.x + 0.56, rel.z).length() < 1.2
+
+
+func _door_swings(c: Vector3i) -> bool:
+	for p: Part in doors():
+		if swing_cell(p.key, p.dir) == c:
+			return true
+	return false
+
+
+## The edge a corner lantern's arm points along (dir 0..3 = +X, +Z, -X, -Z).
+static func arm_edge(k: Vector3i, d: int) -> Vector4i:
+	match d % 4:
+		0:
+			return Vector4i(k.x + 1, k.y, 1, k.z)
+		1:
+			return Vector4i(k.x, k.y + 1, 0, k.z)
+		2:
+			return Vector4i(k.x, k.y, 1, k.z)
+	return Vector4i(k.x, k.y, 0, k.z)
+
+
 # ---------------------------------------------------------------- floors and rules
 
 func has_floor(c: Vector2i, lvl: int) -> bool:
@@ -93,20 +137,46 @@ func _floors_touching(cells: Array[Vector2i], lvl: int) -> int:
 	return n
 
 
-func can_edge(k: Vector4i, outer: bool) -> bool:
+func can_edge(k: Vector4i, outer: bool, kind := "", d := 0) -> bool:
 	if edges.has(k):
 		return false
 	var n := _floors_touching(edge_cells(k), k.w)
-	return (n == 1 and k.w == 0) if outer else n >= 1
+	if not ((n == 1 and k.w == 0) if outer else n >= 1):
+		return false
+	if kind == "net":
+		return true
+	# A lantern arm pointing along this edge would end up inside the wall.
+	var ends: Array[Vector3i] = [Vector3i(k.x, k.y, k.w), Vector3i(k.x, k.y - 1, k.w) if k.z == 0 else Vector3i(k.x - 1, k.y, k.w)]
+	for c in ends:
+		var lamp: Part = corners.get(c)
+		if lamp and lamp.kind != "pillar" and arm_edge(c, lamp.dir) == k:
+			return false
+	if kind == "door":
+		var sc := swing_cell(k, d)
+		if stairs.has(sc) or beds.has(sc) or raft.stations.has(sc):
+			return false
+		for lk: Vector4i in lamps:
+			if lk.w == k.w and in_swing(k, d, lamp_head(lk)):
+				return false
+	return true
 
 
-func can_corner(k: Vector3i) -> bool:
-	return not corners.has(k) and _floors_touching(corner_cells(k), k.z) >= 1
+func can_corner(k: Vector3i, kind := "", d := 0) -> bool:
+	if corners.has(k) or _floors_touching(corner_cells(k), k.z) == 0:
+		return false
+	var wall: Part = edges.get(arm_edge(k, d))
+	return kind == "pillar" or wall == null or wall.kind == "net"
 
 
+## On a wall or window (a door leaf moves), clear of any door's sweep.
 func can_lamp(k: Vector4i) -> bool:
 	var wall: Part = edges.get(lamp_edge(k))
-	return not lamps.has(k) and wall != null and wall.kind in ["wall", "window", "door"]
+	if lamps.has(k) or wall == null or not wall.kind in ["wall", "window"]:
+		return false
+	for p: Part in doors():
+		if p.key.w == k.w and in_swing(p.key, p.dir, lamp_head(k)):
+			return false
+	return true
 
 
 ## A roof at level `lvl` over `c` rests on walls or pillars of the level below,
@@ -133,8 +203,9 @@ func can_roof(c: Vector2i, lvl: int) -> bool:
 	return supported(c, lvl)
 
 
+## Something stands in the cell, or a door opens into it.
 func cell_busy(k: Vector3i) -> bool:
-	return stairs.has(k) or beds.has(k) or raft.stations.has(k)
+	return stairs.has(k) or beds.has(k) or raft.stations.has(k) or _door_swings(k)
 
 
 func can_stairs(k: Vector3i) -> bool:
@@ -145,9 +216,9 @@ func can_bed(k: Vector3i) -> bool:
 	return has_floor(Vector2i(k.x, k.y), k.z) and not cell_busy(k)
 
 
-func on_stairs(local: Vector3) -> bool:
+func stairs_at(local: Vector3) -> Part:
 	var c := raft.cell_at(local)
-	return stairs.has(Vector3i(c.x, c.y, floori(local.y / H + 0.05)))
+	return stairs.get(Vector3i(c.x, c.y, floori(local.y / H + 0.05)))
 
 
 # ---------------------------------------------------------------- building
@@ -160,7 +231,7 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 	match kind:
 		"wall", "window", "door":
 			p.position = edge_center(k)
-			p.rotation.y = edge_yaw(k)
+			p.rotation.y = door_yaw(k, d) if kind == "door" else edge_yaw(k)
 			edges[k] = p
 		"net":
 			p.rotation.y = outward_yaw(k)
@@ -270,7 +341,8 @@ func to_list() -> Array:
 	return out
 
 
-## Loads parts; saves from before levels had no level in their keys.
+## Loads parts; saves from before levels had no level in their keys. Edges saved by v0.6
+## lost their side (only x, z were written) and can't be placed again: they are skipped.
 func from_list(list: Array) -> void:
 	for e: Dictionary in list:
 		var a: Array = e["key"]
@@ -278,6 +350,8 @@ func from_list(list: Array) -> void:
 		var k: Variant
 		match kind:
 			"wall", "window", "door", "net", "lantern_wall":
+				if a.size() < 3:
+					continue
 				k = Vector4i(int(a[0]), int(a[1]), int(a[2]), int(a[3]) if a.size() > 3 else 0)
 			"roof":
 				k = Vector3i(int(a[0]), int(a[1]), int(a[2]) if a.size() > 2 else 1)

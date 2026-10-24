@@ -9,6 +9,7 @@ const MODELS := {
 }
 const T := 1.5     # tile size, as in data/balance.json raft.tile
 const H := 2.4     # wall height = upper floor level
+const TALL_LAMP := 2.3   # tall lantern post, a little under the wall top
 const PLASTIC := Color("#bfe0f2")
 const CAP := Color("#2a6fb0")
 
@@ -178,7 +179,7 @@ static func mesh(id: String) -> ArrayMesh:
 			return Raft.tile_preview_mesh()
 		"purifier", "grill", "planter":
 			_station(st, id)
-		"wall", "window", "door", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall", "roof", "stairs", "net", "hammock", "collector":
+		"wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall", "roof", "stairs", "net", "hammock", "collector":
 			_structure(st, id)
 		_:
 			Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
@@ -352,12 +353,13 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 				for x: float in [-0.45, 0.45]:
 					Mk.st_box(st, Vector3(0.06, 0.86, 0.1), Vector3(x, 1.35, 0), dark, "wood_dark")
 				Mk.st_box(st, Vector3(0.84, 0.04, 0.04), Vector3(0, 1.35, 0), dark, "wood_dark")
-		"door", "door_frame":
+		"door", "door_frame", "door_ajar":
 			for x: float in [-0.66, 0.66]:
 				Mk.st_box(st, Vector3(0.18, H, 0.14), Vector3(x, H / 2.0, 0), dark, "wood_dark")
 			Mk.st_box(st, Vector3(T, 0.3, 0.14), Vector3(0, H - 0.15, 0), dark, "wood_dark")
-			if id == "door":
-				_door_leaf(st, Vector3(-0.56, 0, 0))
+			if id != "door_frame":
+				# The building ghost shows the leaf ajar, so you see which way it opens.
+				_door_leaf(st, Vector3(-0.56, 0, 0), -0.75 if id == "door_ajar" else 0.0)
 		"door_leaf":
 			_door_leaf(st, Vector3.ZERO)
 		"pillar":
@@ -365,7 +367,7 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 			for y: float in [0.25, H - 0.3]:
 				Mk.st_cyl(st, 0.11, 0.12, Vector3(0, y, 0), Color(1, 0.96, 0.9), "rope", Vector3.ZERO, 10, 0.6)
 		"lantern", "lantern_tall":
-			var ph := 1.35 if id == "lantern" else 2.7
+			var ph := 1.35 if id == "lantern" else TALL_LAMP
 			Mk.st_box(st, Vector3(0.08 if id == "lantern" else 0.11, ph, 0.08 if id == "lantern" else 0.11), Vector3(0, ph / 2.0, 0), dark, "wood_dark")
 			Mk.st_box(st, Vector3(0.3, 0.04, 0.06), Vector3(0.1, ph - 0.02, 0), dark, "wood_dark")
 			_lamp_head(st, Vector3(0.22, ph - 0.23, 0))
@@ -455,11 +457,12 @@ static func _lamp_head(st: SurfaceTool, at: Vector3) -> void:
 
 
 ## A plank door 1.12 wide, hinged at its left edge (local x = 0 → at `at`).
-static func _door_leaf(st: SurfaceTool, at: Vector3) -> void:
+static func _door_leaf(st: SurfaceTool, at: Vector3, yaw := 0.0) -> void:
 	var wood := Color(1, 0.9, 0.78)
+	var b := Basis(Vector3.UP, yaw)
 	for i in 4:
-		Mk.st_box(st, Vector3(0.26, 2.05, 0.05), at + Vector3(0.14 + i * 0.28, 1.04, 0), wood, "wood_warm")
+		Mk.st_box(st, Vector3(0.26, 2.05, 0.05), at + b * Vector3(0.14 + i * 0.28, 1.04, 0), wood, "wood_warm", Vector3(0, yaw, 0))
 	for y: float in [0.35, 1.7]:
-		Mk.st_box(st, Vector3(1.08, 0.1, 0.04), at + Vector3(0.56, y, -0.045), Color(1, 0.95, 0.9), "wood_dark")
-	Mk.st_box(st, Vector3(1.4, 0.08, 0.035), at + Vector3(0.56, 1.03, -0.045), Color(1, 0.95, 0.9), "wood_dark", Vector3(0, 0, 0.98))
-	Mk.st_cyl(st, 0.03, 0.04, at + Vector3(0.98, 1.0, 0.04), Color(0.6, 0.6, 0.62), "metal", Vector3(PI / 2.0, 0, 0), 8)
+		Mk.st_box(st, Vector3(1.08, 0.1, 0.04), at + b * Vector3(0.56, y, -0.045), Color(1, 0.95, 0.9), "wood_dark", Vector3(0, yaw, 0))
+	Mk.st_box(st, Vector3(1.4, 0.08, 0.035), at + b * Vector3(0.56, 1.03, -0.045), Color(1, 0.95, 0.9), "wood_dark", Vector3(0, yaw, 0.98))
+	Mk.st_cyl(st, 0.03, 0.04, at + b * Vector3(0.98, 1.0, 0.04), Color(0.6, 0.6, 0.62), "metal", Vector3(PI / 2.0, yaw, 0), 8)

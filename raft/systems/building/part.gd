@@ -43,14 +43,16 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			add_child(_leaf)
 			_leaf_shape = _box(Vector3(1.12, 2.05, 0.08), Vector3(0, 1.03, 0))
 			_use_box(Vector3(1.14, 2.05, 0.3), Vector3(0, 1.03, 0))
+			# The leaf carries its own use box, so an open door is aimed at where it stands.
+			_use_box(Vector3(1.14, 2.05, 0.3), Vector3(0.56, 1.03, 0), _leaf)
 		"pillar":
 			_box(Vector3(0.18, H, 0.18), Vector3(0, H / 2.0, 0))
 		"lantern", "lantern_tall", "lantern_wall":
-			var at: Vector3 = {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, 2.47, 0), "lantern_wall": Vector3(0, 1.69, 0.26)}[kind]
+			var at: Vector3 = {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, Looks.TALL_LAMP - 0.23, 0), "lantern_wall": Vector3(0, 1.69, 0.26)}[kind]
 			if kind == "lantern_wall":
 				_use_box(Vector3(0.3, 0.5, 0.35), Vector3(0, 1.75, 0.15))
 			else:
-				var ph := 1.35 if kind == "lantern" else 2.7
+				var ph := 1.35 if kind == "lantern" else Looks.TALL_LAMP
 				_box(Vector3(0.12, ph, 0.12), Vector3(0, ph / 2.0, 0))
 			_glow = MeshInstance3D.new()
 			var gm := BoxMesh.new()
@@ -103,7 +105,7 @@ func _box(size: Vector3, pos: Vector3) -> CollisionShape3D:
 
 
 ## A body only the use ray sees (door opening, net), pointing back to this part.
-func _use_box(size: Vector3, pos: Vector3) -> void:
+func _use_box(size: Vector3, pos: Vector3, parent: Node = null) -> void:
 	var b := StaticBody3D.new()
 	b.collision_layer = USE_LAYER
 	b.collision_mask = 0
@@ -114,7 +116,12 @@ func _use_box(size: Vector3, pos: Vector3) -> void:
 	cs.shape = shape
 	cs.position = pos
 	b.add_child(cs)
-	add_child(b)
+	(parent if parent else self).add_child(b)
+
+
+## Where the door leaf is now (for aiming at it without a ray hit).
+func leaf_center() -> Vector3:
+	return _leaf.to_global(Vector3(0.56, 1.0, 0))
 
 
 func toggle() -> void:
@@ -134,7 +141,7 @@ func tick(delta: float, night: bool) -> void:
 
 
 func to_dict() -> Dictionary:
-	var k: Array = [key.x, key.y, key.z] if key is Vector3i else [key.x, key.y]
+	var k: Array = [key.x, key.y, key.z, key.w] if key is Vector4i else [key.x, key.y, key.z]
 	return {"kind": kind, "key": k, "dir": dir, "open": is_open}
 
 

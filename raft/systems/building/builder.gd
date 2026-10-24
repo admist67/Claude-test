@@ -3,9 +3,10 @@ extends Node3D
 ## Hammer mode: `kind` is what gets built; where it goes depends on its "on" rule:
 ## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), edge /
 ## edge_out (walls, windows, doors / nets on the rim), corner (pillars, lanterns), wall
-## (lanterns on a wall), roof (a floor slab above). Everything is built on the floor of
-## the player's level: the deck or a roof. `rot` (the rotate button) turns lanterns,
-## stairs and hammocks by 90° clockwise. Looking at a bitten tile offers a repair.
+## (lanterns on the wall you look at, on your side of it), roof (a floor slab above).
+## Everything else is built on the floor of the player's level: the deck or a roof. `rot`
+## (the rotate button) turns lanterns, stairs and hammocks by 90° clockwise and flips the
+## way a door opens. Looking at a bitten tile offers a repair.
 
 const H := RaftParts.H
 
@@ -90,7 +91,7 @@ func _process(delta: float) -> void:
 				_find_wall()
 			"roof":
 				_find_roof()
-	var gk := "tile" if repair else kind
+	var gk := "tile" if repair else ("door_ajar" if kind == "door" else kind)
 	if _ghost_kind != gk:
 		_ghost_kind = gk
 		_ghost.mesh = Looks.mesh(gk)
@@ -100,7 +101,7 @@ func _process(delta: float) -> void:
 	match def()["on"] if not repair else "deck":
 		"edge":
 			pos = raft.parts.edge_center(key)
-			yaw = RaftParts.edge_yaw(key)
+			yaw = RaftParts.door_yaw(key, dir) if kind == "door" else RaftParts.edge_yaw(key)
 		"edge_out":
 			yaw = raft.parts.outward_yaw(key)
 			pos = raft.parts.edge_center(key) + Basis(Vector3.UP, yaw) * Vector3(0, 0, 0.18)
@@ -216,8 +217,9 @@ func _find_edge(outer: bool) -> void:
 	if not raft.parts.has_floor(c, level):
 		return
 	key = RaftParts.edge_of(c, _edge_dir(hit, c), level)
+	dir = rot % 2
 	has_target = true
-	valid = raft.parts.can_edge(key, outer)
+	valid = raft.parts.can_edge(key, outer, kind, dir)
 
 
 func _find_corner() -> void:
@@ -231,24 +233,24 @@ func _find_corner() -> void:
 	key = Vector3i(c.x if off.x > 0.0 else c.x - 1, c.y if off.z > 0.0 else c.y - 1, level)
 	dir = rot
 	has_target = true
-	valid = raft.parts.can_corner(key)
+	valid = raft.parts.can_corner(key, kind, dir)
 
 
-## Wall lanterns: on the wall at the edge you look at, on the face toward you
-## (the rotate button flips it to the other face).
+## Wall lanterns: on the wall or window the view ray hits, on the face you look from.
 func _find_wall() -> void:
-	var hit: Variant = _floor_hit()
-	if hit == null:
+	var from := player.cam.global_position
+	var to := from - player.cam.global_basis.z * (float(Data.b["raft"]["build_reach"]) + 1.0)
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1, [player.get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty() or not hit["collider"] is Part:
 		return
-	var c := raft.cell_at(hit)
-	if not raft.parts.has_floor(c, level):
+	var wall: Part = hit["collider"]
+	if not wall.kind in ["wall", "window", "door"]:
 		return
-	var d := _edge_dir(hit, c)
-	var e := RaftParts.edge_of(c, d, level)
-	# Face 0 points to +X / +Z: the lamp goes on the side of the cell we look from.
-	var cell_side_positive := (d.x < 0 or d.y < 0)
-	var face := (0 if cell_side_positive else 1) ^ (rot % 2)
-	key = Vector4i(e.x, e.y, e.z * 2 + face, e.w)
+	var e: Vector4i = wall.key
+	var o := raft.to_local(from) - raft.parts.edge_center(e)
+	var front := (o.x if e.z == 0 else o.z) > 0.0     # face 0 looks to +X / +Z
+	key = Vector4i(e.x, e.y, e.z * 2 + (0 if front else 1), e.w)
 	has_target = true
 	valid = raft.parts.can_lamp(key)
 
@@ -283,7 +285,7 @@ func place() -> bool:
 			raft.add_station(kind, Vector3i(cell.x, cell.y, level), def())
 		"stairs":
 			raft.parts.add(kind, Vector3i(cell.x, cell.y, level), dir)
-		"corner":
+		"corner", "edge":
 			raft.parts.add(kind, key, dir)
 		_:
 			raft.parts.add(kind, key)
