@@ -8,7 +8,7 @@ signal changed
 static var _mesh_cache: Dictionary = {}
 
 var tiles: Dictionary = {}          # Vector2i -> StaticBody3D
-var stations: Dictionary = {}       # Vector2i -> Station
+var stations: Dictionary = {}       # Vector3i(x, z, level) -> Station
 var hp: Dictionary = {}             # Vector2i -> bites left; missing = whole tile
 var tile_size := 1.5
 var parts: RaftParts
@@ -81,9 +81,6 @@ func remove_tile(c: Vector2i) -> void:
 	if not tiles.has(c) or tiles.size() <= 1:
 		return
 	hp.erase(c)
-	if stations.has(c):
-		stations[c].queue_free()
-		stations.erase(c)
 	tiles[c].queue_free()
 	tiles.erase(c)
 	parts.on_tile_removed(c)
@@ -103,21 +100,22 @@ func clear() -> void:
 	_recalc()
 
 
-## Builds a station (purifier, grill) on an existing tile.
-func add_station(kind: String, c: Vector2i, def: Dictionary) -> Station:
+## Builds a station (purifier, grill…) on a floor: key = Vector3i(x, z, level).
+func add_station(kind: String, k: Vector3i, def: Dictionary) -> Station:
 	var st := Station.new()
-	st.setup(kind, c, def)
-	st.position = cell_center(c)
+	st.setup(kind, k, def)
+	st.position = cell_center(Vector2i(k.x, k.y)) + Vector3(0, k.z * RaftParts.H, 0)
 	st.rotation.y = PI
 	add_child(st)
-	stations[c] = st
+	stations[k] = st
 	changed.emit()
 	return st
 
 
-## Can the player stand at this raft-local point (deck, roofs, stairs)?
+## Can the player be at this raft-local point? Anywhere above the raft's footprint:
+## off an upper floor you fall onto the deck, never into the sea.
 func walkable(local: Vector3) -> bool:
-	return parts.walkable(local)
+	return tiles.has(cell_at(local))
 
 
 func count_kind(kind: String) -> int:

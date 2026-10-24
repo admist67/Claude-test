@@ -240,6 +240,7 @@ func _run() -> void:
 		_on_pressed("action")
 		print("repaired: ", not raft.damaged(bitten[0]))
 	# Building: walls, window, door, pillar, roofs, stairs, net, lantern.
+	shark.reset(9999.0)
 	inv.add("plank", 80)
 	inv.add("rope", 30)
 	inv.add("leaf", 30)
@@ -248,7 +249,7 @@ func _run() -> void:
 	grid.append_array([Vector2i(1, 2), Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)])
 	for c: Vector2i in grid:
 		raft.add_tile(c)
-	for c: Vector2i in raft.stations.keys():
+	for c: Variant in raft.stations.keys():
 		raft.stations[c].queue_free()
 	raft.stations.clear()
 	_select("hammer")
@@ -293,6 +294,14 @@ func _run() -> void:
 		t3 += 0.1
 	player.move_input = Vector2.ZERO
 	print("on roof y ", player.position.y, " cell ", raft.cell_at(player.position))
+	# Second floor: a wall and a tall lantern up on the roof.
+	_select("hammer")
+	player.move_input = Vector2.ZERO
+	await _wait(0.3)
+	await _build_at("wall", cc.call(-1, 1) + Vector3(-0.6, RaftParts.H, 0))
+	await _build_at("lantern_wall", cc.call(-1, 1) + Vector3(-0.6, RaftParts.H, 0))
+	print("upper_built ", stats.get("upper_built", 0), " level ", builder.level)
+	_select("hook")
 	player.pitch = -0.3
 	await _wait(0.3)
 	await _shot("32_on_roof")
@@ -316,6 +325,58 @@ func _run() -> void:
 	await _wait(0.5)
 	await _shot("34_lantern_night")
 	daynight.phase = 0.2
+	# v0.6: lanterns with rotation, demolish, rain collector, bait, bag tabs.
+	_select("hammer")
+	player.place(cc.call(1, 1), 0.0)
+	builder.kind = "lantern_tall"
+	builder.turn()
+	builder.turn()
+	_aim_local(cc.call(1, 1) + Vector3(0.55, 0, -0.55))
+	await _wait(0.4)
+	await _shot("46_rotate_button")
+	await _build_at("lantern_tall", cc.call(1, 1) + Vector3(0.55, 0, -0.55))
+	builder.rot = 0
+	await _build_at("collector", cc.call(2, 1))
+	var pillar_n := raft.parts.count("pillar")
+	var plank_n := inv.count("plank")
+	_aim_local(raft.parts.corner_center(Vector3i(1, 2, 0)) + Vector3(0, 1.2, 0))
+	await _wait(0.3)
+	print("demolish target ", demolish_target)
+	_on_pressed("use")
+	await _wait(0.3)
+	print("pillars ", pillar_n, " -> ", raft.parts.count("pillar"), " planks +", inv.count("plank") - plank_n)
+	for st: Station in raft.stations.values():
+		if st.kind == "collector":
+			st.stored = 2
+	_select("hook")
+	_look_cell(Vector2i(2, 1), 0.5)
+	await _wait(0.3)
+	await _shot("41_collector")
+	_on_pressed("use")
+	print("cups ", inv.count("cup_water"))
+	daynight.phase = 0.72
+	player.place(cc.call(0, 1), 0.0)
+	_aim_local(cc.call(1, 1) + Vector3(0.55, 1.8, -0.55))
+	await _wait(0.5)
+	await _shot("42_lanterns_night")
+	daynight.phase = 0.2
+	inv.add("fish", 1)
+	for r: Dictionary in Data.recipes:
+		if r["id"] == "bait":
+			_craft(r)
+	_select("rod")
+	_aim(0.4, -0.1)
+	_on_pressed("action")
+	await _wait(0.5)
+	_on_released("action")
+	print("bait left ", inv.count("bait"), " baited ", rod.baited)
+	rod.cancel()
+	for i in 3:
+		_open_bag()
+		bag._show(i)
+		await _wait(0.4)
+		await _shot("4%d_bag_tab%d" % [3 + i, i])
+		_close_bag()
 	# v0.5: metal tools, planter, hammock, storm.
 	inv.add("scrap", 10)
 	inv.add("seeds", 2)
@@ -327,11 +388,11 @@ func _run() -> void:
 	print("metal: ", inv.count("metal_hook"), inv.count("metal_spear"), " hook left ", inv.count("hook"))
 	_select("hammer")
 	player.place(cc.call(1, 0), 0.0)
-	await _build_at("planter", cc.call(2, 1))
+	await _build_at("planter", cc.call(2, 0))
 	player.place(cc.call(1, 1), 0.0)
 	await _build_at("hammock", cc.call(1, 2))
 	_select("metal_hook")
-	_look_cell(Vector2i(2, 1), 0.3)
+	_look_cell(Vector2i(2, 0), 0.3)
 	await _wait(0.3)
 	_on_pressed("use")
 	for st: Station in raft.stations.values():

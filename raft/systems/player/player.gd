@@ -123,7 +123,8 @@ func _physics_process(delta: float) -> void:
 		inp = kb.limit_length(1.0)
 	var dir := global_basis * Vector3(inp.x, 0, inp.y)
 	dir.y = 0.0
-	var target := dir * float(cfg["speed"])
+	var on_stairs := raft.parts.on_stairs(position)
+	var target := dir * float(cfg["speed"]) * (float(cfg["stairs_speed"]) if on_stairs else 1.0)
 	var acc := float(cfg["accel"]) * delta
 	velocity.x = move_toward(velocity.x, target.x, acc)
 	velocity.z = move_toward(velocity.z, target.z, acc)

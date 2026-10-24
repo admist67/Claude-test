@@ -45,8 +45,13 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			_use_box(Vector3(1.14, 2.05, 0.3), Vector3(0, 1.03, 0))
 		"pillar":
 			_box(Vector3(0.18, H, 0.18), Vector3(0, H / 2.0, 0))
-		"lantern":
-			_box(Vector3(0.1, 1.35, 0.1), Vector3(0, 0.675, 0))
+		"lantern", "lantern_tall", "lantern_wall":
+			var at: Vector3 = {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, 2.47, 0), "lantern_wall": Vector3(0, 1.69, 0.26)}[kind]
+			if kind == "lantern_wall":
+				_use_box(Vector3(0.3, 0.5, 0.35), Vector3(0, 1.75, 0.15))
+			else:
+				var ph := 1.35 if kind == "lantern" else 2.7
+				_box(Vector3(0.12, ph, 0.12), Vector3(0, ph / 2.0, 0))
 			_glow = MeshInstance3D.new()
 			var gm := BoxMesh.new()
 			gm.size = Vector3(0.12, 0.2, 0.12)
@@ -58,13 +63,14 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			gm.material = m
 			_glow.mesh = gm
-			_glow.position = Vector3(0.22, 1.12, 0)
+			_glow.position = at
 			add_child(_glow)
 			_light = OmniLight3D.new()
 			_light.light_color = Color("#ffc070")
 			_light.omni_range = 7.0
 			_light.light_energy = 1.3
-			_light.position = Vector3(0.22, 1.1, 0)
+			_light.position = at
+			_light.omni_range = 9.0 if kind == "lantern_tall" else 7.0
 			add_child(_light)
 		"roof":
 			_box(Vector3(Looks.T, 0.14, Looks.T), Vector3(0, H - 0.07, 0))

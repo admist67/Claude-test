@@ -3,25 +3,30 @@ extends StaticBody3D
 ## A station on a raft tile. The purifier boils seawater into a cup of fresh water, the
 ## grill cooks fish and meat, the planter grows seeds into pineapples. Fuel (leaves,
 ## planks) burns only while something cooks; the result waits until the player takes it.
+## The rain collector fills by itself (much faster in a storm) and holds a few cups.
 
 signal finished(station: Station)
 
+static var rain := 0.0            # storm intensity, set by the game; speeds up collectors
+
 var kind := ""
-var cell := Vector2i.ZERO
+var cell := Vector3i.ZERO         # x, z, level
 var def: Dictionary
 var fuel := 0.0             # seconds of fire left
 var cooking := ""           # item being cooked; "seawater" in the purifier
 var progress := 0.0
 var ready_item := ""
+var stored := 0                    # collector: cups of rain water inside
 var _fire: Node3D
 var _light: OmniLight3D
 var _steam: CPUParticles3D
 var _food: MeshInstance3D
 var _crop: Node3D
+var _water: MeshInstance3D
 var _t := 0.0
 
 
-func setup(k: String, c: Vector2i, d: Dictionary) -> void:
+func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 	kind = k
 	cell = c
 	def = d
@@ -42,6 +47,8 @@ func setup(k: String, c: Vector2i, d: Dictionary) -> void:
 	_light.omni_range = 3.5
 	_light.position = Vector3(0, 0.3, 0.45)
 	add_child(_light)
+	_fire.visible = false
+	_light.visible = false
 	if kind == "purifier":
 		_steam = CPUParticles3D.new()
 		var m := QuadMesh.new()
@@ -75,6 +82,15 @@ func setup(k: String, c: Vector2i, d: Dictionary) -> void:
 	_food = MeshInstance3D.new()
 	_food.position = Vector3(0, 0.47, 0) if kind == "grill" else Vector3(0.3, 0.37, 0.2)
 	add_child(_food)
+	if kind == "collector":
+		_water = MeshInstance3D.new()
+		var wm := CylinderMesh.new()
+		wm.top_radius = 0.29
+		wm.bottom_radius = 0.29
+		wm.height = 0.02
+		wm.material = Mk.mat(Color("#3f8fc0"), 0.1)
+		_water.mesh = wm
+		add_child(_water)
 	if kind == "planter":
 		_food.position = Vector3(0, 0.3, 0)
 		_crop = Node3D.new()
@@ -115,6 +131,9 @@ func busy() -> bool:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if kind == "collector":
+		_collect_rain(delta)
+		return
 	if cooking != "" and (fuel > 0.0 or not needs_fuel()):
 		if needs_fuel():
 			fuel = maxf(0.0, fuel - delta)
@@ -138,6 +157,18 @@ func _process(delta: float) -> void:
 		_light.light_energy = 0.9 * f
 	if _steam:
 		_steam.emitting = lit
+
+
+func _collect_rain(delta: float) -> void:
+	var cap := int(def["capacity"])
+	if stored < cap:
+		progress += delta * lerpf(1.0, float(def["storm_rate"]), rain)
+		if progress >= float(def["time"]):
+			progress = 0.0
+			stored += 1
+	var fill := (stored + (progress / float(def["time"]) if stored < cap else 0.0)) / float(cap)
+	_water.position.y = 0.12 + 0.6 * fill
+	_water.visible = fill > 0.01
 
 
 func needs_fuel() -> bool:
@@ -171,6 +202,10 @@ func _fuel_in(inv: Inventory) -> String:
 
 ## What the use button says right now: {"text", "ok"}.
 func prompt(inv: Inventory) -> Dictionary:
+	if kind == "collector":
+		if stored > 0:
+			return {"text": "Набрать (%d)" % stored, "ok": true, "icon": "cup_water"}
+		return {"text": "%d%%" % int(progress / float(def["time"]) * 100.0), "ok": false, "icon": "collector"}
 	if ready_item != "":
 		return {"text": "Забрать", "ok": true, "icon": ready_item}
 	if cooking != "":
@@ -187,6 +222,8 @@ func prompt(inv: Inventory) -> Dictionary:
 
 ## Does what prompt() says. Returns [message, item taken or ""].
 func interact(inv: Inventory) -> Array:
+	if kind == "collector":
+		return _take_rain(inv)
 	if ready_item != "":
 		var got := ready_item
 		var n := int(def.get("count", 1))
@@ -213,6 +250,15 @@ func interact(inv: Inventory) -> Array:
 	return ["Вода закипает…" if kind == "purifier" else "На гриле: " + Data.item_name(raw), ""]
 
 
+func _take_rain(inv: Inventory) -> Array:
+	if stored == 0:
+		return ["Бочка ещё набирает дождевую воду", ""]
+	var n := stored
+	stored = 0
+	inv.add(def.get("out", "cup_water"), n)
+	return ["+%d Пресная вода" % n, "cup_water"]
+
+
 ## While cooking: throw on more fuel if the fire went out.
 func _feed_fire(inv: Inventory) -> String:
 	if not needs_fuel() or fuel > 0.0:
@@ -229,6 +275,8 @@ func _add_fuel(inv: Inventory) -> bool:
 
 
 func _refresh() -> void:
+	if kind == "collector":
+		return
 	if kind == "planter":
 		_food.visible = cooking != "" or ready_item != ""
 		_food.mesh = Looks.mesh("sprout")
@@ -243,7 +291,7 @@ func _refresh() -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"kind": kind, "cell": [cell.x, cell.y], "fuel": fuel, "cooking": cooking, "progress": progress, "ready": ready_item}
+	return {"kind": kind, "cell": [cell.x, cell.y, cell.z], "fuel": fuel, "cooking": cooking, "progress": progress, "ready": ready_item, "stored": stored}
 
 
 func load_state(d: Dictionary) -> void:
@@ -251,4 +299,5 @@ func load_state(d: Dictionary) -> void:
 	cooking = d.get("cooking", "")
 	progress = float(d.get("progress", 0.0))
 	ready_item = d.get("ready", "")
+	stored = int(d.get("stored", 0))
 	_refresh()

@@ -231,6 +231,15 @@ def g_anchor(d, s):
     d.arc([s * 0.16, s * 0.4, s * 0.84, s * 0.9], 20, 160, fill=255, width=w)
 
 
+def g_rotate(d, s):
+    w = int(s * 0.09)
+    d.arc([s * 0.2, s * 0.2, s * 0.8, s * 0.8], 200, 470, fill=255, width=w)
+    a = math.radians(110)
+    cx, cy, r = s * 0.5, s * 0.5, s * 0.3
+    tip = (cx + math.cos(a) * r, cy + math.sin(a) * r)
+    d.polygon([(tip[0] - s * 0.13, tip[1] - s * 0.04), (tip[0] + s * 0.09, tip[1] - s * 0.13), (tip[0] + s * 0.02, tip[1] + s * 0.12)], fill=255)
+
+
 def main():
     os.makedirs(GL, exist_ok=True)
     wood_button("button.png")
@@ -244,7 +253,7 @@ def main():
     plaque()
     pill()
     for n, f in (("heart", g_heart), ("drop", g_drop), ("food", g_food), ("hand", g_hand), ("bag", g_bag),
-                 ("sun", g_sun), ("moon", g_moon), ("flame", g_flame), ("anchor", g_anchor)):
+                 ("sun", g_sun), ("moon", g_moon), ("flame", g_flame), ("anchor", g_anchor), ("rotate", g_rotate)):
         glyph(n, f)
     print("ui kit ok")
 

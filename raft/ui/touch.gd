@@ -9,7 +9,7 @@ signal released(button: String)
 signal looked(rel: Vector2)
 
 const JOY_R := 90.0
-const KEYS := {KEY_SPACE: "action", KEY_F: "action", KEY_E: "use", KEY_TAB: "bag", KEY_I: "bag", KEY_ESCAPE: "pause"}
+const KEYS := {KEY_SPACE: "action", KEY_F: "action", KEY_E: "use", KEY_TAB: "bag", KEY_I: "bag", KEY_ESCAPE: "pause", KEY_R: "rotate"}
 
 var move := Vector2.ZERO
 var enabled := false
@@ -26,8 +26,8 @@ var _builds := 0
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for n: String in ["action", "use", "bag", "pause"]:
-		buttons[n] = {"c": Vector2.ZERO, "r": 40.0, "on": true}
+	for n: String in ["action", "use", "bag", "pause", "rotate"]:
+		buttons[n] = {"c": Vector2.ZERO, "r": 40.0, "on": n != "rotate"}
 
 
 func set_slots(n: int) -> void:
@@ -57,6 +57,7 @@ func layout() -> void:
 	_place("use", Vector2(vs.x - 135, vs.y - 330), 58.0)
 	_place("bag", Vector2(vs.x - 66, 66), 42.0)
 	_place("pause", Vector2(52, 52), 34.0)
+	_place("rotate", Vector2(vs.x / 2.0 + 112, vs.y - 168), 36.0)
 	# Many food kinds: squeeze the hotbar between the joystick and the action button.
 	var gap := minf(84.0, (vs.x - 640.0) / maxf(1.0, _slots - 1))
 	var r := minf(38.0, gap * 0.46)

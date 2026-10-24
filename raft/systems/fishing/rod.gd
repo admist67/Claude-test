@@ -13,6 +13,7 @@ enum State { IDLE, CHARGE, FLY, WAIT, BITE }
 
 var state := State.IDLE
 var power := 0.0
+var baited := false               # bait on the hook: bites come sooner, big fish more often
 var player: Player
 var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
@@ -79,6 +80,7 @@ func cancel() -> void:
 func _stop() -> void:
 	state = State.IDLE
 	visible = false
+	baited = false
 
 
 ## The rod tip in world space, taken from the rod model in the hand.
@@ -101,12 +103,13 @@ func _cast() -> void:
 
 func _roll() -> String:
 	var table: Array = cfg["catch"]
+	var big := float(cfg["bait"]["big_mult"]) if baited else 1.0
 	var total := 0.0
 	for e: Dictionary in table:
-		total += float(e["w"])
+		total += float(e["w"]) * (big if e["item"] == "big_fish" else 1.0)
 	var r := rng.randf() * total
 	for e: Dictionary in table:
-		r -= float(e["w"])
+		r -= float(e["w"]) * (big if e["item"] == "big_fish" else 1.0)
 		if r <= 0.0:
 			return e["item"]
 	return table[0]["item"]
@@ -114,6 +117,8 @@ func _roll() -> String:
 
 func _new_wait() -> void:
 	_timer = rng.randf_range(float(cfg["bite"][0]), float(cfg["bite"][1]))
+	if baited:
+		_timer *= float(cfg["bait"]["wait_mult"])
 	state = State.WAIT
 
 

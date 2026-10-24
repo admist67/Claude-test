@@ -7,43 +7,19 @@
    "cost": {
     "plank": 3,
     "plastic": 1
-   }
+   },
+   "group": "Основа"
   },
   {
-   "id": "wall",
-   "name": "Стена",
-   "on": "edge",
+   "id": "stairs",
+   "name": "Лестница",
+   "on": "stairs",
    "cost": {
-    "plank": 4,
-    "rope": 1
-   }
-  },
-  {
-   "id": "window",
-   "name": "Стена с окном",
-   "on": "edge",
-   "cost": {
-    "plank": 3,
-    "rope": 1
-   }
-  },
-  {
-   "id": "door",
-   "name": "Дверь",
-   "on": "edge",
-   "cost": {
-    "plank": 5,
+    "plank": 6,
     "rope": 2
-   }
-  },
-  {
-   "id": "pillar",
-   "name": "Столб",
-   "on": "corner",
-   "cost": {
-    "plank": 2,
-    "rope": 1
-   }
+   },
+   "rotate": true,
+   "group": "Основа"
   },
   {
    "id": "roof",
@@ -53,26 +29,48 @@
     "plank": 2,
     "leaf": 4,
     "rope": 1
-   }
-  },
-  {
-   "id": "stairs",
-   "name": "Лестница",
-   "on": "stairs",
-   "cost": {
-    "plank": 6,
-    "rope": 2
-   }
-  },
-  {
-   "id": "net",
-   "name": "Сеть для мусора",
-   "on": "edge_out",
-   "cost": {
-    "rope": 4,
-    "plank": 2
    },
-   "capacity": 8
+   "group": "Основа"
+  },
+  {
+   "id": "pillar",
+   "name": "Столб",
+   "on": "corner",
+   "cost": {
+    "plank": 2,
+    "rope": 1
+   },
+   "group": "Основа"
+  },
+  {
+   "id": "wall",
+   "name": "Стена",
+   "on": "edge",
+   "cost": {
+    "plank": 4,
+    "rope": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "window",
+   "name": "Стена с окном",
+   "on": "edge",
+   "cost": {
+    "plank": 3,
+    "rope": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "door",
+   "name": "Дверь",
+   "on": "edge",
+   "cost": {
+    "plank": 5,
+    "rope": 2
+   },
+   "group": "Стены"
   },
   {
    "id": "lantern",
@@ -82,7 +80,34 @@
     "plank": 1,
     "plastic": 2,
     "leaf": 1
-   }
+   },
+   "rotate": true,
+   "group": "Свет"
+  },
+  {
+   "id": "lantern_tall",
+   "name": "Высокий фонарь",
+   "on": "corner",
+   "cost": {
+    "plank": 3,
+    "plastic": 2,
+    "leaf": 1,
+    "scrap": 1
+   },
+   "rotate": true,
+   "group": "Свет"
+  },
+  {
+   "id": "lantern_wall",
+   "name": "Настенный фонарь",
+   "on": "wall",
+   "cost": {
+    "plank": 1,
+    "plastic": 2,
+    "leaf": 1
+   },
+   "rotate": true,
+   "group": "Свет"
   },
   {
    "id": "purifier",
@@ -98,7 +123,8 @@
    "fuel": {
     "leaf": 20.0,
     "plank": 40.0
-   }
+   },
+   "group": "Хозяйство"
   },
   {
    "id": "grill",
@@ -118,7 +144,8 @@
    "fuel": {
     "leaf": 20.0,
     "plank": 40.0
-   }
+   },
+   "group": "Хозяйство"
   },
   {
    "id": "planter",
@@ -133,7 +160,33 @@
    "grow": {
     "seeds": "pineapple"
    },
-   "count": 2
+   "count": 2,
+   "group": "Хозяйство"
+  },
+  {
+   "id": "collector",
+   "name": "Дождевая бочка",
+   "on": "deck",
+   "cost": {
+    "plank": 4,
+    "plastic": 3,
+    "rope": 1
+   },
+   "time": 110.0,
+   "capacity": 3,
+   "storm_rate": 6.0,
+   "group": "Хозяйство"
+  },
+  {
+   "id": "net",
+   "name": "Сеть для мусора",
+   "on": "edge_out",
+   "cost": {
+    "rope": 4,
+    "plank": 2
+   },
+   "capacity": 8,
+   "group": "Хозяйство"
   },
   {
    "id": "hammock",
@@ -143,7 +196,9 @@
     "plank": 4,
     "rope": 4,
     "leaf": 4
-   }
+   },
+   "rotate": true,
+   "group": "Хозяйство"
   }
  ]
 }

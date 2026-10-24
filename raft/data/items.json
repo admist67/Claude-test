@@ -67,32 +67,37 @@
    "kind": "resource"
   },
   {
+   "id": "bait",
+   "name": "Наживка",
+   "kind": "resource"
+  },
+  {
    "id": "coconut",
    "name": "Кокос",
    "kind": "food",
-   "food": 12,
-   "water": 10
+   "food": 8,
+   "water": 6
   },
   {
    "id": "banana",
    "name": "Банан",
    "kind": "food",
-   "food": 14,
+   "food": 9,
    "water": 0
   },
   {
    "id": "pineapple",
    "name": "Ананас",
    "kind": "food",
-   "food": 20,
-   "water": 8
+   "food": 12,
+   "water": 5
   },
   {
    "id": "water",
    "name": "Бутылка воды",
    "kind": "food",
    "food": 0,
-   "water": 35
+   "water": 22
   },
   {
    "id": "fish",
@@ -127,7 +132,7 @@
    "name": "Пресная вода",
    "kind": "food",
    "food": 0,
-   "water": 40
+   "water": 35
   },
   {
    "id": "shark_meat",

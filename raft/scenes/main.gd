@@ -17,6 +17,7 @@ var sel := 0
 var grab_target: Debris
 var station_target: Station
 var net_target: Part              # a net or a door under the crosshair
+var demolish_target: Node3D       # a part or station the hammer can take down
 var rng := RandomNumberGenerator.new()
 
 var ocean: Ocean
@@ -271,9 +272,10 @@ func _apply_save(d: Dictionary) -> void:
 	raft.parts.from_list(d.get("parts", []))
 	for sd: Dictionary in d.get("stations", []):
 		if Data.build_by_id.has(sd["kind"]):
-			var c := Vector2i(int(sd["cell"][0]), int(sd["cell"][1]))
-			if raft.has_tile(c):
-				raft.add_station(sd["kind"], c, Data.build_by_id[sd["kind"]]).load_state(sd)
+			var a: Array = sd["cell"]
+			var sk := Vector3i(int(a[0]), int(a[1]), int(a[2]) if a.size() > 2 else 0)
+			if raft.parts.has_floor(Vector2i(sk.x, sk.y), sk.z):
+				raft.add_station(sd["kind"], sk, Data.build_by_id[sd["kind"]]).load_state(sd)
 	for e: Array in d.get("hp", []):
 		var hc := Vector2i(int(e[0]), int(e[1]))
 		if raft.has_tile(hc):
@@ -466,6 +468,9 @@ func _on_pressed(b: String) -> void:
 			_action_down()
 		"use":
 			_use()
+		"rotate":
+			builder.turn()
+			Sfx.play("click", -6.0)
 		# Open screens on the next frame: the same tap must not reach their fresh buttons.
 		"bag":
 			Sfx.play("click", -6.0)
@@ -487,6 +492,10 @@ func _on_released(b: String) -> void:
 	if b == "action" and tool_use() == "hook":
 		hook.release()
 	elif b == "action" and tool_use() == "rod":
+		if rod.state == Rod.State.CHARGE and inv.remove("bait"):
+			rod.baited = true
+			stats["bait_used"] = int(stats.get("bait_used", 0)) + 1
+			hud.toast("Наживка на крючке", "bait")
 		rod.release()
 
 
@@ -501,7 +510,10 @@ func _action_down() -> void:
 		_stab()
 	elif use == "hammer":
 		var fixing := builder.repair
+		var upper := builder.level >= 1 and builder.kind != "roof"
 		if builder.place():
+			if upper:
+				stats["upper_built"] = int(stats.get("upper_built", 0)) + 1
 			player.swing()
 			Sfx.play("hammer")
 			var what: String = "Клетка починена" if fixing else ("Плот стал больше!" if builder.kind == "tile" else "Построено: " + builder.def()["name"])
@@ -519,6 +531,9 @@ func _action_down() -> void:
 
 ## The use button: take from / feed a station, or pick up floating debris by hand.
 func _use() -> void:
+	if demolish_target:
+		_demolish(demolish_target)
+		return
 	if net_target and net_target.kind == "door":
 		net_target.toggle()
 		return
@@ -626,6 +641,29 @@ func _burst(pos: Vector3, col: Color, n: int) -> void:
 	p.global_position = pos
 	p.emitting = true
 	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+
+
+## The hammer takes a part or station down and gives back half of what it cost.
+func _demolish(target: Node3D) -> void:
+	var kind: String = target.kind
+	var cost: Dictionary = Data.build_by_id[kind]["cost"]
+	var share := float(Data.b["raft"]["refund"])
+	for id: String in cost:
+		var n := int(floor(int(cost[id]) * share))
+		if n > 0:
+			inv.add(id, n)
+	if target is Station:
+		var st: Station = target
+		if st.ready_item != "":
+			inv.add(st.ready_item, int(st.def.get("count", 1)))
+		raft.stations.erase(st.cell)
+		st.queue_free()
+		raft.parts.prune()
+	else:
+		raft.parts.remove_part(target)
+	player.swing()
+	Sfx.play("hammer", -2.0, 0.2)
+	hud.toast("Разобрано: " + Data.build_by_id[kind]["name"], kind)
 
 
 ## Sleep in a hammock: the night passes in a fade, hunger and thirst drop a bit.
@@ -793,6 +831,8 @@ func goal_view() -> Dictionary:
 
 
 func use_view() -> Dictionary:
+	if demolish_target:
+		return {"icon": demolish_target.kind, "label": "Разобрать", "ok": true}
 	if net_target:
 		var p: Dictionary = net_target.prompt(inv)
 		return {"icon": p["icon"], "label": p["text"], "ok": p["ok"]}
@@ -851,14 +891,17 @@ func _process(delta: float) -> void:
 			_check_goals()
 	_spear_cd = maxf(0.0, _spear_cd - delta)
 	field.extra_mult = storm.debris_mult()
+	Station.rain = storm.k
 	if mode == Mode.PLAY:
 		var aimed := _aimed_body()
-		station_target = aimed as Station
-		net_target = aimed if aimed is Part and aimed.kind in ["net", "door", "hammock"] else null
-		grab_target = null if station_target or net_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
+		demolish_target = aimed if tool_use() == "hammer" and (aimed is Part or aimed is Station) else null
+		station_target = null if demolish_target else aimed as Station
+		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "door", "hammock"] else null
+		grab_target = null if station_target or net_target or demolish_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
 		for d in field.items:
 			d.highlight = d == grab_target
-		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null
+		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null or demolish_target != null
+		touch.buttons["rotate"]["on"] = tool_use() == "hammer" and builder.rotatable()
 		if hook.reeling and hook.state == Hook.State.WATER:
 			_reel_t -= delta
 			if _reel_t <= 0.0:
@@ -870,13 +913,23 @@ func _process(delta: float) -> void:
 			_save()
 
 
-## The body the crosshair is right on (a ray from the screen center), if any.
+## The body the crosshair is right on (a ray from the screen center), if any. Doors are
+## forgiving: one roughly ahead and close counts even when the ray slips past it.
 func _aimed_body() -> Node:
 	var from := player.cam.global_position
-	var to := from + -player.cam.global_basis.z * (float(Data.b["player"]["use_reach"]) + 0.6)
+	var fwd := -player.cam.global_basis.z
+	var to := from + fwd * (float(Data.b["player"]["use_reach"]) + 0.6)
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | Part.USE_LAYER, [player.get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	if hit.is_empty():
-		return null
-	var body: Node = hit["collider"]
-	return body.get_meta("part") if body.has_meta("part") else body
+	var body: Node = null
+	if not hit.is_empty():
+		body = hit["collider"]
+		if body.has_meta("part"):
+			body = body.get_meta("part")
+		if body is Part or body is Station:
+			return body
+	for d: Part in raft.parts.doors():
+		var v := d.global_position + Vector3(0, 1.0, 0) - from
+		if v.length() < 3.0 and v.normalized().dot(fwd) > 0.82:
+			return d
+	return body

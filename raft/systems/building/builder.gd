@@ -1,17 +1,23 @@
 class_name Builder
 extends Node3D
 ## Hammer mode: `kind` is what gets built; where it goes depends on its "on" rule:
-## water (floor tiles next to the raft), deck (stations), stairs, edge / edge_out (walls,
-## windows, doors / nets on the rim), corner (pillars, lanterns), roof (over a deck cell).
-## The view ray picks the spot; a ghost shows it. Looking at a bitten tile offers a repair.
+## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), edge /
+## edge_out (walls, windows, doors / nets on the rim), corner (pillars, lanterns), wall
+## (lanterns on a wall), roof (a floor slab above). Everything is built on the floor of
+## the player's level: the deck or a roof. `rot` (the rotate button) turns lanterns,
+## stairs and hammocks by 90° clockwise. Looking at a bitten tile offers a repair.
+
+const H := RaftParts.H
 
 var raft: Raft
 var player: Player
 var inv: Inventory
 var kind := "tile"
 var cell := Vector2i.ZERO
+var level := 0
 var key: Variant = Vector2i.ZERO
 var dir := 0
+var rot := 0
 var has_target := false
 var valid := false
 var active := false
@@ -46,6 +52,10 @@ func def() -> Dictionary:
 	return Data.build_by_id[kind]
 
 
+func rotatable() -> bool:
+	return def().get("rotate", false)
+
+
 func cost() -> Dictionary:
 	return Data.b["raft"]["repair_cost"] if repair else def()["cost"]
 
@@ -54,11 +64,16 @@ func affordable() -> bool:
 	return inv.has_all(cost())
 
 
+func turn() -> void:
+	rot = (rot + 1) % 4
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	has_target = false
 	valid = false
 	repair = false
+	level = clampi(roundi(player.position.y / H), 0, RaftParts.MAX_LEVEL)
 	var pos := Vector3.ZERO
 	var yaw := 0.0
 	if active and not _find_repair():
@@ -71,6 +86,8 @@ func _process(delta: float) -> void:
 				_find_edge(def()["on"] == "edge_out")
 			"corner":
 				_find_corner()
+			"wall":
+				_find_wall()
 			"roof":
 				_find_roof()
 	var gk := "tile" if repair else kind
@@ -89,19 +106,26 @@ func _process(delta: float) -> void:
 			pos = raft.parts.edge_center(key) + Basis(Vector3.UP, yaw) * Vector3(0, 0, 0.18)
 		"corner":
 			pos = raft.parts.corner_center(key)
+			yaw = -rot * PI / 2.0
+		"wall":
+			var e := RaftParts.lamp_edge(key)
+			yaw = RaftParts.edge_yaw(e) + (0.0 if key.z % 2 == 0 else PI)
+			pos = raft.parts.edge_center(e) + Basis(Vector3.UP, yaw) * Vector3(0, 0, 0.07)
 		"stairs":
-			pos = raft.cell_center(cell)
+			pos = raft.parts.cell_pos(Vector3i(cell.x, cell.y, level))
 			var dv: Vector2i = RaftParts.DIRS[dir]
 			yaw = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
+		"roof":
+			pos = raft.parts.cell_pos(key) - Vector3(0, H, 0)
 		_:
-			pos = raft.cell_center(cell)
-			yaw = PI if gk in ["purifier", "grill"] else 0.0
+			pos = raft.cell_center(cell) + Vector3(0, level * H if not repair else 0.0, 0)
+			yaw = PI if gk in ["purifier", "grill", "planter", "collector"] else 0.0
 	_ghost.position = pos + Vector3(0, 0.02 + sin(_t * 5.0) * 0.015, 0)
 	_ghost.rotation.y = yaw
 	_ghost.material_override = _ok_mat if valid and affordable() else _bad_mat
 
 
-## Where the view ray meets the floor plane of the player's level (raft-local), or null.
+## Where the view ray meets the floor plane at `level_y` (raft-local), or null.
 func _deck_hit(level_y := 0.0) -> Variant:
 	var o := raft.to_local(player.cam.global_position)
 	var d := raft.global_basis.inverse() * -player.cam.global_basis.z
@@ -113,8 +137,8 @@ func _deck_hit(level_y := 0.0) -> Variant:
 	return hit
 
 
-func _level() -> float:
-	return RaftParts.H if player.position.y > 1.2 else 0.0
+func _floor_hit() -> Variant:
+	return _deck_hit(level * H)
 
 
 func _look_dir() -> Vector2i:
@@ -126,7 +150,7 @@ func _look_dir() -> Vector2i:
 
 ## Looking at a bitten tile: offer to fix it first.
 func _find_repair() -> bool:
-	if _level() > 0.0:
+	if level > 0:
 		return false
 	var hit: Variant = _deck_hit()
 	if hit == null:
@@ -142,7 +166,7 @@ func _find_repair() -> bool:
 
 
 func _find_water_cell() -> void:
-	var hit: Variant = _deck_hit(_level())
+	var hit: Variant = _deck_hit()
 	if hit == null:
 		return
 	var c := raft.cell_at(hit)
@@ -161,61 +185,88 @@ func _find_water_cell() -> void:
 
 
 func _find_deck_cell() -> void:
-	var hit: Variant = _deck_hit()
+	var hit: Variant = _floor_hit()
 	if hit == null:
 		return
 	var c := raft.cell_at(hit)
-	if not raft.has_tile(c):
+	if not raft.parts.has_floor(c, level):
 		return
 	cell = c
 	has_target = true
+	var k := Vector3i(c.x, c.y, level)
 	var standing := raft.cell_at(player.position) == c
 	if kind == "stairs" or kind == "hammock":
-		dir = RaftParts.DIRS.find(_look_dir())
-		valid = (raft.parts.can_stairs(c) if kind == "stairs" else raft.parts.can_bed(c)) and not standing
+		dir = (RaftParts.DIRS.find(_look_dir()) + rot) % 4
+		valid = (raft.parts.can_stairs(k) if kind == "stairs" else raft.parts.can_bed(k)) and not standing
 	else:
-		valid = not raft.stations.has(c) and not raft.parts.cell_busy(c) and not standing
+		valid = not raft.parts.cell_busy(k) and not standing
+
+
+func _edge_dir(hit: Vector3, c: Vector2i) -> Vector2i:
+	var off: Vector3 = hit - raft.cell_center(c)
+	var d := Vector2i(signi(roundi(off.x * 10.0)), 0) if absf(off.x) > absf(off.z) else Vector2i(0, signi(roundi(off.z * 10.0)))
+	return d if d != Vector2i.ZERO else _look_dir()
 
 
 func _find_edge(outer: bool) -> void:
-	var hit: Variant = _deck_hit()
+	var hit: Variant = _floor_hit()
 	if hit == null:
 		return
 	var c := raft.cell_at(hit)
-	if not raft.has_tile(c):
+	if not raft.parts.has_floor(c, level):
 		return
-	var off: Vector3 = hit - raft.cell_center(c)
-	var d := Vector2i(signi(roundi(off.x * 10.0)), 0) if absf(off.x) > absf(off.z) else Vector2i(0, signi(roundi(off.z * 10.0)))
-	if d == Vector2i.ZERO:
-		d = _look_dir()
-	key = RaftParts.edge_of(c, d)
+	key = RaftParts.edge_of(c, _edge_dir(hit, c), level)
 	has_target = true
 	valid = raft.parts.can_edge(key, outer)
 
 
 func _find_corner() -> void:
-	var hit: Variant = _deck_hit()
+	var hit: Variant = _floor_hit()
 	if hit == null:
 		return
 	var c := raft.cell_at(hit)
-	if not raft.has_tile(c):
+	if not raft.parts.has_floor(c, level):
 		return
 	var off: Vector3 = hit - raft.cell_center(c)
-	key = Vector2i(c.x if off.x > 0.0 else c.x - 1, c.y if off.z > 0.0 else c.y - 1)
+	key = Vector3i(c.x if off.x > 0.0 else c.x - 1, c.y if off.z > 0.0 else c.y - 1, level)
+	dir = rot
 	has_target = true
 	valid = raft.parts.can_corner(key)
 
 
+## Wall lanterns: on the wall at the edge you look at, on the face toward you
+## (the rotate button flips it to the other face).
+func _find_wall() -> void:
+	var hit: Variant = _floor_hit()
+	if hit == null:
+		return
+	var c := raft.cell_at(hit)
+	if not raft.parts.has_floor(c, level):
+		return
+	var d := _edge_dir(hit, c)
+	var e := RaftParts.edge_of(c, d, level)
+	# Face 0 points to +X / +Z: the lamp goes on the side of the cell we look from.
+	var cell_side_positive := (d.x < 0 or d.y < 0)
+	var face := (0 if cell_side_positive else 1) ^ (rot % 2)
+	key = Vector4i(e.x, e.y, e.z * 2 + face, e.w)
+	has_target = true
+	valid = raft.parts.can_lamp(key)
+
+
+## A roof one level up over the floor you look at; from an upper floor, looking past its
+## edge extends that floor.
 func _find_roof() -> void:
-	var hit: Variant = _deck_hit(_level())
+	var hit: Variant = _floor_hit()
 	if hit == null:
 		return
 	var c := raft.cell_at(hit)
 	if not raft.has_tile(c):
 		return
+	var lvl := level + 1 if raft.parts.has_floor(c, level) else level
 	cell = c
+	key = Vector3i(c.x, c.y, lvl)
 	has_target = true
-	valid = raft.parts.can_roof(c)
+	valid = raft.parts.can_roof(c, lvl)
 
 
 ## Returns true when something was built or repaired.
@@ -229,11 +280,11 @@ func place() -> bool:
 		"water":
 			raft.add_tile(cell)
 		"deck":
-			raft.add_station(kind, cell, def())
+			raft.add_station(kind, Vector3i(cell.x, cell.y, level), def())
 		"stairs":
-			raft.parts.add(kind, cell, dir)
-		"roof":
-			raft.parts.add(kind, cell)
+			raft.parts.add(kind, Vector3i(cell.x, cell.y, level), dir)
+		"corner":
+			raft.parts.add(kind, key, dir)
 		_:
 			raft.parts.add(kind, key)
 	return true

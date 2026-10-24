@@ -239,6 +239,10 @@ func _draw_buttons() -> void:
 			draw_arc(u["c"], u["r"] - 4, -PI / 2.0, -PI / 2.0 + TAU * float(use["progress"]), 40, UiTheme.GOLD, 6.0, true)
 		Icons.draw(self, use["icon"], u["c"] + Vector2(0, -4), 66.0, Color.WHITE if use["ok"] else Color(1, 1, 1, 0.6))
 		_label_pill(use["label"], u["c"] + Vector2(0, u["r"] - 2))
+	var rb: Dictionary = b["rotate"]
+	if rb["on"]:
+		_ring(rb["c"], rb["r"], held.has("rotate"))
+		Icons.draw(self, "rotate", rb["c"], 40.0, UiTheme.CREAM)
 	var bag: Dictionary = b["bag"]
 	_ring(bag["c"], bag["r"], held.has("bag"))
 	Icons.draw(self, "bag", bag["c"], 40.0, UiTheme.CREAM)

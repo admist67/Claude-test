@@ -8,6 +8,13 @@
    }
   },
   {
+   "id": "bait",
+   "out": 3,
+   "cost": {
+    "fish": 1
+   }
+  },
+  {
    "id": "hammer",
    "out": 1,
    "cost": {
