@@ -1,35 +1,42 @@
 # Art bible — Плот
 
 <!-- Phase 2 (references/style.md). Brief. Changes only by the user's decision. -->
+<!-- ЧЕРНОВИК (решение агента #5): доска стилей с пользователем — после играбельного v0.1. -->
 
 ## Direction
-<one opinionated phrase: "rain-soaked neon noir", not "stylish and colorful">
+Солнечный low-poly океан: бирюзовая вода, выгоревшее дерево, мусор как цветные пятна на воде.
 
 ## What we steal from
-<another medium (film, album cover, architecture, illustration) + what exactly we take>
+Обложки тропических открыток 60-х — насыщенное небо и плоские цветовые зоны; Raft — читаемость мусора на воде.
 
 ## Palette
-<4–6 hex with roles: dominant, secondary, reserved accent (what it means); forbidden colors>
+- #1f8fa8 — доминанта: вода
+- #8fd3e8 — небо у горизонта, туман
+- #c89a5b — дерево плота и доски
+- #f2e6c4 — пена, свет на гребнях
+- #ff6a3d — акцент «опасность/важно»: плавник акулы, предупреждения
+- запрещено: серый «асфальт», неон, фиолетовый
 
 ## Lighting
-<source, color, shadow hardness, fog/atmosphere, post-processing>
+Одно тёплое солнце под 50°, мягкие тени; голубой туман к горизонту скрывает край океана; без тяжёлого пост-эффекта (мобилка).
 
 ## Form and materials
-<what silhouettes are built from, what is forbidden; surfaces and textures>
+Крупные фасеты, скошенные края, без мелких деталей; flat-цвета или колор-атлас Kenney; вода — фасетный шейдер с пеной на гребнях.
 
 ## Camera and composition
-<angle, FOV, camera movement>
+1-е лицо, FOV 75, лёгкое покачивание камеры вместе с плотом.
 
 ## UI
-<interface style, fonts, icons>
+Крупные полупрозрачные круглые кнопки, иконки, минимум текста; шрифт Nunito.
 
 ## Signature techniques
-- <technique 1 — the dominant one>
-- <technique 2>
-- <technique 3>
+- фасетная бирюзовая вода с белыми гребнями
+- мусор качается на волнах и подсвечен лёгкой обводкой в зоне крюка
+- плот «скрипит»: каждая клетка качается по своей волне
 
 ## Forbidden
-- <what would kill the style>
+- фотореализм и PBR-текстуры
+- тёмная мрачная палитра днём
 
 ## References
-<the refs/... set, the boards/... board, and what we take from the key images>
+Доска стилей не собиралась — отложено (см. DECISIONS #5).

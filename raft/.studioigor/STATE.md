@@ -1,11 +1,11 @@
 # studioigor — Плот
 
 PROJECT: Плот
-PHASE: 0 — Start
-UPDATED: 2026-10-24
+PHASE: 5 — Assets and look-dev
+UPDATED: 2026-10-24 13:53
 
 ## Now
-Project created. Next: phase 1, the idea interview.
+пользователь играет APK → фидбек по крюку и управлению; затем доска стилей и v0.2 (очиститель, гриль)
 
 ## Open questions
 - none
@@ -13,3 +13,4 @@ Project created. Next: phase 1, the idea interview.
 ## Session log
 | date | phase | done | next |
 |---|---|---|---|
+| 2026-10-24 13:53 | 2 — Style | v0.1 собран: океан, плот, крюк, мусор, выживание, крафт, стройка, цели, сохранение, меню, звук; APK build/plot.apk | пользователь играет APK → фидбек по крюку и управлению; затем доска стилей и v0.2 (очиститель, гриль) |

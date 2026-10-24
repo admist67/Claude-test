@@ -22,3 +22,11 @@
 .studioigor/autopilot/runner.log
 .studioigor/autopilot/LOG.md
 # <<< studioigor:base
+
+# >>> studioigor:godot
+.godot/
+/android/
+/export/
+/build/
+*.tmp
+# <<< studioigor:godot

@@ -1,0 +1,537 @@
+extends Node3D
+## Game root: builds the world, wires input and UI to the systems, runs survival,
+## goals and saves. Mechanics live in systems/, drawing in ui/ and view/.
+
+enum Mode { MENU, PLAY, BAG, PAUSE, DEAD }
+
+const START_TILES: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]
+
+var mode := Mode.MENU
+var vitals := Vitals.new()
+var inv := Inventory.new()
+var stats: Dictionary = {}
+var goal_i := 0
+var played := 0.0
+var hotbar: Array[String] = []
+var sel := 0
+var grab_target: Debris
+var rng := RandomNumberGenerator.new()
+
+var ocean: Ocean
+var raft: Raft
+var player: Player
+var hook: Hook
+var field: DebrisField
+var builder: Builder
+var touch: TouchControls
+var hud: Hud
+var bag: CraftPanel
+var menus: Menus
+var menu_cam: Camera3D
+var _save_t := 0.0
+var _menu_t := 0.0
+var _reel_t := 0.0
+
+
+func _ready() -> void:
+	rng.randomize()
+	_build_world()
+	_build_ui()
+	inv.changed.connect(_refresh_hotbar)
+	_new_state()
+	_to_menu()
+
+
+# ---------------------------------------------------------------- world and UI
+
+func _build_world() -> void:
+	var env := Environment.new()
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color("#3f9bd8")
+	sky_mat.sky_horizon_color = Color("#a6dcec")
+	sky_mat.ground_horizon_color = Color("#a6dcec")
+	sky_mat.ground_bottom_color = Color("#2a7f99")
+	sky_mat.sun_angle_max = 20.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("#9cc4d4")
+	env.ambient_light_energy = 0.45
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color("#a6dcec")
+	env.fog_depth_begin = 22.0
+	env.fog_depth_end = 72.0
+	env.fog_sky_affect = 0.0
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(-35.0), 0.0)
+	sun.light_color = Color("#fff3dc")
+	sun.light_energy = 0.62
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 28.0
+	add_child(sun)
+
+	ocean = Ocean.new()
+	add_child(ocean)
+	raft = Raft.new()
+	add_child(raft)
+	player = Player.new()
+	player.raft = raft
+	raft.add_child(player)
+	field = DebrisField.new()
+	field.raft = raft
+	add_child(field)
+	hook = Hook.new()
+	hook.player = player
+	hook.field = field
+	add_child(hook)
+	hook.splashed.connect(_on_splash)
+	hook.delivered.connect(_on_delivered)
+	builder = Builder.new()
+	builder.raft = raft
+	builder.player = player
+	builder.inv = inv
+	add_child(builder)
+	menu_cam = Camera3D.new()
+	menu_cam.fov = 60.0
+	menu_cam.far = 160.0
+	add_child(menu_cam)
+
+
+func _build_ui() -> void:
+	var layer := CanvasLayer.new()
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(layer)
+	hud = Hud.new()
+	hud.game = self
+	layer.add_child(hud)
+	touch = TouchControls.new()
+	layer.add_child(touch)
+	hud.touch = touch
+	touch.pressed.connect(_on_pressed)
+	touch.released.connect(_on_released)
+	touch.looked.connect(func(rel: Vector2) -> void: player.look(rel))
+	bag = CraftPanel.new()
+	bag.inv = inv
+	bag.visible = false
+	layer.add_child(bag)
+	bag.craft_requested.connect(_craft)
+	bag.closed.connect(_close_bag)
+	menus = Menus.new()
+	layer.add_child(menus)
+	menus.new_game.connect(func() -> void:
+		SaveGame.clear()
+		_new_state()
+		_start()
+	)
+	menus.continue_game.connect(func() -> void:
+		_apply_save(SaveGame.read())
+		_start()
+	)
+	menus.resume.connect(_resume)
+	menus.to_menu.connect(func() -> void:
+		_save()
+		get_tree().paused = false
+		_to_menu()
+	)
+	menus.respawn.connect(_respawn)
+
+
+# ---------------------------------------------------------------- state
+
+func _new_state() -> void:
+	raft.clear()
+	for c in START_TILES:
+		raft.add_tile(c)
+	vitals = Vitals.new()
+	inv.from_dict({"hook": 1})
+	stats = {}
+	goal_i = 0
+	played = 0.0
+	sel = 0
+	player.place(raft.centroid())
+	_reset_sea()
+
+
+func _reset_sea() -> void:
+	hook.cancel()
+	field.clear_all()
+	field.prefill()
+
+
+func _state() -> Dictionary:
+	var p := player.position
+	return {
+		"tiles": SaveGame.cells_to_json(raft.cells()),
+		"inv": inv.to_dict(),
+		"vitals": vitals.to_dict(),
+		"stats": stats,
+		"goal": goal_i,
+		"played": played,
+		"pos": [p.x, p.y, p.z],
+		"yaw": player.yaw,
+	}
+
+
+func _apply_save(d: Dictionary) -> void:
+	if d.is_empty():
+		_new_state()
+		return
+	raft.clear()
+	for c in SaveGame.cells_from_json(d["tiles"]):
+		raft.add_tile(c)
+	inv.from_dict(d["inv"])
+	vitals = Vitals.new()
+	vitals.from_dict(d["vitals"])
+	stats = d["stats"]
+	goal_i = int(d["goal"])
+	played = float(d["played"])
+	var p: Array = d["pos"]
+	var pos := Vector3(p[0], p[1], p[2])
+	player.place(pos if raft.on_raft(pos) else raft.centroid(), float(d["yaw"]))
+	_reset_sea()
+
+
+func _save() -> void:
+	if mode != Mode.MENU:
+		SaveGame.write(_state())
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_save()
+		if mode == Mode.PLAY and what != NOTIFICATION_WM_CLOSE_REQUEST:
+			_pause()
+
+
+# ---------------------------------------------------------------- modes
+
+## Stops touch input without throwing a half-charged hook.
+func _freeze_input() -> void:
+	if hook.state == Hook.State.CHARGE:
+		hook.cancel()
+	touch.reset()
+	touch.enabled = false
+
+
+func playing() -> bool:
+	return mode == Mode.PLAY
+
+
+func _to_menu() -> void:
+	mode = Mode.MENU
+	_freeze_input()
+	bag.visible = false
+	hook.cancel()
+	menu_cam.current = true
+	ocean.cam = menu_cam
+	menus.has_save = SaveGame.exists()
+	menus.show_main()
+	Sfx.ambience(true)
+
+
+func _start() -> void:
+	mode = Mode.PLAY
+	menus.hide_all()
+	player.cam.current = true
+	ocean.cam = player.cam
+	touch.enabled = true
+	touch.reset()
+	_refresh_hotbar()
+	Sfx.ambience(true)
+	_save()
+
+
+func _pause() -> void:
+	if mode != Mode.PLAY:
+		return
+	mode = Mode.PAUSE
+	_freeze_input()
+	menus.show_pause()
+	get_tree().paused = true
+
+
+func _resume() -> void:
+	get_tree().paused = false
+	mode = Mode.PLAY
+	menus.hide_all()
+	touch.enabled = true
+
+
+func _open_bag() -> void:
+	mode = Mode.BAG
+	_freeze_input()
+	bag.refresh()
+	bag.visible = true
+
+
+func _close_bag() -> void:
+	bag.visible = false
+	mode = Mode.PLAY
+	touch.enabled = true
+
+
+func _die() -> void:
+	mode = Mode.DEAD
+	_freeze_input()
+	bag.visible = false
+	hook.cancel()
+	Sfx.play("hurt")
+	menus.show_death(vitals.cause)
+
+
+func _respawn() -> void:
+	vitals.respawn(Data.b["vitals"])
+	inv.lose_share(float(Data.b["vitals"]["death_keep"]), Data.items)
+	player.place(raft.centroid(), player.yaw)
+	menus.hide_all()
+	mode = Mode.PLAY
+	touch.enabled = true
+	_save()
+
+
+# ---------------------------------------------------------------- input → actions
+
+func selected() -> String:
+	return hotbar[sel] if sel < hotbar.size() else ""
+
+
+func _refresh_hotbar() -> void:
+	var cur := selected()
+	hotbar.clear()
+	for id: String in Data.items:
+		var k: String = Data.item(id)["kind"]
+		if (k == "tool" or k == "food") and inv.count(id) > 0:
+			hotbar.append(id)
+	sel = maxi(0, hotbar.find(cur))
+	touch.set_slots(hotbar.size())
+	_apply_selection()
+
+
+func _select(id: String) -> void:
+	var i := hotbar.find(id)
+	if i >= 0:
+		sel = i
+		_apply_selection()
+
+
+func _apply_selection() -> void:
+	var id := selected()
+	if id != "hook" and hook.busy():
+		hook.cancel()
+	player.hold(id)
+	builder.active = id == "hammer"
+
+
+func _on_pressed(b: String) -> void:
+	match b:
+		"action":
+			_action_down()
+		"grab":
+			if grab_target:
+				player.swing()
+				_collect(grab_target)
+		"bag":
+			Sfx.play("click", -6.0)
+			_open_bag()
+		"pause":
+			Sfx.play("click", -6.0)
+			_pause()
+		_:
+			if b.begins_with("slot"):
+				sel = int(b.substr(4))
+				Sfx.play("click", -8.0)
+				_apply_selection()
+
+
+func _on_released(b: String) -> void:
+	if b == "action" and selected() == "hook":
+		hook.release()
+
+
+func _action_down() -> void:
+	var id := selected()
+	if id == "hook":
+		hook.press()
+	elif id == "hammer":
+		if builder.place():
+			player.swing()
+			Sfx.play("hammer")
+			hud.toast("Плот стал больше!", "tile")
+			_check_goals()
+		else:
+			Sfx.play("build_fail", -4.0)
+			if builder.has_target and builder.valid and not builder.affordable():
+				hud.toast("Не хватает материалов", "plank")
+			elif not builder.has_target:
+				hud.toast("Посмотри на воду у края плота", "tile")
+	elif Data.item(id).get("kind", "") == "food":
+		_consume(id)
+
+
+func _consume(id: String) -> void:
+	if not inv.remove(id):
+		return
+	var def := Data.item(id)
+	vitals.consume(def)
+	player.swing()
+	var drink := float(def.get("water", 0)) > float(def.get("food", 0))
+	Sfx.play("drink" if drink else "eat")
+	hud.toast(("Выпито: " if drink else "Съедено: ") + Data.item_name(id), id)
+
+
+func _craft(r: Dictionary) -> void:
+	if not inv.craft(r):
+		return
+	var id: String = r["id"]
+	stats["made_" + id] = int(stats.get("made_" + id, 0)) + 1
+	Sfx.play("craft")
+	hud.toast("Сделано: " + Data.item_name(id), id)
+	Events.crafted.emit(id)
+	if Data.item(id)["kind"] == "tool":
+		_select(id)
+		_close_bag()
+	else:
+		bag.refresh()
+	_check_goals()
+
+
+func _collect(d: Debris) -> void:
+	for e: Array in d.roll_loot(rng):
+		var id: String = e[0]
+		var n: int = e[1]
+		inv.add(id, n)
+		stats["got_" + id] = int(stats.get("got_" + id, 0)) + n
+		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
+	if d.id == "barrel":
+		stats["barrels"] = int(stats.get("barrels", 0)) + 1
+	Sfx.play("pop", -2.0)
+	field.take(d)
+	_check_goals()
+
+
+func _on_delivered(caught: Array) -> void:
+	for d: Debris in caught:
+		_collect(d)
+	if caught.is_empty():
+		Sfx.play("snag", -10.0)
+
+
+func _on_splash(pos: Vector3) -> void:
+	Sfx.play("splash", -3.0)
+	var p := CPUParticles3D.new()
+	var m := BoxMesh.new()
+	m.size = Vector3.ONE * 0.07
+	m.material = Mk.mat(Color("#f2f6f2"), 0.4)
+	p.mesh = m
+	p.amount = 18
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.lifetime = 0.8
+	p.direction = Vector3.UP
+	p.spread = 35.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 4.0
+	p.gravity = Vector3(0, -9.8, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.4
+	add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+
+
+# ---------------------------------------------------------------- goals
+
+func _stat(name: String) -> int:
+	match name:
+		"tiles":
+			return raft.tiles.size()
+		"minutes":
+			return int(played / 60.0)
+	return int(stats.get(name, 0))
+
+
+func _check_goals() -> void:
+	var goals := Data.goals
+	while goal_i < goals.size() and _stat(goals[goal_i]["stat"]) >= int(goals[goal_i]["n"]):
+		goal_i += 1
+		hud.flash_goal()
+		Sfx.play("goal")
+		if goal_i >= goals.size():
+			hud.toast("Все цели выполнены!", "tile")
+			_freeze_input()
+			mode = Mode.PAUSE
+			menus.show_message("Ты освоился в океане!", "Плот растёт, а ты жив. Дальше — акулы,\nочиститель воды и гриль в следующих версиях.", "Играть дальше", _resume)
+		else:
+			hud.toast("Цель выполнена!", "")
+
+
+func goal_view() -> Dictionary:
+	var goals := Data.goals
+	if goal_i >= goals.size():
+		return {"text": "Расширяй плот и выживай", "prog": "%d кл." % raft.tiles.size()}
+	var g: Dictionary = goals[goal_i]
+	return {"text": g["text"], "prog": "%d/%d" % [mini(_stat(g["stat"]), int(g["n"])), int(g["n"])]}
+
+
+func action_view() -> Dictionary:
+	var id := selected()
+	if id == "hook":
+		var label := "Бросить"
+		match hook.state:
+			Hook.State.CHARGE:
+				label = "Отпусти!"
+			Hook.State.FLY:
+				label = "…"
+			Hook.State.WATER:
+				label = "Тянуть"
+		return {"icon": "hook", "label": label, "ok": true}
+	if id == "hammer":
+		return {"icon": "hammer", "label": "Строить", "ok": builder.has_target and builder.valid and builder.affordable(), "cost": builder.cost()}
+	if id != "":
+		var def := Data.item(id)
+		return {"icon": id, "label": "Выпить" if float(def.get("water", 0)) > float(def.get("food", 0)) else "Съесть", "ok": true}
+	return {"icon": "hand", "label": "", "ok": false}
+
+
+# ---------------------------------------------------------------- frame
+
+func _process(delta: float) -> void:
+	if mode == Mode.MENU:
+		_menu_t += delta
+		var c := raft.global_transform * raft.centroid()
+		var a := _menu_t * 0.12
+		menu_cam.global_position = c + Vector3(sin(a) * 9.0, 3.6, cos(a) * 9.0)
+		menu_cam.look_at(c + Vector3(0, 0.6, 0))
+		return
+	if mode == Mode.PLAY or mode == Mode.BAG:
+		player.move_input = touch.move if mode == Mode.PLAY else Vector2.ZERO
+		played += delta
+		if vitals.tick(delta, Data.b["vitals"], float(Data.tune["hunger"])):
+			_die()
+			return
+		var prev_min := int((played - delta) / 60.0)
+		if int(played / 60.0) != prev_min:
+			_check_goals()
+	if mode == Mode.PLAY:
+		grab_target = field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
+		for d in field.items:
+			d.highlight = d == grab_target
+		touch.buttons["grab"]["on"] = grab_target != null
+		if hook.reeling and hook.state == Hook.State.WATER:
+			_reel_t -= delta
+			if _reel_t <= 0.0:
+				_reel_t = 0.16
+				Sfx.play("reel", -14.0, 0.05)
+		_save_t += delta
+		if _save_t >= float(Data.b["save_interval"]):
+			_save_t = 0.0
+			_save()

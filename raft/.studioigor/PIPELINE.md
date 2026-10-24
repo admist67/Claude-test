@@ -12,7 +12,7 @@ the user (AskUserQuestion) + `studio.py decide --by user`. On autopilot —
 
 ## Phase 0 — Start
 files:
-- [ ] project under git — check: git rev-parse --is-inside-work-tree
+- [x] project under git — check: git rev-parse --is-inside-work-tree
 
 ## Phase 1 — Idea
 files: CONCEPT.md
@@ -25,31 +25,31 @@ files: CONCEPT.md
 
 ## Phase 2 — Style
 files: ART_BIBLE.md
-- [ ] ≥3 directions with real references shown on the board — check: manual
-- [ ] user locked the style — check: user
-- [ ] art bible: hex palette, lighting, form, ≥3 signature techniques, "forbidden" — check: manual
+- [ ] ≥3 directions with real references shown on the board — check: manual SKIP: отложено до играбельного v0.1 по просьбе пользователя
+- [ ] user locked the style — check: user SKIP: отложено до играбельного v0.1 по просьбе пользователя
+- [ ] art bible: hex palette, lighting, form, ≥3 signature techniques, "forbidden" — check: manual SKIP: отложено до играбельного v0.1 по просьбе пользователя
 
 ## Phase 3 — Platform and engine
 files: TECH.md
-- [ ] stack research done — check: test -s .studioigor/research/stack.md
-- [ ] user chose the platforms — check: user
-- [ ] user chose the engine; alternatives and reasons in TECH.md — check: user
+- [x] stack research done — check: test -s .studioigor/research/stack.md
+- [x] user chose the platforms — check: user
+- [x] user chose the engine; alternatives and reasons in TECH.md — check: user
 
 ## Phase 4 — Environment
 files: ENV.md
-- [ ] research of the best engine setup done — check: test -s .studioigor/research/environment.md
-- [ ] full setup installed: engine, CLI, plugin/skills, MCP, tests, linter, export — check: python3 {skill}/scripts/envcheck.py --engine {engine}
-- [ ] editor MCP connected: `claude mcp list` ✔ and a real tool call succeeded — check: manual
-- [ ] hello project: TEST and CAPTURE pass (studio.py verify) — check: grep -q "^VERIFIED: yes" .studioigor/ENV.md
-- [ ] user saw the project running on their machine — check: user
+- [x] research of the best engine setup done — check: test -s .studioigor/research/environment.md
+- [ ] full setup installed: engine, CLI, plugin/skills, MCP, tests, linter, export — check: python3 {skill}/scripts/envcheck.py --engine {engine} SKIP: облако Linux: brew/JDK17 не нужны (JDK 21 и SDK стоят), GUT заменён своим тест-скриптом, gdlint установлен
+- [ ] editor MCP connected: `claude mcp list` ✔ and a real tool call succeeded — check: manual SKIP: облако без GUI — редактор и MCP недоступны, работа через CLI
+- [x] hello project: TEST and CAPTURE pass (studio.py verify) — check: grep -q "^VERIFIED: yes" .studioigor/ENV.md
+- [ ] user saw the project running on their machine — check: user SKIP: ждём: пользователь ставит APK на телефон
 
 ## Phase 5 — Assets and look-dev
 files: ASSETS.md
-- [ ] asset and pipeline research done — check: test -s .studioigor/research/assets.md
+- [ ] asset and pipeline research done — check: test -s .studioigor/research/assets.md SKIP: ассеты v0.1: Kenney CC0 + процедурные, решено вместе со стилем (решение #5)
 - [ ] strategy by category agreed — check: user
 - [ ] look-dev scene built per the art bible and captured — check: ls .studioigor/captures/lookdev/*.png
 - [ ] user approved the look-dev: "this is how the game will look" — check: user
-- [ ] everything third-party is in the license registry — check: manual
+- [x] everything third-party is in the license registry — check: manual
 
 ## Phase 6 — Mechanics
 files:
