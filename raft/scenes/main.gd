@@ -14,6 +14,7 @@ var goal_i := 0
 var played := 0.0
 var hotbar: Array[String] = []
 var trips: SeaTrips                # swimming, islands, the anchor
+var actions: RaftActions           # stations, traps, demolishing, tool wear
 var layout := HotbarLayout.new()   # the player's hotbar order and hidden items
 var world := -1                    # the save slot being played
 var sel := -1                      # hotbar index of what is in hand, -1 for empty hands
@@ -125,6 +126,7 @@ func _build_world() -> void:
 	add_child(rod)
 	rod.splashed.connect(on_splash)
 	rod.caught.connect(_on_fish)
+	rod.used.connect(func(n: int) -> void: actions.use_tool(selected(), n))
 	rod.missed.connect(func(text: String) -> void:
 		hud.toast(text, "fish")
 		Sfx.play("build_fail", -10.0)
@@ -193,6 +195,7 @@ func _build_ui() -> void:
 	layer.add_child(bag)
 	bag.craft_requested.connect(_craft)
 	bag.hotbar_changed.connect(_refresh_hotbar)
+	bag.condition = func(id: String) -> float: return actions.condition(id)
 	bag.closed.connect(_close_bag)
 	build_panel = BuildPanel.new()
 	build_panel.inv = inv
@@ -203,6 +206,9 @@ func _build_ui() -> void:
 		_close_build()
 	)
 	build_panel.closed.connect(_close_build)
+	actions = RaftActions.new()
+	add_child(actions)
+	actions.setup(self, layer)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -262,6 +268,7 @@ func _new_state() -> void:
 	shark.reset(float(Data.b["shark"]["first_delay"]))
 	storm.restore(float(Data.b["storm"]["first"]))
 	trips.islands.reset(float(Data.b["islands"]["first"]))
+	actions.wear = Durability.new()
 	player.place(raft.centroid())
 	_reset_sea()
 
@@ -296,6 +303,7 @@ func _state() -> Dictionary:
 		"hand": hand,
 		"goal_hidden": goal_hidden,
 		"islands": trips.to_dict(),
+		"wear": actions.wear.to_dict(),
 	}
 
 
@@ -323,6 +331,7 @@ func _apply_save(d: Dictionary) -> void:
 	storm.restore(float(d.get("storm_t", Data.b["storm"]["first"])))
 	daynight.day = int(d.get("day", 1))
 	trips.from_dict(d.get("islands", {}))
+	actions.wear.from_dict(d.get("wear", {}))
 	layout = HotbarLayout.new()
 	layout.from_dict(d.get("hotbar", {}))
 	bag.hotbar = layout
@@ -510,13 +519,22 @@ func build_choices() -> Array:
 func _open_build() -> void:
 	if mode != Mode.PLAY:
 		return
-	mode = Mode.BAG
-	_freeze_input()
+	open_modal()
 	build_panel.open(builder.kind)
 
 
 func _close_build() -> void:
 	build_panel.visible = false
+	close_modal()
+
+
+## A panel over the game (build choice, station picker): the sea goes on, input waits.
+func open_modal() -> void:
+	mode = Mode.BAG
+	_freeze_input()
+
+
+func close_modal() -> void:
 	mode = Mode.PLAY
 	touch.enabled = true
 
@@ -611,7 +629,7 @@ func _action_down() -> void:
 ## The use button: take from / feed a station, or pick up floating debris by hand.
 func _use() -> void:
 	if demolish_target:
-		_demolish(demolish_target)
+		actions.demolish(demolish_target)
 		return
 	if net_target and net_target.kind == "door":
 		net_target.toggle()
@@ -620,7 +638,7 @@ func _use() -> void:
 		_sleep()
 		return
 	if net_target and net_target.kind == "trap":
-		_empty_trap(net_target)
+		actions.empty_trap(net_target)
 		return
 	if net_target:
 		var got: Array = net_target.caught.duplicate()
@@ -632,26 +650,7 @@ func _use() -> void:
 				_collect(d)
 		return
 	if station_target:
-		var was_busy := station_target.busy()
-		var res: Array = station_target.interact(inv)
-		var got: String = res[1]
-		if station_target.kind == "anchor":
-			trips.on_anchor(station_target)
-		if station_target.kind == "planter" and not was_busy and station_target.busy():
-			stats["planted"] = int(stats.get("planted", 0)) + 1
-		player.swing()
-		if got != "":
-			stats["got_" + got] = int(stats.get("got_" + got, 0)) + 1
-			if station_target.kind == "grill":
-				stats["cooked"] = int(stats.get("cooked", 0)) + 1
-			if station_target.kind == "planter":
-				stats["harvest"] = int(stats.get("harvest", 0)) + 1
-			Sfx.play("pop", -2.0)
-			hud.toast(res[0], got)
-		else:
-			Sfx.play("craft" if station_target.busy() else "build_fail", -6.0)
-			hud.toast(res[0], station_target.kind)
-		check_goals()
+		actions.use_station(station_target)
 	elif spot_target:
 		trips.gather(spot_target)
 	elif grab_target:
@@ -671,6 +670,7 @@ func _stab() -> void:
 	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z, int(ms["power"]) if metal else 1, float(ms["reach"]) if metal else 0.0):
 		if shark.hits_left() > 0:
 			hud.toast("Попал!", "spear")
+		actions.use_tool(selected())
 	else:
 		Sfx.play("throw", -6.0, 0.2)
 
@@ -707,44 +707,6 @@ func _on_shark_driven() -> void:
 		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
 	Sfx.play("goal", -4.0)
 	check_goals()
-
-
-## Fish from a trap: raw fish, now and then a big one.
-func _empty_trap(trap: Part) -> void:
-	if trap.fish <= 0:
-		hud.toast("В ловушке пока пусто", "fish")
-		return
-	for id: String in trap.take_fish():
-		inv.add(id)
-		stats["got_" + id] = int(stats.get("got_" + id, 0)) + 1
-		stats["trap_fish"] = int(stats.get("trap_fish", 0)) + 1
-		hud.toast("+1 " + Data.item_name(id), id)
-	player.swing()
-	Sfx.play("pop", -2.0)
-	check_goals()
-
-
-## The hammer takes a part or station down and gives back half of what it cost.
-func _demolish(target: Node3D) -> void:
-	var kind: String = target.kind
-	var cost: Dictionary = Data.build_by_id[kind]["cost"]
-	var share := float(Data.b["raft"]["refund"])
-	for id: String in cost:
-		var n := int(floor(int(cost[id]) * share))
-		if n > 0:
-			inv.add(id, n)
-	if target is Station:
-		var st: Station = target
-		if st.ready_item != "":
-			inv.add(st.ready_item, int(st.def.get("count", 1)))
-		raft.stations.erase(st.cell)
-		st.queue_free()
-		raft.parts.prune()
-	else:
-		raft.parts.remove_part(target)
-	player.swing()
-	Sfx.play("hammer", -2.0, 0.2)
-	hud.toast("Разобрано: " + Data.build_by_id[kind]["name"], kind)
 
 
 ## Sleep in a hammock: the night passes in a fade, hunger and thirst drop a bit.
@@ -805,7 +767,13 @@ func _craft(r: Dictionary) -> void:
 	Sfx.play("craft")
 	hud.toast("Сделано: " + Data.item_name(id), id)
 	Events.crafted.emit(id)
+	if id.ends_with("spear") and stats["made_" + id] == 1 and not shark.enabled:
+		# The first spear: now the shark may come.
+		shark.enabled = true
+		shark.reset(float(Data.b["shark"]["after_spear"]))
+		hud.toast("Копьё готово. Береги плот — скоро приплывёт акула", "spear")
 	if Data.item(id)["kind"] == "tool":
+		actions.wear.renew(id)
 		_select(id)
 		_close_bag()
 	else:
@@ -832,6 +800,8 @@ func _on_delivered(caught: Array) -> void:
 		_collect(d)
 	if caught.is_empty():
 		Sfx.play("snag", -10.0)
+	if tool_use() == "hook":
+		actions.use_tool(selected())
 
 
 func on_splash(pos: Vector3) -> void:
@@ -909,7 +879,7 @@ func action_view() -> Dictionary:
 			var labels := {Hook.State.IDLE: "Бросить", Hook.State.CHARGE: "Отпусти!", Hook.State.FLY: "…", Hook.State.WATER: "Тянуть"}
 			out["label"] = labels[hook.state]
 		"rod":
-			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Тяни!"}
+			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Подсечь!", Rod.State.FIGHT: "Держи"}
 			out["label"] = labels[rod.state]
 		"spear":
 			out = {"icon": id, "label": "Ударить", "ok": shark.alive_near() and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
@@ -947,6 +917,7 @@ func _process(delta: float) -> void:
 		if int(played / 60.0) != prev_min:
 			check_goals()
 	_spear_cd = maxf(0.0, _spear_cd - delta)
+	shark.enabled = stats.has("made_spear") or stats.has("made_metal_spear") or stats.has("shark_driven")
 	field.extra_mult = storm.debris_mult()
 	Station.rain = storm.k
 	if mode == Mode.PLAY:

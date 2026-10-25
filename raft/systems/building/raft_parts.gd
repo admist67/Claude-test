@@ -398,7 +398,7 @@ func doors() -> Array:
 
 
 func _process(delta: float) -> void:
-	var night := daynight != null and daynight.is_night()
+	var night := daynight != null and daynight.lamps_on()
 	for p: Part in edges.values():
 		if p.kind in ["door", "trap"]:
 			p.tick(delta, night)

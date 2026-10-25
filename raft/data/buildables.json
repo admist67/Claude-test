@@ -158,7 +158,8 @@
    },
    "time": 180.0,
    "grow": {
-    "seeds": "pineapple"
+    "seeds": "pineapple",
+    "banana_shoot": "banana"
    },
    "count": 2,
    "group": "Хозяйство"

@@ -15,6 +15,16 @@
    }
   },
   {
+   "id": "hook",
+   "out": 1,
+   "cost": {
+    "plank": 2,
+    "rope": 2,
+    "plastic": 2
+   },
+   "once": true
+  },
+  {
    "id": "hammer",
    "out": 1,
    "cost": {

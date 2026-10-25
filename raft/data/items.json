@@ -4,7 +4,8 @@
    "id": "hook",
    "name": "Крюк",
    "kind": "tool",
-   "use": "hook"
+   "use": "hook",
+   "durability": 45
   },
   {
    "id": "hammer",
@@ -16,25 +17,29 @@
    "id": "rod",
    "name": "Удочка",
    "kind": "tool",
-   "use": "rod"
+   "use": "rod",
+   "durability": 25
   },
   {
    "id": "spear",
    "name": "Копьё",
    "kind": "tool",
-   "use": "spear"
+   "use": "spear",
+   "durability": 25
   },
   {
    "id": "metal_hook",
    "name": "Металлический крюк",
    "kind": "tool",
-   "use": "hook"
+   "use": "hook",
+   "durability": 140
   },
   {
    "id": "metal_spear",
    "name": "Металлическое копьё",
    "kind": "tool",
-   "use": "spear"
+   "use": "spear",
+   "durability": 70
   },
   {
    "id": "plank",
@@ -70,6 +75,11 @@
    "id": "seeds",
    "name": "Семена ананаса",
    "kind": "resource"
+  },
+  {
+   "id": "banana_shoot",
+   "kind": "resource",
+   "name": "Росток банана"
   },
   {
    "id": "bait",

@@ -3,13 +3,18 @@ extends Node3D
 ## Fishing rod. Hold and release to cast the bobber; wait for a bite — the bobber dives and
 ## the phone buzzes — then press within the bite window to hook the fish. Too early pulls
 ## the line out empty; too late lets the fish go and you wait again.
+## A hooked fish has to be played: holding the button reels it in but strains the line,
+## letting go eases the line while the fish swims off a little. Now and then it jerks —
+## hold through a jerk and the line snaps; give it slack too long and it gets away.
+## Numbers in data/balance.json "fishing" ("fight").
 
 signal caught(id: String)
 signal missed(text: String)
 signal splashed(pos: Vector3)
 signal bit
+signal used(n: int)               # a fight ended: the rod wears by n
 
-enum State { IDLE, CHARGE, FLY, WAIT, BITE }
+enum State { IDLE, CHARGE, FLY, WAIT, BITE, FIGHT }
 
 var state := State.IDLE
 var power := 0.0
@@ -17,6 +22,11 @@ var baited := false               # bait on the hook: bites come sooner, big fis
 var player: Player
 var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
+var fish := ""                    # the fish on the line while fighting
+var progress := 0.0               # 0 = gone, 1 = landed
+var tension := 0.0                # 1 = the line snaps
+var jerking := false              # the fish fights right now
+var holding := false
 var _bobber: MeshInstance3D
 var _line: MeshInstance3D
 var _im: ImmediateMesh
@@ -26,6 +36,9 @@ var _fly_t := 0.0
 var _fly_dur := 0.6
 var _timer := 0.0
 var _t := 0.0
+var _phase_t := 0.0
+var _fight: Dictionary
+var _bite_at := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -63,14 +76,16 @@ func press() -> void:
 			missed.emit("Рано! Жди, пока поплавок нырнёт")
 			_stop()
 		State.BITE:
-			var id := _roll()
-			_stop()
-			caught.emit(id)
+			_start_fight()
+		State.FIGHT:
+			holding = true
 
 
 func release() -> void:
 	if state == State.CHARGE:
 		_cast()
+	elif state == State.FIGHT:
+		holding = false
 
 
 func cancel() -> void:
@@ -81,6 +96,70 @@ func _stop() -> void:
 	state = State.IDLE
 	visible = false
 	baited = false
+	holding = false
+	jerking = false
+
+
+## Hooked: the fight begins with the button held.
+func _start_fight() -> void:
+	fish = _roll()
+	var fcfg: Dictionary = cfg["fight"]
+	_fight = fcfg[fish] if fcfg.has(fish) else fcfg["fish"]
+	progress = float(fcfg["start"])
+	tension = 0.15
+	holding = true
+	jerking = false
+	_phase_t = rng.randf_range(float(_fight["calm"][0]), float(_fight["calm"][1])) * 0.6
+	_bite_at = _bobber.global_position
+	state = State.FIGHT
+	Sfx.play("reel", -6.0)
+
+
+func _end_fight(result: String) -> void:
+	var id := fish
+	_stop()
+	match result:
+		"caught":
+			used.emit(1)
+			caught.emit(id)
+		"snap":
+			used.emit(int(cfg["fight"]["snap_wear"]))
+			Sfx.play("snag", -2.0)
+			missed.emit("Леска лопнула! Отпускай, когда рыба дёргает")
+		_:
+			used.emit(1)
+			missed.emit("Рыба сорвалась — не давай ей много слабины")
+
+
+func _fight_step(delta: float) -> void:
+	_phase_t -= delta
+	if _phase_t <= 0.0:
+		jerking = not jerking
+		var r: Array = _fight["jerk" if jerking else "calm"]
+		_phase_t = rng.randf_range(float(r[0]), float(r[1]))
+		if jerking:
+			Input.vibrate_handheld(70)
+			Sfx.play("splash", -12.0, 0.2)
+	if holding:
+		progress += float(_fight["reel"]) * (float(_fight["jerk_reel"]) if jerking else 1.0) * delta
+		tension += float(_fight["jerk_strain" if jerking else "strain"]) * delta
+	else:
+		progress -= float(_fight["slip"]) * (1.7 if jerking else 1.0) * delta
+		tension -= float(_fight["ease"]) * delta
+	tension = clampf(tension, 0.0, 1.0)
+	if tension >= 1.0:
+		_end_fight("snap")
+	elif progress >= 1.0:
+		_end_fight("caught")
+	elif progress <= 0.0:
+		_end_fight("escape")
+	else:
+		# The bobber comes in toward the raft as the fish tires, thrashing while it jerks.
+		var near := tip().lerp(_bite_at, 0.25)
+		var p := _bite_at.lerp(near, progress)
+		p += Vector3(sin(_t * 23.0), 0, cos(_t * 19.0)) * (0.18 if jerking else 0.04)
+		p.y = Ocean.height_at(p.x, p.z) + (-0.15 + sin(_t * 31.0) * 0.08 if jerking else -0.05)
+		_bobber.global_position = p
 
 
 ## The rod tip in world space, taken from the rod model in the hand.
@@ -148,8 +227,10 @@ func _process(delta: float) -> void:
 			_float(-0.12 + sin(_t * 30.0) * 0.03)
 			_timer -= delta
 			if _timer <= 0.0:
-				missed.emit("Сорвалась! Жди следующую")
+				missed.emit("Не успел подсечь! Жди следующую")
 				_new_wait()
+		State.FIGHT:
+			_fight_step(delta)
 	if visible:
 		_draw_line()
 
@@ -167,6 +248,8 @@ func _draw_line() -> void:
 	var sag := 0.0 if state == State.FLY else clampf(a.distance_to(b) * 0.08, 0.0, 0.7)
 	if state == State.BITE:
 		sag *= 0.2
+	elif state == State.FIGHT:
+		sag *= 0.4 * (1.0 - tension)
 	var eye := player.cam.global_position
 	var pts: Array[Vector3] = []
 	for i in 11:

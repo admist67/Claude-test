@@ -120,6 +120,42 @@
     "bait": {
       "wait_mult": 0.4,
       "big_mult": 2.0
+    },
+    "fight": {
+      "start": 0.25,
+      "snap_wear": 3,
+      "fish": {
+        "reel": 0.16,
+        "jerk_reel": 0.25,
+        "slip": 0.04,
+        "strain": 0.22,
+        "jerk_strain": 1.5,
+        "ease": 1.0,
+        "jerk": [
+          0.5,
+          0.9
+        ],
+        "calm": [
+          1.0,
+          1.8
+        ]
+      },
+      "big_fish": {
+        "reel": 0.12,
+        "jerk_reel": 0.2,
+        "slip": 0.04,
+        "strain": 0.26,
+        "jerk_strain": 1.8,
+        "ease": 0.9,
+        "jerk": [
+          0.6,
+          1.1
+        ],
+        "calm": [
+          0.9,
+          1.6
+        ]
+      }
     }
   },
   "shark": {
@@ -148,7 +184,8 @@
       "reach": 0.8
     },
     "player_bite": 16.0,
-    "hunt_speed": 3.4
+    "hunt_speed": 3.4,
+    "after_spear": 70.0
   },
   "hook_upgrade": {
     "reel_speed": 8.5,
@@ -212,7 +249,8 @@
         ],
         "charges": 2,
         "loot": {
-          "banana": 2
+          "banana": 2,
+          "banana_shoot": 1
         },
         "verb": "Сорвать бананы"
       },
@@ -261,5 +299,13 @@
         "verb": "Открыть сундук"
       }
     }
+  },
+  "lamps": {
+    "energy": 1.9,
+    "range": 8.5,
+    "range_tall": 11.0,
+    "on": 0.46,
+    "off": 0.05,
+    "fade": 2.0
   }
 }

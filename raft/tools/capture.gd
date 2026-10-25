@@ -89,6 +89,7 @@ func _run() -> void:
 	menus.new_game.emit("Тестовый плот")
 	await _wait(1.5)
 	_aim(0.0, -0.12)
+	print("shark before the first spear: enabled ", shark.enabled)
 	await _shot("01_start")
 	# Throw the hook at full power and reel it in.
 	_on_pressed("action")
@@ -171,6 +172,10 @@ func _run() -> void:
 	_look_cell(Vector2i(0, 1), 0.4)
 	await _wait(0.3)
 	_on_pressed("use")
+	await _wait(0.4)
+	print("grill asks what to cook: ", actions.picker.visible, " mode ", mode)
+	await _shot("68_grill_pick")
+	actions._on_picked("fish")
 	await _wait(1.2)
 	await _shot("19_grill_cooking")
 	_look_cell(Vector2i(1, 0), 0.4)
@@ -201,15 +206,47 @@ func _run() -> void:
 	await _wait(0.25)
 	await _shot("22_bite")
 	_on_pressed("action")
+	await _wait(0.7)
+	await _shot("23_fight")
+	# Play the fish: hold while it is calm and the line is slack enough, let go otherwise.
+	var held := true
+	var tf := 0.0
+	while rod.state == Rod.State.FIGHT and tf < 40.0:
+		var want := not rod.jerking and rod.tension < 0.7
+		if want != held:
+			if want:
+				_on_pressed("action")
+			else:
+				_on_released("action")
+			held = want
+		await _wait(0.05)
+		tf += 0.05
+	if held:
+		_on_released("action")
+	print("fight took ", snappedf(tf, 0.1), " s; fish: ", inv.count("fish"), " big: ", inv.count("big_fish"), " rod wear left ", actions.wear.uses_left("rod", 25))
+	await _wait(0.3)
+	await _shot("24_caught")
+	# Hold all the way through: the line snaps.
+	_on_pressed("action")
+	await _wait(0.6)
 	_on_released("action")
-	await _wait(0.4)
-	await _shot("23_caught")
-	print("fish: ", inv.count("fish"), " big: ", inv.count("big_fish"))
+	await _wait(1.0)
+	rod._timer = 0.01
+	await _wait(0.25)
+	_on_pressed("action")
+	var ts := 0.0
+	while rod.state == Rod.State.FIGHT and ts < 15.0:
+		await _wait(0.1)
+		ts += 0.1
+	_on_released("action")
+	print("held through: state ", rod.state, " after ", snappedf(ts, 0.1), " s, rod wear left ", actions.wear.uses_left("rod", 25))
 	# Night with a fire on the grill.
 	inv.add("fish", 1)
 	_look_cell(Vector2i(0, 1), 0.4)
 	await _wait(0.2)
 	_on_pressed("use")
+	if actions.picker.visible:
+		actions._on_picked("fish")
 	player.place(raft.cell_center(Vector2i(1, 1)) + Vector3(0, 0.05, 0), 0.0)
 	_look_cell(Vector2i(0, 1), 0.3)
 	daynight.phase = 0.7
@@ -487,9 +524,14 @@ func _run() -> void:
 	player.place(cc.call(1, 1), 0.0)
 	await _build_at("hammock", cc.call(1, 2))
 	_select("metal_hook")
+	inv.add("banana_shoot", 1)
 	_look_cell(Vector2i(2, 0), 0.3)
 	await _wait(0.3)
 	_on_pressed("use")
+	await _wait(0.4)
+	print("planter asks what to plant: ", actions.picker.visible)
+	await _shot("69_planter_pick")
+	actions._on_picked("banana_shoot")
 	for st: Station in raft.stations.values():
 		if st.kind == "planter":
 			st.progress = float(st.def["time"]) * 0.6
@@ -501,7 +543,7 @@ func _run() -> void:
 	await _wait(0.6)
 	await _shot("37_planter_ready")
 	_on_pressed("use")
-	print("pineapples ", inv.count("pineapple"), " planted ", stats.get("planted", 0), " harvest ", stats.get("harvest", 0))
+	print("bananas ", inv.count("banana"), " planted ", stats.get("planted", 0), " harvest ", stats.get("harvest", 0))
 	daynight.phase = 0.7
 	player.place(cc.call(1, 1), 0.0)
 	_look_cell(Vector2i(1, 2), 0.6)
@@ -689,6 +731,20 @@ func _run() -> void:
 	await _wait(0.4)
 	await _shot("17_night")
 	daynight.phase = 0.2
+	# A worn-out hook breaks and is gone; a new one is made in the bag.
+	_select("hook")
+	actions.use_tool("hook", 44)
+	await _wait(0.2)
+	await _shot("70_wear")
+	actions.use_tool("hook", 5)
+	print("hook broke: ", inv.count("hook") == 0, " hand '", hand, "'")
+	inv.add("plank", 2)
+	inv.add("rope", 2)
+	inv.add("plastic", 2)
+	for r: Dictionary in Data.recipes:
+		if r["id"] == "hook":
+			_craft(r)
+	print("new hook: ", inv.count("hook"), " wear left ", actions.wear.uses_left("hook", 45))
 	# Worlds: save as a second one, the menu, the list, the name box, load the first back.
 	var first := world
 	var tiles_first := raft.cells().size()

@@ -4,6 +4,7 @@ extends Node3D
 ## swims to it and bites until the tile sinks or a spear drives it off. It cannot be
 ## killed: each visit it takes 3–6 spear hits (rolled anew) before it swims away.
 ## Anyone swimming is easier prey: it comes sooner and goes for them instead of the raft.
+## It does not come at all before the player has made a first spear (`enabled`).
 ## Numbers in data/balance.json "shark".
 
 signal attacked(cell: Vector2i)
@@ -22,6 +23,7 @@ var rng := RandomNumberGenerator.new()
 var need := 4                 # hits that drive it off this visit
 var target := Vector2i.ZERO
 var swimmer: Node3D               # the player while swimming, else null
+var enabled := true               # false until the first spear: the sea stays calm
 var _hunt_cd := 0.0
 var _timer := 0.0
 var _angle := 0.0
@@ -143,6 +145,8 @@ func _process(delta: float) -> void:
 		_bite_t = 0.6
 	match state:
 		State.AWAY:
+			if not enabled:
+				return
 			_timer -= delta * (3.0 if swimmer else 1.0)
 			if _timer <= 0.0:
 				state = State.CIRCLE

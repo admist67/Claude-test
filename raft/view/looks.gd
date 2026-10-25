@@ -70,13 +70,26 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_box(st, Vector3(1.05, 0.065, 0.24), Vector3.ZERO, Color(1, 0.93, 0.82), "wood")
 			for x: float in [-0.38, 0.38]:
 				Mk.st_box(st, Vector3(0.02, 0.012, 0.02), Vector3(x, 0.036, 0.05), Color(0.5, 0.5, 0.52), "metal")
-		"plastic", "water":
-			var tint := PLASTIC if id == "plastic" else Color("#9fd2f5")
-			Mk.st_cyl(st, 0.1, 0.3, Vector3(0, 0.1, 0), tint, "plastic", Vector3(0, 0, PI / 2.0), 12, 1.0, 0.06)
-			Mk.st_cyl(st, 0.045, 0.08, Vector3(0.18, 0.1, 0), tint, "plastic", Vector3(0, 0, PI / 2.0), 10)
-			Mk.st_cyl(st, 0.05, 0.04, Vector3(0.24, 0.1, 0), CAP, "plastic", Vector3(0, 0, PI / 2.0), 10)
-			if id == "water":
-				Mk.st_cyl(st, 0.102, 0.16, Vector3(-0.04, 0.1, 0), Color("#3d8fd6"), "plastic", Vector3(0, 0, PI / 2.0), 12)
+		"plastic":
+			# Plastic scrap: a crushed milky bottle and a couple of torn sheets.
+			var milky := Color("#e4edf0")
+			Mk.st_box(st, Vector3(0.27, 0.06, 0.15), Vector3(0, 0.04, 0), milky, "plastic", Vector3(0.12, 0.3, 0.1), 0.6)
+			Mk.st_box(st, Vector3(0.1, 0.05, 0.09), Vector3(0.16, 0.05, 0.04), milky.darkened(0.06), "plastic", Vector3(0.3, 0.6, 0.4), 0.6)
+			Mk.st_box(st, Vector3(0.06, 0.04, 0.05), Vector3(-0.17, 0.05, -0.04), milky.darkened(0.1), "plastic", Vector3(0.2, -0.4, 0.3), 0.6)
+			Mk.st_box(st, Vector3(0.2, 0.012, 0.16), Vector3(-0.05, 0.012, 0.12), Color("#b9e3c8"), "plastic", Vector3(0.06, -0.6, 0.08), 0.6)
+			Mk.st_box(st, Vector3(0.15, 0.012, 0.12), Vector3(0.1, 0.02, -0.11), Color("#f0cfa8"), "plastic", Vector3(-0.1, 0.9, 0.05), 0.6)
+		"water":
+			# A full bottle of drinking water: blue water, a label, a red cap.
+			var rz := Vector3(0, 0, PI / 2.0)
+			var blue := Color("#6fb8ec")
+			Mk.st_cyl(st, 0.085, 0.27, Vector3(-0.02, 0.09, 0), blue, "plastic", rz, 14, 1.0, 0.03)
+			for x: float in [-0.14, -0.12]:
+				Mk.st_cyl(st, 0.087, 0.008, Vector3(x, 0.09, 0), blue.lightened(0.2), "plastic", rz, 14)
+			Mk.st_cyl(st, 0.088, 0.1, Vector3(0.0, 0.09, 0), Color("#2a6fc4"), "canvas", rz, 14, 0.6)
+			Mk.st_cyl(st, 0.089, 0.022, Vector3(0.0, 0.09, 0), Color("#f4f4f0"), "white", rz, 14)
+			Mk.st_cyl(st, 0.06, 0.05, Vector3(0.135, 0.09, 0), blue.lightened(0.1), "plastic", rz, 12, 1.0, 0.25)
+			Mk.st_cyl(st, 0.03, 0.04, Vector3(0.175, 0.09, 0), blue.lightened(0.2), "plastic", rz, 10)
+			Mk.st_cyl(st, 0.035, 0.035, Vector3(0.205, 0.09, 0), Color("#d8352a"), "plastic", rz, 12)
 		"leaf":
 			leaf = true
 			_frond(st, Vector3.ZERO, 0.0, 1.15)
@@ -114,9 +127,7 @@ static func mesh(id: String) -> ArrayMesh:
 			for k in 3:
 				Mk.st_cyl(st, 0.03, 0.025, Vector3(0, -0.08 + k * 0.03, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
 		"rod":
-			Mk.st_cyl(st, 0.018, 0.9, Vector3(0, 0.4, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
-			Mk.st_cyl(st, 0.026, 0.22, Vector3(0, -0.12, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
-			Mk.st_cyl(st, 0.045, 0.04, Vector3(0.04, -0.02, 0), Color(0.6, 0.62, 0.66), "metal", Vector3(0, 0, PI / 2.0), 12)
+			_rod(st)
 		"spear":
 			Mk.st_cyl(st, 0.022, 1.3, Vector3(0, 0.2, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
 			Mk.st_cyl(st, 0.03, 0.14, Vector3(0, 0.82, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
@@ -136,10 +147,7 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_box(st, Vector3(0.14, 0.3, 0.03), Vector3(0, 0.78, 0), Color(0.8, 0.82, 0.86), "metal")
 			Mk.st_box(st, Vector3(0.07, 0.1, 0.032), Vector3(0, 0.96, 0), Color(0.85, 0.87, 0.9), "metal")
 		"rod_icon":
-			Mk.st_cyl(st, 0.035, 0.7, Vector3(0, 0.3, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
-			Mk.st_cyl(st, 0.05, 0.22, Vector3(0, -0.12, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
-			Mk.st_cyl(st, 0.09, 0.07, Vector3(0.08, 0.0, 0), Color(0.75, 0.77, 0.8), "metal", Vector3(0, 0, PI / 2.0), 12)
-			Mk.st_cyl(st, 0.045, 0.06, Vector3(0, 0.68, 0), Color("#e8452c"), "plastic", Vector3.ZERO, 10)
+			_rod(st, 2.6)
 		"bobber":
 			Mk.st_cyl(st, 0.05, 0.05, Vector3(0, 0.025, 0), Color("#f4f1ea"), "plastic", Vector3.ZERO, 10)
 			Mk.st_cyl(st, 0.05, 0.05, Vector3(0, -0.025, 0), Color("#e8452c"), "plastic", Vector3.ZERO, 10)
@@ -181,6 +189,14 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.07, 0.03, Vector3(0, 0.56, 0.48), iron, "metal", Vector3(PI / 2.0, 0, 0), 10)
 		"anchor_rope":
 			Mk.st_cyl(st, 0.025, 4.0, Vector3(0, -2.0, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 6, 0.4)
+		"banana_shoot":
+			leaf = true
+			var r := Mk.cell("palm")
+			for a in 3:
+				var b := Basis(Vector3.UP, a * TAU / 3.0 + 0.4)
+				Mk.st_quad(st, [b * Vector3(-0.03, 0.08, 0.0), b * Vector3(0.03, 0.08, 0.0), b * Vector3(0.1, 0.36, 0.2), b * Vector3(-0.1, 0.36, 0.2)], r, Color(1.05, 1.2, 0.8))
+			Mk.st_cyl(st, 0.02, 0.12, Vector3(0, 0.07, 0), Color("#8fb05a"), "white", Vector3.ZERO, 8)
+			Mk.st_cyl(st, 0.07, 0.07, Vector3(0, 0.03, 0), Color("#6a4a30"), "clay", Vector3.ZERO, 10, 0.5, 0.4)
 		"seeds":
 			Mk.st_cyl(st, 0.08, 0.12, Vector3(0, 0.06, 0), Color("#e2cd98"), "canvas", Vector3.ZERO, 10, 0.5, 0.25)
 			Mk.st_cyl(st, 0.03, 0.04, Vector3(0, 0.14, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.5)
@@ -206,6 +222,35 @@ static func mesh(id: String) -> ArrayMesh:
 	var m := Mk.st_commit(st, leaf)
 	_cache[id] = m
 	return m
+
+
+## A fishing rod along +Y, tip at y 0.86: cork grip, a reel with line on its spool,
+## a dark tapered blank with red thread wraps and line guides.
+static func _rod(st: SurfaceTool, k := 1.0) -> void:
+	var metal := Color(0.72, 0.74, 0.78)
+	var rz := Vector3(0, 0, PI / 2.0)
+	Mk.st_cyl(st, 0.029 * k, 0.03, Vector3(0, -0.245, 0), Color(0.18, 0.18, 0.2), "plastic", Vector3.ZERO, 10)
+	Mk.st_cyl(st, 0.027 * k, 0.24, Vector3(0, -0.11, 0), Color("#d9b083"), "clay", Vector3.ZERO, 12, 0.35, 0.08)
+	Mk.st_cyl(st, 0.022 * k, 0.08, Vector3(0, 0.05, 0), metal, "metal", Vector3.ZERO, 10)
+	var rx := 0.02 * k + 0.01
+	Mk.st_box(st, Vector3(rx + 0.02, 0.012, 0.022), Vector3(rx * 0.5 + 0.01, 0.05, 0), metal, "metal")
+	Mk.st_cyl(st, 0.048 * k, 0.016 * k, Vector3(rx + 0.04, 0.05, 0), metal, "metal", rz, 16)
+	Mk.st_cyl(st, 0.036 * k, 0.034 * k, Vector3(rx + 0.04 + 0.025 * k, 0.05, 0), Color(0.96, 0.95, 0.88), "rope", rz, 14, 0.3)
+	Mk.st_cyl(st, 0.044 * k, 0.01 * k, Vector3(rx + 0.04 + 0.047 * k, 0.05, 0), Color(0.2, 0.2, 0.22), "plastic", rz, 16)
+	var hx := rx + 0.04 + 0.055 * k
+	Mk.st_box(st, Vector3(0.008 * k, 0.06 * k, 0.008 * k), Vector3(hx, 0.05 + 0.025 * k, 0), metal, "metal")
+	Mk.st_cyl(st, 0.009 * k, 0.024 * k, Vector3(hx + 0.01 * k, 0.05 + 0.05 * k, 0), Color(0.15, 0.15, 0.16), "plastic", rz, 8)
+	var blank := Color(0.16, 0.2, 0.17)
+	for sec: Array in [[0.09, 0.42, 0.016, 0.012], [0.42, 0.68, 0.012, 0.0085], [0.68, 0.86, 0.0085, 0.005]]:
+		var r0 := (float(sec[2]) + float(sec[3])) / 2.0 * k
+		Mk.st_cyl(st, r0, float(sec[1]) - float(sec[0]), Vector3(0, (float(sec[0]) + float(sec[1])) / 2.0, 0), blank, "plastic", Vector3.ZERO, 10, 1.5)
+	for g: Array in [[0.24, 0.015, 0.016], [0.45, 0.012, 0.012], [0.62, 0.01, 0.01], [0.76, 0.008, 0.008], [0.855, 0.006, 0.006]]:
+		var y := float(g[0])
+		var r := float(g[1]) * k
+		var gr := float(g[2]) * k
+		Mk.st_cyl(st, r + 0.0035 * k, 0.03, Vector3(0, y, 0), Color("#b8322a"), "white", Vector3.ZERO, 8)
+		Mk.st_box(st, Vector3(gr + 0.006 * k, 0.006 * k, 0.004 * k), Vector3(r + gr * 0.5, y, 0), metal, "metal")
+		Mk.st_cyl(st, gr, 0.005 * k, Vector3(r + gr + 0.004 * k, y, 0), metal, "metal", Vector3.ZERO, 10)
 
 
 ## A palm frond: three bent quads along +X with the palm atlas cell.

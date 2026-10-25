@@ -101,13 +101,20 @@ func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 	if kind == "planter":
 		_food.position = Vector3(0, 0.3, 0)
 		_crop = Node3D.new()
-		for i in 2:
-			var fruit := Looks.held("pineapple")
-			fruit.scale = Vector3.ONE * 2.2
-			fruit.position = Vector3(-0.22 + i * 0.44, 0.36, 0.1 - i * 0.2)
-			_crop.add_child(fruit)
 		add_child(_crop)
 	_refresh()
+
+
+## The ripe crop on the planter: two of what grew.
+func _grow_crop(id: String) -> void:
+	for c in _crop.get_children():
+		c.queue_free()
+	_crop.set_meta("fruit", id)
+	for i in 2:
+		var fruit := Looks.held(id)
+		fruit.scale = Vector3.ONE * 2.2
+		fruit.position = Vector3(-0.22 + i * 0.44, 0.36, 0.1 - i * 0.2)
+		_crop.add_child(fruit)
 
 
 func _make_fire() -> Node3D:
@@ -195,6 +202,20 @@ func _output(input: String) -> String:
 	return _table().get(input, "")
 
 
+## Grill and planter, idle: the player picks what goes in (see choices()).
+func wants_choice() -> bool:
+	return kind in ["grill", "planter"] and cooking == "" and ready_item == ""
+
+
+## What can go in now: [{"id", "count", "out", "out_n"}] for the items the player has.
+func choices(inv: Inventory) -> Array:
+	var out: Array = []
+	for id: String in _table():
+		if inv.count(id) > 0:
+			out.append({"id": id, "count": inv.count(id), "out": _table()[id], "out_n": int(def.get("count", 1))})
+	return out
+
+
 func _raw_in(inv: Inventory) -> String:
 	for id: String in _table():
 		if inv.count(id) > 0:
@@ -252,6 +273,13 @@ func interact(inv: Inventory) -> Array:
 	var raw := "seawater" if kind == "purifier" else _raw_in(inv)
 	if raw == "":
 		return ["Нужны семена — ищи в бочках" if kind == "planter" else "Нужна сырая рыба или мясо", ""]
+	return start(inv, raw)
+
+
+## Puts `raw` in (seawater for the purifier) and lights the fire. Returns [message, ""].
+func start(inv: Inventory, raw: String) -> Array:
+	if raw != "seawater" and inv.count(raw) == 0:
+		return ["Нет: " + Data.item_name(raw), ""]
 	if needs_fuel() and fuel <= 0.0 and not _add_fuel(inv):
 		return ["Нужно топливо: лист или доска", ""]
 	if raw != "seawater":
@@ -301,6 +329,8 @@ func _refresh() -> void:
 		_food.mesh = Looks.mesh("sprout")
 		_food.scale = Vector3.ONE * (1.2 if ready_item != "" else 0.3 + 0.9 * progress / float(def["time"]))
 		_crop.visible = ready_item != ""
+		if ready_item != "" and _crop.get_meta("fruit", "") != ready_item:
+			_grow_crop(ready_item)
 		return
 	var show := ready_item if ready_item != "" else (cooking if cooking != "seawater" else "")
 	_food.visible = show != ""

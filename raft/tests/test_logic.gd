@@ -132,5 +132,17 @@ func _init() -> void:
 	hl2.unhide("hook")
 	check("unhidden goes last", ",".join(hl2.slots(have)) == "fish,rod,spear,hook")
 
+	# Tool wear: uses count down, the tool breaks at zero, a new one starts full; saves keep it.
+	var w := Durability.new()
+	check("new tool is full", w.uses_left("rod", 25) == 25 and w.ratio("rod", 25) == 1.0)
+	check("wear does not break early", not w.use("rod", 3, 25) and w.uses_left("rod", 25) == 22)
+	var w2 := Durability.new()
+	w2.from_dict(JSON.parse_string(JSON.stringify(w.to_dict())))
+	check("wear survives a save", w2.uses_left("rod", 25) == 22)
+	check("tool breaks at zero", w2.use("rod", 22, 25) and w2.uses_left("rod", 25) == 25)
+	for id: String in items:
+		if items[id].has("durability"):
+			check("durability on a tool %s" % id, items[id]["kind"] == "tool" and int(items[id]["durability"]) > 0)
+
 	print("tests: %s" % ("OK" if fails == 0 else "%d failed" % fails))
 	quit(1 if fails > 0 else 0)

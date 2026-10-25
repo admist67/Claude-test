@@ -13,6 +13,7 @@ const TABS := ["Припасы", "Создать", "Постройки"]
 var inv: Inventory
 var hotbar: HotbarLayout
 var carried: Callable            # -> Array[String]: the hotbar items the player has
+var condition: Callable          # id -> float: a tool's wear (1 new .. 0), -1 if it does not wear
 var tab := 0
 var _tabs: Array[Button] = []
 var _body: VBoxContainer
@@ -208,8 +209,29 @@ func _slot(id: String, n: int, sel := false) -> Control:
 	l.size = Vector2(32, 24)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(l)
+	var k: float = condition.call(id) if condition.is_valid() else -1.0
+	if k >= 0.0:
+		box.add_child(_wear_bar(k, Vector2(10, 62), 64.0))
 	c.tooltip_text = Data.item_name(id)
 	return c
+
+
+## A small bar under a tool: green when new, red when about to break.
+static func _wear_bar(k: float, at: Vector2, w: float) -> Control:
+	var back := ColorRect.new()
+	back.color = Color(0.02, 0.06, 0.08, 0.8)
+	back.position = at
+	back.size = Vector2(w, 7)
+	var fill := ColorRect.new()
+	fill.color = wear_color(k)
+	fill.position = Vector2(1, 1)
+	fill.size = Vector2(maxf(2.0, (w - 2.0) * k), 5)
+	back.add_child(fill)
+	return back
+
+
+static func wear_color(k: float) -> Color:
+	return Color("#e0503c").lerp(Color("#f0c040"), clampf(k * 2.0, 0.0, 1.0)).lerp(Color("#6cd36c"), clampf(k * 2.0 - 1.0, 0.0, 1.0))
 
 
 ## Cost chips "icon have/need"; compact ones wrap onto several lines (building cards).

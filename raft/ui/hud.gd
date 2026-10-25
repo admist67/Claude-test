@@ -240,10 +240,40 @@ func _draw_crosshair(vs: Vector2) -> void:
 		power = game.rod.power
 	if power >= 0.0:
 		_power_bar(Rect2(c + Vector2(-80, 44), Vector2(160, 18)), power)
+	if game.rod.state == Rod.State.FIGHT:
+		_draw_fight(c)
 	if game.rod.state == Rod.State.BITE:
 		var s := 1.0 + 0.15 * sin(Time.get_ticks_msec() / 50.0)
 		Icons.draw(self, "exclamation", c + Vector2(0, -80), 70.0 * s, Color("#ffd24a"))
 		_text("Клюёт! Жми!", c + Vector2(-150, 100), 38, Color("#ffd24a"), HORIZONTAL_ALIGNMENT_CENTER, 300, title)
+
+
+## Playing a hooked fish: how far it is (fish → hook) and the line's tension, with the
+## hint that matters right now.
+func _draw_fight(c: Vector2) -> void:
+	var rod: Rod = game.rod
+	var w := 300.0
+	var top := c + Vector2(-w / 2.0, 70)
+	# Distance: the fish icon slides toward the hook as it comes in.
+	var track := Rect2(top, Vector2(w, 10))
+	_round_rect(track.grow(3.0), Color(0.02, 0.06, 0.08, 0.7), 8.0)
+	_round_rect(Rect2(track.position, Vector2(track.size.x * rod.progress, track.size.y)), Color("#6fc0e8"), 5.0)
+	Icons.draw(self, "hook", track.end + Vector2(18, -5), 34.0)
+	var shake := Vector2(sin(Time.get_ticks_msec() / 25.0), 0) * (5.0 if rod.jerking else 0.0)
+	Icons.draw(self, rod.fish, track.position + Vector2(track.size.x * rod.progress, 5) + shake, 44.0)
+	# Tension: a bar that turns red near the top; the last fifth is the danger zone.
+	var bar := Rect2(top + Vector2(0, 36), Vector2(w, 18))
+	_round_rect(bar.grow(2.0), Color(0.02, 0.06, 0.08, 0.75), 11.0)
+	_round_rect(Rect2(bar.position + Vector2(w * 0.8, 0), Vector2(w * 0.2, bar.size.y)), Color(0.7, 0.1, 0.05, 0.45), 9.0)
+	var t := rod.tension
+	var col := Color("#6cd36c").lerp(Color("#f0c040"), clampf(t * 1.6, 0.0, 1.0)).lerp(Color("#ff4a3a"), clampf((t - 0.6) * 2.5, 0.0, 1.0))
+	_round_rect(Rect2(bar.position, Vector2(maxf(bar.size.y, w * t), bar.size.y)), col, 9.0)
+	_round_rect_border(bar, Color(0, 0, 0, 0), UiTheme.GOLD, 9.0, 2)
+	_text("Натяжение", bar.position + Vector2(0, 40), 18, Color(1, 1, 1, 0.75), HORIZONTAL_ALIGNMENT_LEFT, -1, font)
+	var hint := "Рыба дёргает — отпусти!" if rod.jerking else ("Держи и тяни" if rod.tension < 0.75 else "Леска на пределе — отпусти!")
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 90.0)
+	var hc := Color("#ff8a7a", pulse) if rod.jerking or rod.tension >= 0.75 else Color("#ffd24a")
+	_text(hint, c + Vector2(-200, -70), 34, hc, HORIZONTAL_ALIGNMENT_CENTER, 400, title)
 
 
 ## The charge bar: a dark rounded frame with a gold rim and a rounded fill inset inside it.
@@ -354,6 +384,11 @@ func _draw_hotbar() -> void:
 		if Data.item(bar[i]).get("kind", "") == "food":
 			var n := str(game.inv.count(bar[i]))
 			_text(n, c + Vector2(r - 30, r - 6), 18, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT, 24)
+		var k: float = game.actions.condition(bar[i])
+		if k >= 0.0:
+			var wr := Rect2(c + Vector2(-r * 0.62, r * 0.5), Vector2(r * 1.24, 6))
+			draw_rect(wr.grow(1.0), Color(0.02, 0.06, 0.08, 0.85))
+			draw_rect(Rect2(wr.position, Vector2(maxf(2.0, wr.size.x * k), wr.size.y)), CraftPanel.wear_color(k))
 	var at := bar.find(_item)
 	if at >= 0 and _item_t < 2.5:
 		var a := minf(_item_t / 0.25, 1.0) * clampf((2.5 - _item_t) / 0.5, 0.0, 1.0)

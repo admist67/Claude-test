@@ -37,6 +37,12 @@ func is_night() -> bool:
 	return phase > 0.53 and phase < 0.97
 
 
+## Lanterns burn a little longer than the night: from before sunset to after dawn.
+func lamps_on() -> bool:
+	var l: Dictionary = Data.b["lamps"]
+	return phase > float(l["on"]) or phase < float(l["off"])
+
+
 func clock_text() -> String:
 	var hours := fposmod(phase * 24.0 + 6.0, 24.0)
 	return "%02d:%02d" % [int(hours), int(fmod(hours, 1.0) * 60.0)]

@@ -21,6 +21,7 @@ var _open := 0.0
 var _light: OmniLight3D
 var _glow: MeshInstance3D
 var _catch_t := 0.0
+var _lit := 0.0                   # lanterns: 0 dark .. 1 burning, fades in and out
 
 
 
@@ -64,18 +65,18 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			m.albedo_color = Color("#ffd27a")
 			m.emission_enabled = true
 			m.emission = Color("#ffb347")
-			m.emission_energy_multiplier = 1.5
+			m.emission_energy_multiplier = 2.2
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			gm.material = m
 			_glow.mesh = gm
 			_glow.position = at
 			add_child(_glow)
 			_light = OmniLight3D.new()
+			var lc: Dictionary = Data.b["lamps"]
 			_light.light_color = Color("#ffc070")
-			_light.omni_range = 7.0
-			_light.light_energy = 1.3
+			_light.light_energy = 0.0
 			_light.position = at
-			_light.omni_range = 9.0 if kind == "lantern_tall" else 7.0
+			_light.omni_range = float(lc["range_tall"] if kind == "lantern_tall" else lc["range"])
 			add_child(_light)
 		"roof":
 			_box(Vector3(Looks.T, 0.14, Looks.T), Vector3(0, H - 0.07, 0))
@@ -135,8 +136,8 @@ func toggle() -> void:
 	Sfx.play("door", -4.0)
 
 
-## Door swing; lantern light on/off; a trap's next fish.
-func tick(delta: float, night: bool) -> void:
+## Door swing; lantern light fading on/off; a trap's next fish.
+func tick(delta: float, lamps_on: bool) -> void:
 	if kind == "trap" and fish < capacity:
 		var def: Dictionary = Data.build_by_id["trap"]
 		if _catch_t <= 0.0:
@@ -148,8 +149,11 @@ func tick(delta: float, night: bool) -> void:
 		_open = move_toward(_open, 1.0 if is_open else 0.0, delta * 2.5)
 		_leaf.rotation.y = -_open * 1.6
 	if _light:
-		_light.visible = night
-		_glow.visible = night
+		var lc: Dictionary = Data.b["lamps"]
+		_lit = move_toward(_lit, 1.0 if lamps_on else 0.0, delta / float(lc["fade"]))
+		_light.visible = _lit > 0.01
+		_light.light_energy = float(lc["energy"]) * _lit
+		_glow.visible = _lit > 0.25
 
 
 ## Empties a trap: raw fish, now and then a big one.
