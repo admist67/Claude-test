@@ -49,8 +49,9 @@ func _ghost_mat(c: Color) -> StandardMaterial3D:
 	return m
 
 
+## What is being built; empty until a kind is picked (kind "" right after taking the hammer).
 func def() -> Dictionary:
-	return Data.build_by_id[kind]
+	return Data.build_by_id.get(kind, {})
 
 
 func rotatable() -> bool:
@@ -58,7 +59,7 @@ func rotatable() -> bool:
 
 
 func cost() -> Dictionary:
-	return Data.b["raft"]["repair_cost"] if repair else def()["cost"]
+	return Data.b["raft"]["repair_cost"] if repair else def().get("cost", {})
 
 
 func affordable() -> bool:
@@ -78,7 +79,7 @@ func _process(delta: float) -> void:
 	var pos := Vector3.ZERO
 	var yaw := 0.0
 	if active and not _find_repair():
-		match def()["on"]:
+		match def().get("on", ""):
 			"water":
 				_find_water_cell()
 			"deck", "stairs":
@@ -92,7 +93,7 @@ func _process(delta: float) -> void:
 			"roof":
 				_find_roof()
 	var gk := "tile" if repair else ("door_ajar" if kind == "door" else kind)
-	if _ghost_kind != gk:
+	if gk != "" and _ghost_kind != gk:
 		_ghost_kind = gk
 		_ghost.mesh = Looks.mesh(gk)
 	_ghost.visible = has_target
@@ -119,7 +120,8 @@ func _process(delta: float) -> void:
 		"roof":
 			pos = raft.parts.cell_pos(key) - Vector3(0, H, 0)
 		_:
-			pos = raft.cell_center(cell) + Vector3(0, level * H if not repair else 0.0, 0)
+			# Stations stand on the floor you are on; new tiles always float on the sea.
+			pos = raft.cell_center(cell) + Vector3(0, level * H if not repair and def()["on"] == "deck" else 0.0, 0)
 			yaw = PI if gk in ["purifier", "grill", "planter", "collector"] else 0.0
 	_ghost.position = pos + Vector3(0, 0.02 + sin(_t * 5.0) * 0.015, 0)
 	_ghost.rotation.y = yaw
@@ -290,3 +292,21 @@ func place() -> bool:
 		_:
 			raft.parts.add(kind, key)
 	return true
+
+
+## What to look at to build a kind placed `on` this.
+static func hint(on: String) -> String:
+	match on:
+		"water":
+			return "Посмотри на воду у края плота"
+		"edge":
+			return "Посмотри на пол у края клетки, где нужна стена"
+		"edge_out":
+			return "Посмотри на пол у внешнего края плота"
+		"corner":
+			return "Посмотри на пол у угла клетки"
+		"roof":
+			return "Крыше нужна опора: стена, столб или соседняя крыша"
+		"wall":
+			return "Посмотри на стену или окно: фонарь повиснет с твоей стороны"
+	return "Посмотри на свободную клетку плота"

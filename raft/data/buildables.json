@@ -189,6 +189,23 @@
    "group": "Хозяйство"
   },
   {
+   "id": "trap",
+   "name": "Рыболовная ловушка",
+   "on": "edge_out",
+   "cost": {
+    "rope": 5,
+    "plank": 3,
+    "stone": 3
+   },
+   "catch_time": [
+    70.0,
+    105.0
+   ],
+   "capacity": 3,
+   "big": 0.2,
+   "group": "Хозяйство"
+  },
+  {
    "id": "hammock",
    "name": "Гамак",
    "on": "stairs",
@@ -198,6 +215,17 @@
     "leaf": 4
    },
    "rotate": true,
+   "group": "Хозяйство"
+  },
+  {
+   "id": "anchor",
+   "name": "Якорь",
+   "on": "deck",
+   "cost": {
+    "plank": 6,
+    "rope": 4,
+    "scrap": 3
+   },
    "group": "Хозяйство"
   }
  ]

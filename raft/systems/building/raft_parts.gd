@@ -143,7 +143,7 @@ func can_edge(k: Vector4i, outer: bool, kind := "", d := 0) -> bool:
 	var n := _floors_touching(edge_cells(k), k.w)
 	if not ((n == 1 and k.w == 0) if outer else n >= 1):
 		return false
-	if kind == "net":
+	if kind in ["net", "trap"]:
 		return true
 	# A lantern arm pointing along this edge would end up inside the wall.
 	var ends: Array[Vector3i] = [Vector3i(k.x, k.y, k.w), Vector3i(k.x, k.y - 1, k.w) if k.z == 0 else Vector3i(k.x - 1, k.y, k.w)]
@@ -165,7 +165,7 @@ func can_corner(k: Vector3i, kind := "", d := 0) -> bool:
 	if corners.has(k) or _floors_touching(corner_cells(k), k.z) == 0:
 		return false
 	var wall: Part = edges.get(arm_edge(k, d))
-	return kind == "pillar" or wall == null or wall.kind == "net"
+	return kind == "pillar" or wall == null or wall.kind in ["net", "trap"]
 
 
 ## On a wall or window (a door leaf moves), clear of any door's sweep.
@@ -186,7 +186,7 @@ func supported(c: Vector2i, lvl: int) -> bool:
 		if roofs.has(Vector3i(c.x + d.x, c.y + d.y, lvl)):
 			return true
 		var e: Part = edges.get(edge_of(c, d, lvl - 1))
-		if e and e.kind != "net":
+		if e and not e.kind in ["net", "trap"]:
 			return true
 	for k: Vector2i in [c, c - Vector2i(1, 0), c - Vector2i(0, 1), c - Vector2i(1, 1)]:
 		var p: Part = corners.get(Vector3i(k.x, k.y, lvl - 1))
@@ -233,7 +233,7 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 			p.position = edge_center(k)
 			p.rotation.y = door_yaw(k, d) if kind == "door" else edge_yaw(k)
 			edges[k] = p
-		"net":
+		"net", "trap":
 			p.rotation.y = outward_yaw(k)
 			p.position = edge_center(k) + Basis(Vector3.UP, p.rotation.y) * Vector3(0, 0, 0.18)
 			edges[k] = p
@@ -299,7 +299,7 @@ func prune() -> void:
 		changed = false
 		for k: Vector4i in edges.keys():
 			var n := _floors_touching(edge_cells(k), k.w)
-			if n == 0 or (edges[k].kind == "net" and n != 1):
+			if n == 0 or (edges[k].kind in ["net", "trap"] and n != 1):
 				changed = _drop(edges, k) or changed
 		for k: Vector3i in corners.keys():
 			if _floors_touching(corner_cells(k), k.z) == 0:
@@ -349,7 +349,7 @@ func from_list(list: Array) -> void:
 		var kind: String = e["kind"]
 		var k: Variant
 		match kind:
-			"wall", "window", "door", "net", "lantern_wall":
+			"wall", "window", "door", "net", "trap", "lantern_wall":
 				if a.size() < 3:
 					continue
 				k = Vector4i(int(a[0]), int(a[1]), int(a[2]), int(a[3]) if a.size() > 3 else 0)
@@ -358,6 +358,7 @@ func from_list(list: Array) -> void:
 			_:
 				k = Vector3i(int(a[0]), int(a[1]), int(a[2]) if a.size() > 2 else 0)
 		var p := add(kind, k, int(e.get("dir", 0)))
+		p.fish = int(e.get("fish", 0))
 		if e.get("open", false):
 			p.toggle()
 
@@ -384,10 +385,11 @@ func try_net(d: Debris) -> bool:
 	return false
 
 
+## Lets go of what a net holds (debris the sea already cleared away is skipped).
 func _release(p: Part) -> void:
-	for d: Debris in p.caught:
+	for d: Variant in p.caught:
 		if is_instance_valid(d):
-			d.net = null
+			(d as Debris).net = null
 	p.caught.clear()
 
 
@@ -397,8 +399,9 @@ func doors() -> Array:
 
 func _process(delta: float) -> void:
 	var night := daynight != null and daynight.is_night()
-	for p: Part in doors():
-		p.tick(delta, night)
+	for p: Part in edges.values():
+		if p.kind in ["door", "trap"]:
+			p.tick(delta, night)
 	for dict: Dictionary in [corners, lamps]:
 		for k: Variant in dict:
 			dict[k].tick(delta, night)

@@ -62,6 +62,11 @@
    "kind": "resource"
   },
   {
+   "id": "stone",
+   "kind": "resource",
+   "name": "Камень"
+  },
+  {
    "id": "seeds",
    "name": "Семена ананаса",
    "kind": "resource"

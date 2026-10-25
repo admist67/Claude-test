@@ -34,6 +34,9 @@ CELLS = {
     "white": (2, 2, "gen:white", None),
     "ash": (3, 2, "gen:ash", None),
     "scales": (0, 3, "gen:scales", None),
+    "sand": (1, 3, "Ground080", None),
+    "rock": (2, 3, "Rock030", (200, 196, 188)),
+    "grass": (3, 3, "Grass004", None),
 }
 
 

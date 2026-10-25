@@ -2,7 +2,8 @@ class_name Part
 extends StaticBody3D
 ## One raft structure: wall, window, door, net (on a tile edge), pillar, lantern (on a
 ## corner), roof or stairs (on a cell). Doors open and close with the use button,
-## nets hold the debris that drifts into them, lanterns light up at night.
+## nets hold the debris that drifts into them, fish traps catch a fish now and then,
+## lanterns light up at night.
 
 const H := 2.4
 const USE_LAYER := 4             # ray-only bodies the player never bumps into
@@ -12,12 +13,14 @@ var key: Variant                  # Vector3i edge, Vector2i corner or cell
 var dir := 0                      # stairs: 0..3 = +Z, +X, -Z, -X; nets: outward side
 var caught: Array = []            # nets: Debris held in the mesh
 var capacity := 8
+var fish := 0                     # traps: fish inside
 var is_open := false
 var _leaf: Node3D
 var _leaf_shape: CollisionShape3D
 var _open := 0.0
 var _light: OmniLight3D
 var _glow: MeshInstance3D
+var _catch_t := 0.0
 
 
 
@@ -88,6 +91,8 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			add_child(cs)
 		"net":
 			_use_box(Vector3(1.4, 1.0, 0.3), Vector3(0, 0.05, 0))
+		"trap":
+			_use_box(Vector3(1.1, 1.0, 1.4), Vector3(0, -0.1, 0.55))
 		"hammock":
 			for x: float in [-0.66, 0.66]:
 				_box(Vector3(0.12, 1.15, 0.12), Vector3(x, 0.575, 0))
@@ -130,8 +135,15 @@ func toggle() -> void:
 	Sfx.play("door", -4.0)
 
 
-## Door swing; lantern light on/off.
+## Door swing; lantern light on/off; a trap's next fish.
 func tick(delta: float, night: bool) -> void:
+	if kind == "trap" and fish < capacity:
+		var def: Dictionary = Data.build_by_id["trap"]
+		if _catch_t <= 0.0:
+			_catch_t = randf_range(float(def["catch_time"][0]), float(def["catch_time"][1]))
+		_catch_t -= delta
+		if _catch_t <= 0.0:
+			fish += 1
 	if _leaf:
 		_open = move_toward(_open, 1.0 if is_open else 0.0, delta * 2.5)
 		_leaf.rotation.y = -_open * 1.6
@@ -140,15 +152,27 @@ func tick(delta: float, night: bool) -> void:
 		_glow.visible = night
 
 
+## Empties a trap: raw fish, now and then a big one.
+func take_fish() -> Array[String]:
+	var out: Array[String] = []
+	var big := float(Data.build_by_id["trap"]["big"])
+	for i in fish:
+		out.append("big_fish" if randf() < big else "fish")
+	fish = 0
+	return out
+
+
 func to_dict() -> Dictionary:
 	var k: Array = [key.x, key.y, key.z, key.w] if key is Vector4i else [key.x, key.y, key.z]
-	return {"kind": kind, "key": k, "dir": dir, "open": is_open}
+	return {"kind": kind, "key": k, "dir": dir, "open": is_open, "fish": fish}
 
 
 ## Nets and doors: the use button.
 func prompt(_inv: Inventory) -> Dictionary:
 	if kind == "door":
 		return {"text": "Закрыть" if is_open else "Открыть", "ok": true, "icon": "door"}
+	if kind == "trap":
+		return {"text": "Достать рыбу (%d)" % fish if fish > 0 else "Пока пусто", "ok": fish > 0, "icon": "fish"}
 	if kind == "hammock":
 		var dn: DayNight = get_parent().daynight
 		return {"text": "Спать", "ok": dn != null and dn.is_night(), "icon": "hammock"}

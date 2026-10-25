@@ -13,12 +13,17 @@ var stats: Dictionary = {}
 var goal_i := 0
 var played := 0.0
 var hotbar: Array[String] = []
+var trips: SeaTrips                # swimming, islands, the anchor
 var layout := HotbarLayout.new()   # the player's hotbar order and hidden items
 var world := -1                    # the save slot being played
-var sel := 0
+var sel := -1                      # hotbar index of what is in hand, -1 for empty hands
+var hand := ""                     # the item in hand
+var goal_open := false             # the goal plaque shows its full text
+var goal_hidden := false           # the goal plaque is folded to a small button
 var grab_target: Debris
 var station_target: Station
-var net_target: Part              # a net or a door under the crosshair
+var net_target: Part              # a net, trap, door or hammock under the crosshair
+var spot_target: IslandSpot       # something to gather on an island
 var demolish_target: Node3D       # a part or station the hammer can take down
 var rng := RandomNumberGenerator.new()
 
@@ -113,12 +118,12 @@ func _build_world() -> void:
 	hook.player = player
 	hook.field = field
 	add_child(hook)
-	hook.splashed.connect(_on_splash)
+	hook.splashed.connect(on_splash)
 	hook.delivered.connect(_on_delivered)
 	rod = Rod.new()
 	rod.player = player
 	add_child(rod)
-	rod.splashed.connect(_on_splash)
+	rod.splashed.connect(on_splash)
 	rod.caught.connect(_on_fish)
 	rod.missed.connect(func(text: String) -> void:
 		hud.toast(text, "fish")
@@ -132,9 +137,12 @@ func _build_world() -> void:
 	shark.bit.connect(_on_shark_bite)
 	shark.hurt.connect(func(_left: int) -> void:
 		Sfx.play("shark_hit")
-		_burst(shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
+		Fx.burst(self, shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
 	)
 	shark.fled.connect(_on_shark_driven)
+	trips = SeaTrips.new()
+	add_child(trips)
+	trips.setup(self)
 	raft.parts.daynight = daynight
 	storm = Storm.new()
 	add_child(storm)
@@ -147,11 +155,11 @@ func _build_world() -> void:
 	storm.ended.connect(func() -> void:
 		stats["storms"] = int(stats.get("storms", 0)) + 1
 		hud.toast("Шторм стих — море несёт много обломков", "plank")
-		_check_goals()
+		check_goals()
 	)
 	daynight.new_day.connect(func(d: int) -> void:
 		hud.toast("Наступил день %d" % d, "sun")
-		_check_goals()
+		check_goals()
 	)
 	builder = Builder.new()
 	builder.raft = raft
@@ -246,11 +254,14 @@ func _new_state() -> void:
 	stats = {}
 	goal_i = 0
 	played = 0.0
-	sel = 0
+	hand = "hook"
+	goal_open = false
+	goal_hidden = false
 	daynight.phase = float(Data.b["day"]["start_phase"])
 	daynight.day = 1
 	shark.reset(float(Data.b["shark"]["first_delay"]))
 	storm.restore(float(Data.b["storm"]["first"]))
+	trips.islands.reset(float(Data.b["islands"]["first"]))
 	player.place(raft.centroid())
 	_reset_sea()
 
@@ -259,6 +270,8 @@ func _reset_sea() -> void:
 	hook.cancel()
 	rod.cancel()
 	field.clear_all()
+	for net: Part in raft.parts.nets():
+		net.caught.clear()
 	field.prefill()
 
 
@@ -280,6 +293,9 @@ func _state() -> Dictionary:
 		"hp": raft.hp.keys().map(func(c: Vector2i) -> Array: return [c.x, c.y, raft.hp[c]]),
 		"day": daynight.day,
 		"hotbar": layout.to_dict(),
+		"hand": hand,
+		"goal_hidden": goal_hidden,
+		"islands": trips.to_dict(),
 	}
 
 
@@ -306,9 +322,13 @@ func _apply_save(d: Dictionary) -> void:
 	daynight.phase = float(d.get("phase", Data.b["day"]["start_phase"]))
 	storm.restore(float(d.get("storm_t", Data.b["storm"]["first"])))
 	daynight.day = int(d.get("day", 1))
+	trips.from_dict(d.get("islands", {}))
 	layout = HotbarLayout.new()
 	layout.from_dict(d.get("hotbar", {}))
 	bag.hotbar = layout
+	hand = d.get("hand", "hook")
+	goal_open = false
+	goal_hidden = bool(d.get("goal_hidden", false))
 	inv.from_dict(d["inv"])
 	vitals = Vitals.new()
 	vitals.from_dict(d["vitals"])
@@ -374,6 +394,7 @@ func _start() -> void:
 	storm.cam = player.cam
 	touch.enabled = true
 	touch.reset()
+	touch.set_goal(goal_open, goal_hidden)
 	_refresh_hotbar()
 	Sfx.ambience(true)
 	_save()
@@ -407,7 +428,7 @@ func _close_bag() -> void:
 	touch.enabled = true
 
 
-func _die() -> void:
+func die() -> void:
 	mode = Mode.DEAD
 	_freeze_input()
 	bag.visible = false
@@ -430,7 +451,7 @@ func _respawn() -> void:
 # ---------------------------------------------------------------- input → actions
 
 func selected() -> String:
-	return hotbar[sel] if sel < hotbar.size() else ""
+	return hand
 
 
 ## Every tool and food the player carries, in item order.
@@ -445,17 +466,18 @@ func _carried() -> Array[String]:
 
 ## The hotbar in the player's own order, without the items they hid.
 func _refresh_hotbar() -> void:
-	var cur := selected()
 	hotbar = layout.slots(_carried())
-	sel = maxi(0, hotbar.find(cur))
+	if not hand in hotbar:
+		hand = ""                  # used up or hidden: the hands are empty
+	sel = hotbar.find(hand)
 	touch.set_slots(hotbar.size())
 	_apply_selection()
 
 
 func _select(id: String) -> void:
-	var i := hotbar.find(id)
-	if i >= 0:
-		sel = i
+	if id in hotbar:
+		hand = id
+		sel = hotbar.find(id)
 		_apply_selection()
 
 
@@ -473,6 +495,9 @@ func _apply_selection() -> void:
 		rod.cancel()
 	hook.upgraded = id == "metal_hook"
 	player.hold(id)
+	if use == "hammer" and not builder.active:
+		builder.kind = ""          # a freshly taken hammer has nothing picked to build
+		builder.rot = 0
 	builder.active = use == "hammer"
 	touch.set_builds(build_choices().size())
 
@@ -514,9 +539,24 @@ func _on_pressed(b: String) -> void:
 			_pause.call_deferred()
 		_:
 			if b.begins_with("slot"):
-				sel = int(b.substr(4))
+				# Tapping the item in hand puts it away: the hands are empty.
+				var id: String = hotbar[int(b.substr(4))]
+				hand = "" if hand == id else id
+				sel = hotbar.find(hand)
 				Sfx.play("click", -8.0)
+				if hand != "":
+					hud.show_item(hand)
 				_apply_selection()
+			elif b == "goal":
+				Sfx.play("click", -8.0)
+				goal_open = not goal_open and not goal_hidden
+				goal_hidden = false
+				touch.set_goal(goal_open, goal_hidden)
+			elif b == "goal_hide":
+				Sfx.play("click", -8.0)
+				goal_open = false
+				goal_hidden = true
+				touch.set_goal(goal_open, goal_hidden)
 			elif b.begins_with("build"):
 				Sfx.play("click", -8.0)
 				_open_build.call_deferred()
@@ -536,12 +576,17 @@ func _on_released(b: String) -> void:
 func _action_down() -> void:
 	var id := selected()
 	var use := tool_use()
+	if player.off_raft and use in ["hook", "rod", "hammer"]:
+		hud.toast("Это можно только на плоту", id)
+		return
 	if use == "hook":
 		hook.press()
 	elif use == "rod":
 		rod.press()
 	elif use == "spear":
 		_stab()
+	elif use == "hammer" and builder.kind == "" and not builder.repair:
+		_open_build.call_deferred()
 	elif use == "hammer":
 		var fixing := builder.repair
 		var upper := builder.level >= 1 and builder.kind != "roof"
@@ -552,13 +597,13 @@ func _action_down() -> void:
 			Sfx.play("hammer")
 			var what: String = "Клетка починена" if fixing else ("Плот стал больше!" if builder.kind == "tile" else "Построено: " + builder.def()["name"])
 			hud.toast(what, "hammer" if fixing else builder.kind)
-			_check_goals()
+			check_goals()
 		else:
 			Sfx.play("build_fail", -4.0)
 			if builder.has_target and builder.valid and not builder.affordable():
 				hud.toast("Не хватает материалов", "plank")
 			elif not builder.has_target or not builder.valid:
-				hud.toast(_build_hint(builder.def()["on"]), builder.kind)
+				hud.toast(Builder.hint(builder.def()["on"]), builder.kind)
 	elif Data.item(id).get("kind", "") == "food":
 		_consume(id)
 
@@ -574,19 +619,24 @@ func _use() -> void:
 	if net_target and net_target.kind == "hammock":
 		_sleep()
 		return
+	if net_target and net_target.kind == "trap":
+		_empty_trap(net_target)
+		return
 	if net_target:
 		var got: Array = net_target.caught.duplicate()
 		net_target.caught.clear()
 		player.swing()
-		for d: Debris in got:
+		for d: Variant in got:
 			if is_instance_valid(d):
-				d.net = null
+				(d as Debris).net = null
 				_collect(d)
 		return
 	if station_target:
 		var was_busy := station_target.busy()
 		var res: Array = station_target.interact(inv)
 		var got: String = res[1]
+		if station_target.kind == "anchor":
+			trips.on_anchor(station_target)
 		if station_target.kind == "planter" and not was_busy and station_target.busy():
 			stats["planted"] = int(stats.get("planted", 0)) + 1
 		player.swing()
@@ -601,10 +651,14 @@ func _use() -> void:
 		else:
 			Sfx.play("craft" if station_target.busy() else "build_fail", -6.0)
 			hud.toast(res[0], station_target.kind)
-		_check_goals()
+		check_goals()
+	elif spot_target:
+		trips.gather(spot_target)
 	elif grab_target:
 		player.swing()
 		_collect(grab_target)
+	else:
+		trips.use()
 
 
 func _stab() -> void:
@@ -632,12 +686,12 @@ func _on_shark_attack(_cell: Vector2i) -> void:
 func _on_shark_bite(cell: Vector2i, sank: bool) -> void:
 	Sfx.play("bite")
 	var p := raft.to_global(raft.cell_center(cell))
-	_burst(p, Color("#8a6a48"), 14)
-	_on_splash(p)
+	Fx.burst(self, p, Color("#8a6a48"), 14)
+	on_splash(p)
 	Input.vibrate_handheld(120)
 	if sank:
 		hud.toast("Акула утащила клетку плота!", "tile")
-		if not raft.on_raft(player.position):
+		if not player.off_raft and not raft.on_raft(player.position):
 			player.place(raft.nearest_tile(player.position), player.yaw)
 	else:
 		hud.toast("Чини молотком: 1 доска", "hammer")
@@ -652,29 +706,22 @@ func _on_shark_driven() -> void:
 		inv.add(id, n)
 		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
 	Sfx.play("goal", -4.0)
-	_check_goals()
+	check_goals()
 
 
-## Small flying chips (wood, blood) at a point.
-func _burst(pos: Vector3, col: Color, n: int) -> void:
-	var p := CPUParticles3D.new()
-	var m := BoxMesh.new()
-	m.size = Vector3.ONE * 0.06
-	m.material = Mk.mat(col, 0.8)
-	p.mesh = m
-	p.amount = n
-	p.one_shot = true
-	p.explosiveness = 0.9
-	p.lifetime = 0.9
-	p.direction = Vector3.UP
-	p.spread = 60.0
-	p.initial_velocity_min = 1.5
-	p.initial_velocity_max = 3.5
-	p.gravity = Vector3(0, -9.8, 0)
-	add_child(p)
-	p.global_position = pos
-	p.emitting = true
-	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+## Fish from a trap: raw fish, now and then a big one.
+func _empty_trap(trap: Part) -> void:
+	if trap.fish <= 0:
+		hud.toast("В ловушке пока пусто", "fish")
+		return
+	for id: String in trap.take_fish():
+		inv.add(id)
+		stats["got_" + id] = int(stats.get("got_" + id, 0)) + 1
+		stats["trap_fish"] = int(stats.get("trap_fish", 0)) + 1
+		hud.toast("+1 " + Data.item_name(id), id)
+	player.swing()
+	Sfx.play("pop", -2.0)
+	check_goals()
 
 
 ## The hammer takes a part or station down and gives back half of what it cost.
@@ -724,7 +771,7 @@ func _sleep() -> void:
 		mode = Mode.PLAY
 		touch.enabled = true
 		hud.toast("Доброе утро! День %d" % daynight.day, "sun")
-		_check_goals()
+		check_goals()
 		_save()
 	)
 
@@ -736,22 +783,7 @@ func _on_fish(id: String) -> void:
 	Sfx.play("goal", -6.0)
 	hud.toast("Поймана: " + Data.item_name(id), id)
 	player.swing()
-	_check_goals()
-
-
-func _build_hint(on: String) -> String:
-	match on:
-		"water":
-			return "Посмотри на воду у края плота"
-		"edge":
-			return "Посмотри на пол у края клетки, где нужна стена"
-		"edge_out":
-			return "Посмотри на пол у внешнего края плота"
-		"corner":
-			return "Посмотри на пол у угла клетки"
-		"roof":
-			return "Крыше нужна опора: стена, столб или соседняя крыша"
-	return "Посмотри на свободную клетку плота"
+	check_goals()
 
 
 func _consume(id: String) -> void:
@@ -778,7 +810,7 @@ func _craft(r: Dictionary) -> void:
 		_close_bag()
 	else:
 		bag.refresh()
-	_check_goals()
+	check_goals()
 
 
 func _collect(d: Debris) -> void:
@@ -792,7 +824,7 @@ func _collect(d: Debris) -> void:
 		stats["barrels"] = int(stats.get("barrels", 0)) + 1
 	Sfx.play("pop", -2.0)
 	field.take(d)
-	_check_goals()
+	check_goals()
 
 
 func _on_delivered(caught: Array) -> void:
@@ -802,28 +834,9 @@ func _on_delivered(caught: Array) -> void:
 		Sfx.play("snag", -10.0)
 
 
-func _on_splash(pos: Vector3) -> void:
+func on_splash(pos: Vector3) -> void:
 	Sfx.play("splash", -3.0)
-	var p := CPUParticles3D.new()
-	var m := BoxMesh.new()
-	m.size = Vector3.ONE * 0.07
-	m.material = Mk.mat(Color("#f2f6f2"), 0.4)
-	p.mesh = m
-	p.amount = 18
-	p.one_shot = true
-	p.explosiveness = 0.95
-	p.lifetime = 0.8
-	p.direction = Vector3.UP
-	p.spread = 35.0
-	p.initial_velocity_min = 2.0
-	p.initial_velocity_max = 4.0
-	p.gravity = Vector3(0, -9.8, 0)
-	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.4
-	add_child(p)
-	p.global_position = pos
-	p.emitting = true
-	get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+	Fx.splash(self, pos)
 
 
 # ---------------------------------------------------------------- goals
@@ -841,7 +854,7 @@ func _stat(name: String) -> int:
 	return int(stats.get(name, 0))
 
 
-func _check_goals() -> void:
+func check_goals() -> void:
 	var goals := Data.goals
 	while goal_i < goals.size() and _stat(goals[goal_i]["stat"]) >= int(goals[goal_i]["n"]):
 		goal_i += 1
@@ -851,7 +864,7 @@ func _check_goals() -> void:
 			hud.toast("Все цели выполнены!", "tile")
 			_freeze_input()
 			mode = Mode.PAUSE
-			menus.show_message("Ты освоился в океане!", "Плот растёт, вода кипит, рыба жарится.\nДальше — акулы, шторм и питомец.", "Играть дальше", _resume)
+			menus.show_message("Ты освоился в океане!", "Плот растёт, острова кормят, акула знает своё место.\nДальше — больше островов и новых историй.", "Играть дальше", _resume)
 		else:
 			hud.toast("Цель выполнена!", "")
 
@@ -865,6 +878,11 @@ func goal_view() -> Dictionary:
 
 
 func use_view() -> Dictionary:
+	if spot_target and not demolish_target:
+		var sp: Dictionary = spot_target.prompt()
+		return {"icon": sp["icon"], "label": sp["text"], "ok": sp["ok"]}
+	if not (demolish_target or net_target or station_target or grab_target) and not trips.view().is_empty():
+		return trips.view()
 	if demolish_target:
 		return {"icon": demolish_target.kind, "label": "Разобрать", "ok": true}
 	if net_target:
@@ -882,6 +900,8 @@ func use_view() -> Dictionary:
 func action_view() -> Dictionary:
 	var id := selected()
 	var out := {"icon": id, "label": "", "ok": true}
+	if player.off_raft and tool_use() in ["hook", "rod", "hammer"]:
+		return {"icon": id, "label": "Только на плоту", "ok": false}
 	match tool_use():
 		"":
 			out = {"icon": "hand", "label": "", "ok": false}
@@ -896,6 +916,8 @@ func action_view() -> Dictionary:
 		"hammer":
 			if builder.repair:
 				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
+			elif builder.kind == "":
+				out = {"icon": "hammer", "label": "Выбрать", "ok": true}
 			else:
 				out = {"icon": builder.kind, "label": "Строить", "ok": builder.has_target and builder.valid and builder.affordable(), "cost": builder.cost()}
 		_:
@@ -907,6 +929,7 @@ func action_view() -> Dictionary:
 # ---------------------------------------------------------------- frame
 
 func _process(delta: float) -> void:
+	trips.islands.active = mode == Mode.PLAY or mode == Mode.BAG
 	if mode == Mode.MENU:
 		_menu_t += delta
 		var c := raft.global_transform * raft.centroid()
@@ -918,11 +941,11 @@ func _process(delta: float) -> void:
 		player.move_input = touch.move if mode == Mode.PLAY else Vector2.ZERO
 		played += delta
 		if vitals.tick(delta, Data.b["vitals"], float(Data.tune["hunger"])):
-			_die()
+			die()
 			return
 		var prev_min := int((played - delta) / 60.0)
 		if int(played / 60.0) != prev_min:
-			_check_goals()
+			check_goals()
 	_spear_cd = maxf(0.0, _spear_cd - delta)
 	field.extra_mult = storm.debris_mult()
 	Station.rain = storm.k
@@ -930,11 +953,14 @@ func _process(delta: float) -> void:
 		var aimed := _aimed_body()
 		demolish_target = aimed if tool_use() == "hammer" and (aimed is Part or aimed is Station) else null
 		station_target = null if demolish_target else aimed as Station
-		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "door", "hammock"] else null
-		grab_target = null if station_target or net_target or demolish_target else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
+		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "trap", "door", "hammock"] else null
+		spot_target = aimed as IslandSpot
+		var busy := station_target or net_target or demolish_target or spot_target
+		grab_target = null if busy else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
+		trips.update()
 		for d in field.items:
 			d.highlight = d == grab_target
-		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null or demolish_target != null
+		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null or demolish_target != null or spot_target != null or not trips.view().is_empty()
 		touch.buttons["rotate"]["on"] = tool_use() == "hammer" and builder.rotatable()
 		if hook.reeling and hook.state == Hook.State.WATER:
 			_reel_t -= delta
@@ -960,7 +986,7 @@ func _aimed_body() -> Node:
 		body = hit["collider"]
 		if body.has_meta("part"):
 			body = body.get_meta("part")
-		if body is Part or body is Station:
+		if body is Part or body is Station or body is IslandSpot:
 			return body
 	for d: Part in raft.parts.doors():
 		for at: Vector3 in [d.global_position + Vector3(0, 1.0, 0), d.leaf_center()]:

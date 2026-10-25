@@ -1,6 +1,8 @@
 class_name Player
 extends CharacterBody3D
-## First-person survivor. Lives inside the Raft node (bobs with it) and cannot walk off it.
+## First-person survivor. Lives inside the Raft node (bobs with it) and cannot walk off it;
+## the use button jumps into the sea. Off the raft (swimming, or ashore on an island) the
+## player keeps a world position of their own instead of riding the raft's waves.
 ## Moves with the touch joystick (or WASD), looks with drags (or the mouse).
 
 var raft: Raft
@@ -10,14 +12,18 @@ var yaw := 0.0
 var pitch := -0.15
 var move_input := Vector2.ZERO
 var cfg: Dictionary
+var off_raft := false             # in the sea or ashore on an island
+var swimming := false             # off the raft with the feet deep in the water
 var _bob := 0.0
 var _last_ok := Vector3.ZERO
 var _held: Node3D
 var _held_id := ""
+var _world := Vector3.ZERO        # global position kept while off the raft
 
 
 func _ready() -> void:
 	cfg = Data.b["player"]
+	process_physics_priority = 10     # after the raft moved: off the raft we undo its motion
 	collision_layer = 2
 	collision_mask = 1
 	floor_snap_length = 0.4
@@ -43,11 +49,22 @@ func _ready() -> void:
 
 ## Puts the player at a raft-local point (new game, load, respawn).
 func place(local: Vector3, look_yaw := 0.0) -> void:
+	off_raft = false
+	swimming = false
 	position = local
 	_last_ok = local
 	velocity = Vector3.ZERO
 	yaw = look_yaw
 	pitch = -0.12
+
+
+## Off the raft into the sea at a global point on the water.
+func jump_in(at: Vector3) -> void:
+	off_raft = true
+	swimming = true
+	_world = Vector3(at.x, Ocean.height_at(at.x, at.z) - float(cfg["swim_float"]) + 0.6, at.z)
+	global_position = _world
+	velocity = Vector3(0, -2.0, 0)
 
 
 func look(rel: Vector2) -> void:
@@ -121,6 +138,9 @@ func _physics_process(delta: float) -> void:
 		kb.y += 1.0
 	if kb.length() > 0.1:
 		inp = kb.limit_length(1.0)
+	if off_raft:
+		_move_off(inp, delta)
+		return
 	var dir := global_basis * Vector3(inp.x, 0, inp.y)
 	dir.y = 0.0
 	var mult := 1.0
@@ -141,6 +161,32 @@ func _physics_process(delta: float) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()
 	_bob += delta * speed * 4.2
 	cam.position.y = float(cfg["eye"]) + sin(_bob) * 0.03 * minf(1.0, speed)
+	hand.rotation.z = sin(_bob * 0.5) * 0.05
+
+
+## Off the raft: the raft's bobbing is undone (the world position is kept), swimming floats
+## at the surface, ashore the island's ground carries you like any floor.
+func _move_off(inp: Vector2, delta: float) -> void:
+	global_position = _world
+	global_basis = Basis(Vector3.UP, yaw)
+	cam.rotation.x = pitch
+	var dir := Basis(Vector3.UP, yaw) * Vector3(inp.x, 0, inp.y)
+	var surface := Ocean.height_at(_world.x, _world.z)
+	var depth := surface - _world.y
+	swimming = depth > float(cfg["swim_depth"])
+	var spd := float(cfg["speed"]) * (float(cfg["swim_speed"]) if swimming else (0.75 if depth > 0.35 else 1.0))
+	var acc := float(cfg["accel"]) * delta
+	velocity.x = move_toward(velocity.x, dir.x * spd, acc)
+	velocity.z = move_toward(velocity.z, dir.z * spd, acc)
+	if swimming:
+		velocity.y = clampf((surface - float(cfg["swim_float"]) - _world.y) * 4.0, -3.0, 3.0)
+	else:
+		velocity.y = 0.0 if is_on_floor() else velocity.y - 9.8 * delta
+	move_and_slide()
+	_world = global_position
+	var speed := Vector2(velocity.x, velocity.z).length()
+	_bob += delta * (2.0 if swimming else speed * 4.2)
+	cam.position.y = float(cfg["eye"]) + sin(_bob) * (0.05 if swimming else 0.03 * minf(1.0, speed))
 	hand.rotation.z = sin(_bob * 0.5) * 0.05
 
 

@@ -4,6 +4,7 @@ extends StaticBody3D
 ## grill cooks fish and meat, the planter grows seeds into pineapples. Fuel (leaves,
 ## planks) burns only while something cooks; the result waits until the player takes it.
 ## The rain collector fills by itself (much faster in a storm) and holds a few cups.
+## The anchor's winch drops and raises the anchor (stored = 1 while it holds the raft).
 
 signal finished(station: Station)
 
@@ -16,13 +17,14 @@ var fuel := 0.0             # seconds of fire left
 var cooking := ""           # item being cooked; "seawater" in the purifier
 var progress := 0.0
 var ready_item := ""
-var stored := 0                    # collector: cups of rain water inside
+var stored := 0                    # collector: cups of rain water inside; anchor: 1 = down
 var _fire: Node3D
 var _light: OmniLight3D
 var _steam: CPUParticles3D
 var _food: MeshInstance3D
 var _crop: Node3D
 var _water: MeshInstance3D
+var _rope: MeshInstance3D
 var _t := 0.0
 
 
@@ -91,6 +93,11 @@ func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 		wm.material = Mk.mat(Color("#3f8fc0"), 0.1)
 		_water.mesh = wm
 		add_child(_water)
+	if kind == "anchor":
+		_rope = MeshInstance3D.new()
+		_rope.mesh = Looks.mesh("anchor_rope")
+		_rope.position = Vector3(0, 0.5, 0.5)
+		add_child(_rope)
 	if kind == "planter":
 		_food.position = Vector3(0, 0.3, 0)
 		_crop = Node3D.new()
@@ -131,6 +138,8 @@ func busy() -> bool:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if kind == "anchor":
+		return
 	if kind == "collector":
 		_collect_rain(delta)
 		return
@@ -202,6 +211,8 @@ func _fuel_in(inv: Inventory) -> String:
 
 ## What the use button says right now: {"text", "ok"}.
 func prompt(inv: Inventory) -> Dictionary:
+	if kind == "anchor":
+		return {"text": "Поднять якорь" if stored == 1 else "Бросить якорь", "ok": true, "icon": "anchor"}
 	if kind == "collector":
 		if stored > 0:
 			return {"text": "Набрать (%d)" % stored, "ok": true, "icon": "cup_water"}
@@ -222,6 +233,11 @@ func prompt(inv: Inventory) -> Dictionary:
 
 ## Does what prompt() says. Returns [message, item taken or ""].
 func interact(inv: Inventory) -> Array:
+	if kind == "anchor":
+		stored = 1 - stored
+		_refresh()
+		Sfx.play("splash" if stored == 1 else "reel", -4.0)
+		return ["Якорь брошен — плот стоит на месте" if stored == 1 else "Якорь поднят — плывём дальше", ""]
 	if kind == "collector":
 		return _take_rain(inv)
 	if ready_item != "":
@@ -275,6 +291,9 @@ func _add_fuel(inv: Inventory) -> bool:
 
 
 func _refresh() -> void:
+	if kind == "anchor":
+		_rope.visible = stored == 1
+		return
 	if kind == "collector":
 		return
 	if kind == "planter":

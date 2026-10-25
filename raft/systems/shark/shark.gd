@@ -3,14 +3,16 @@ extends Node3D
 ## The shark. Circles the raft with its fin above water; every so often picks an edge tile,
 ## swims to it and bites until the tile sinks or a spear drives it off. It cannot be
 ## killed: each visit it takes 3–6 spear hits (rolled anew) before it swims away.
+## Anyone swimming is easier prey: it comes sooner and goes for them instead of the raft.
 ## Numbers in data/balance.json "shark".
 
 signal attacked(cell: Vector2i)
 signal bit(cell: Vector2i, sank: bool)
 signal hurt(left: int)
 signal fled
+signal bit_player
 
-enum State { AWAY, CIRCLE, APPROACH, BITE, FLEE }
+enum State { AWAY, CIRCLE, APPROACH, BITE, FLEE, HUNT }
 
 var state := State.AWAY
 var raft: Raft
@@ -19,6 +21,8 @@ var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
 var need := 4                 # hits that drive it off this visit
 var target := Vector2i.ZERO
+var swimmer: Node3D               # the player while swimming, else null
+var _hunt_cd := 0.0
 var _timer := 0.0
 var _angle := 0.0
 var _goal := Vector3.ZERO
@@ -72,8 +76,12 @@ func attacking() -> bool:
 	return state == State.APPROACH or state == State.BITE
 
 
+func hunting() -> bool:
+	return state == State.HUNT
+
+
 func alive_near() -> bool:
-	return state in [State.CIRCLE, State.APPROACH, State.BITE, State.FLEE]
+	return state in [State.CIRCLE, State.APPROACH, State.BITE, State.FLEE, State.HUNT]
 
 
 func _center() -> Vector3:
@@ -107,6 +115,7 @@ func try_hit(eye: Vector3, fwd: Vector3, power := 1, reach := 0.0) -> bool:
 		return false
 	_hits += power
 	_hurt_t = 0.4
+	_hunt_cd = 3.5
 	hurt.emit(hits_left())
 	if _hits >= need:
 		_flee(float(cfg["flee_time"]), true)
@@ -128,9 +137,13 @@ func _flee(time: float, by_player := false) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_hurt_t = maxf(0.0, _hurt_t - delta)
+	_hunt_cd = maxf(0.0, _hunt_cd - delta)
+	if swimmer and _hunt_cd <= 0.0 and state in [State.CIRCLE, State.APPROACH, State.BITE]:
+		state = State.HUNT
+		_bite_t = 0.6
 	match state:
 		State.AWAY:
-			_timer -= delta
+			_timer -= delta * (3.0 if swimmer else 1.0)
 			if _timer <= 0.0:
 				state = State.CIRCLE
 				_angle = rng.randf() * TAU
@@ -167,6 +180,19 @@ func _process(delta: float) -> void:
 				bit.emit(target, sank)
 				if sank:
 					_flee(float(cfg["flee_time"]))
+		State.HUNT:
+			if swimmer == null:
+				state = State.CIRCLE
+				_timer = 4.0
+			else:
+				var p := swimmer.global_position
+				if _swim_to(p, float(cfg["hunt_speed"]), delta) < 1.3:
+					_face(p)
+					_bite_t -= delta
+					if _bite_t <= 0.0:
+						_bite_t = float(cfg["bite_every"])
+						_lunge = 1.0
+						bit_player.emit()
 		State.FLEE:
 			var away := (global_position - _center())
 			away.y = 0.0
@@ -234,7 +260,7 @@ func _face(at: Vector3) -> void:
 
 func _animate(delta: float) -> void:
 	var surface := Ocean.height_at(global_position.x, global_position.z)
-	var depth_goal := -0.45 if state == State.BITE else -0.75
+	var depth_goal := -0.45 if state in [State.BITE, State.HUNT] else -0.75
 	_depth = lerpf(_depth, depth_goal, delta * 3.0)
 	_lunge = maxf(0.0, _lunge - delta * 3.0)
 	global_position.y = surface + _depth + sin(_lunge * PI) * 0.25

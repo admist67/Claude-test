@@ -9,6 +9,8 @@ var font: Font
 var title: Font
 var _toasts: Array = []   # [{"text", "t", "icon", "age"}]
 var _goal_flash := 0.0
+var _item := ""           # the hotbar item just picked: its name floats above its slot
+var _item_t := 9.0
 var _shake := 0.0
 var _tex: Dictionary = {}
 
@@ -32,12 +34,19 @@ func flash_goal() -> void:
 	_goal_flash = 1.8
 
 
+## The name of a picked hotbar item fades in above its slot and fades out after 2 s.
+func show_item(id: String) -> void:
+	_item = id
+	_item_t = 0.0
+
+
 func _process(delta: float) -> void:
 	for t: Dictionary in _toasts:
 		t["t"] -= delta
 		t["age"] += delta
 	_toasts = _toasts.filter(func(t: Dictionary) -> bool: return t["t"] > 0.0)
 	_goal_flash = maxf(0.0, _goal_flash - delta)
+	_item_t += delta
 	queue_redraw()
 
 
@@ -69,6 +78,7 @@ func _draw() -> void:
 	_draw_clock(vs)
 	_draw_goal(vs)
 	_draw_shark(vs)
+	_draw_sea(vs)
 	_draw_crosshair(vs)
 	_draw_hotbar()
 	_draw_builds()
@@ -120,26 +130,44 @@ func _draw_clock(vs: Vector2) -> void:
 	_text(time, r.position + Vector2(60 + dw + 14, 34), 18, Color(1, 1, 1, 0.6), HORIZONTAL_ALIGNMENT_LEFT, -1, font, 0)
 
 
-func _draw_goal(vs: Vector2) -> void:
+## The goal plaque: one line (cut to fit), or opened to the full text with a hide button;
+## hidden, it is a small anchor button.
+func _draw_goal(_vs: Vector2) -> void:
 	var g: Dictionary = game.goal_view()
 	if g.is_empty():
 		return
-	var w := 520.0
-	var r := Rect2(vs.x / 2.0 - w / 2.0 - 30, 22, w, 62)
+	var r := touch.goal_rect()
 	var mod := Color.WHITE.lerp(Color(0.7, 1.0, 0.7), _goal_flash / 1.8)
+	if game.goal_hidden:
+		_ring(r.get_center(), r.size.x / 2.0, touch.held.has("goal"), mod)
+		Icons.draw(self, "anchor", r.get_center(), 34.0, UiTheme.GOLD)
+		return
+	var w := r.size.x
 	_box("plaque", r, 30, mod)
 	Icons.draw(self, "anchor", r.position + Vector2(36, 31), 30.0, UiTheme.INK)
-	_text(g["text"], r.position + Vector2(62, 39), 22, UiTheme.INK, HORIZONTAL_ALIGNMENT_LEFT, w - 150, font, 0)
 	_text(g["prog"], r.position + Vector2(w - 92, 39), 22, Color("#8a3b12"), HORIZONTAL_ALIGNMENT_RIGHT, 70, title, 0)
+	if not game.goal_open:
+		var t: String = g["text"]
+		if font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x > w - 150:
+			while t.length() > 1 and font.get_string_size(t + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x > w - 150:
+				t = t.substr(0, t.length() - 1)
+			t = t.strip_edges() + "…"
+		_text(t, r.position + Vector2(62, 39), 22, UiTheme.INK, HORIZONTAL_ALIGNMENT_LEFT, w - 150, font, 0)
+		return
+	draw_multiline_string(font, r.position + Vector2(62, 39), g["text"], HORIZONTAL_ALIGNMENT_LEFT, w - 160, 22, 3, UiTheme.INK)
+	var hb: Rect2 = touch.buttons["goal_hide"]["rect"]
+	_box("pill", hb, 17)
+	_text("Скрыть", hb.position + Vector2(0, 28), 19, UiTheme.CREAM, HORIZONTAL_ALIGNMENT_CENTER, hb.size.x, font, 0)
 
 
 ## While the shark attacks: a red warning under the goal and an arrow toward it.
 func _draw_shark(vs: Vector2) -> void:
 	var sh: Shark = game.shark
-	if not sh.attacking():
+	if not sh.attacking() and not sh.hunting():
 		return
 	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 140.0)
-	_label_pill_col("Акула атакует плот!", Vector2(vs.x / 2.0 - 30, 108), Color("#ff8a7a", pulse))
+	var warn := "Акула плывёт к тебе! Скорее на плот" if sh.hunting() else "Акула атакует плот!"
+	_label_pill_col(warn, Vector2(vs.x / 2.0 - 30, _below_goal()), Color("#ff8a7a", pulse))
 	var cam: Camera3D = game.player.cam
 	var p: Vector3 = sh.global_position
 	var c := vs / 2.0
@@ -158,6 +186,39 @@ func _draw_shark(vs: Vector2) -> void:
 	var side := dir.orthogonal() * 18.0
 	draw_colored_polygon(PackedVector2Array([tip, edge + side, edge - side]), Color("#ff5a4a", pulse))
 	Icons.draw(self, "spear", edge - dir * 34.0, 40.0, Color(1, 1, 1, pulse))
+
+
+## Where a warning pill goes: under the goal plaque, however big it is now.
+func _below_goal() -> float:
+	return touch.goal_rect().end.y + 26.0
+
+
+## An island alongside (drop the anchor!) and, off the raft, a marker toward it.
+func _draw_sea(vs: Vector2) -> void:
+	var trips: SeaTrips = game.trips
+	var isl := trips.islands.island
+	if isl and not trips.islands.anchored and trips.islands.near() and not game.player.off_raft and not game.shark.attacking():
+		var pulse := 0.8 + 0.2 * sin(Time.get_ticks_msec() / 200.0)
+		var tip := "Остров рядом — брось якорь!" if game.raft.count_stations("anchor") > 0 else "Остров рядом! Нужен якорь"
+		_label_pill_col(tip, Vector2(vs.x / 2.0 - 30, _below_goal()), Color("#9be59b", pulse))
+	if game.player.off_raft:
+		_marker(game.raft.global_transform * game.raft.centroid() + Vector3(0, 1.0, 0), "Плот %d м" % int(trips.raft_dist()), vs)
+
+
+## A label over a world point; at the screen edge with an arrow when it is off screen.
+func _marker(p: Vector3, text: String, vs: Vector2) -> void:
+	var cam: Camera3D = game.player.cam
+	var c := vs / 2.0
+	var sp := cam.unproject_position(p)
+	var inside := not cam.is_position_behind(p) and Rect2(Vector2(80, 120), vs - Vector2(160, 300)).has_point(sp)
+	if inside:
+		_label_pill(text, sp)
+		return
+	var dir := (sp - c).normalized() if not cam.is_position_behind(p) else (c - sp).normalized()
+	var edge := c + dir * minf(vs.x * 0.4, vs.y * 0.36)
+	var side := dir.orthogonal() * 14.0
+	draw_colored_polygon(PackedVector2Array([edge + dir * 22.0, edge + side, edge - side]), UiTheme.GOLD)
+	_label_pill(text, edge - dir * 40.0)
 
 
 func _label_pill_col(text: String, c: Vector2, col: Color) -> void:
@@ -293,6 +354,15 @@ func _draw_hotbar() -> void:
 		if Data.item(bar[i]).get("kind", "") == "food":
 			var n := str(game.inv.count(bar[i]))
 			_text(n, c + Vector2(r - 30, r - 6), 18, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT, 24)
+	var at := bar.find(_item)
+	if at >= 0 and _item_t < 2.5:
+		var a := minf(_item_t / 0.25, 1.0) * clampf((2.5 - _item_t) / 0.5, 0.0, 1.0)
+		var slot: Dictionary = b["slot%d" % at]
+		var text := Data.item_name(_item)
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 30.0
+		var pc: Vector2 = slot["c"] - Vector2(0, float(slot["r"]) + 34.0 + (1.0 - a) * 8.0)
+		_box("pill", Rect2(pc - Vector2(w / 2.0, 18), Vector2(w, 36)), 17, Color(1, 1, 1, a))
+		_text(text, pc + Vector2(-w / 2.0, 7), 20, Color(UiTheme.CREAM, a), HORIZONTAL_ALIGNMENT_CENTER, w, font, 0)
 
 
 ## The build button above the hotbar: what the hammer builds; tap to choose another.
@@ -303,6 +373,12 @@ func _draw_builds() -> void:
 	var s: Dictionary = touch.buttons["build0"]
 	var c: Vector2 = s["c"]
 	var r: float = s["r"]
+	if ids[0] == "":
+		# The hammer was just taken: nothing chosen yet.
+		draw_texture_rect(_tex["slot_sel"], Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), false)
+		Icons.draw(self, "plus", c, r * 1.1, UiTheme.GOLD)
+		_label_pill("Что строить?", c + Vector2(0, -r - 20))
+		return
 	var can: bool = game.inv.has_all(Data.build_by_id[ids[0]]["cost"])
 	draw_texture_rect(_tex["slot_sel"], Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), false, Color.WHITE if can else Color(1, 0.7, 0.65))
 	Icons.draw(self, ids[0], c, r * 1.6)

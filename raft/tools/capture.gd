@@ -133,6 +133,7 @@ func _run() -> void:
 	await _wait(0.3)
 	_close_bag()
 	_select("hammer")
+	builder.kind = "tile"
 	player.place(raft.cell_center(Vector2i(0, 0)) + Vector3(0, 0.05, 0), 0.0)
 	_aim(0.0, -0.75)
 	await _wait(0.5)
@@ -522,6 +523,146 @@ func _run() -> void:
 	storm.timer = 0.05
 	await _wait(0.3)
 	print("storms ", stats.get("storms", 0), " amp ", Ocean.amp_mult)
+	# v0.8: the goal plaque opens and hides; the hand can be empty; a fresh hammer has
+	# nothing picked; a tile ghost from the roof floats on the water.
+	player.place(cc.call(1, 1) + Vector3(0, 0, 0.3), 0.0)
+	_aim(PI * 0.6, -0.1)
+	_on_pressed("goal")
+	await _wait(0.3)
+	await _shot("57_goal_open")
+	_on_pressed("goal_hide")
+	await _wait(0.3)
+	await _shot("58_goal_hidden")
+	_on_pressed("goal")
+	_select(hotbar[0])
+	_on_pressed("slot0")
+	print("hand after tapping the held item again: '", hand, "'")
+	_on_pressed("slot%d" % hotbar.find("spear"))
+	await _wait(0.5)
+	await _shot("59_item_name")
+	_on_pressed("slot%d" % hotbar.find("hammer"))
+	await _wait(0.4)
+	print("fresh hammer kind: '", builder.kind, "' action ", action_view()["label"])
+	await _shot("60_hammer_fresh")
+	player.place(cc.call(-1, 0) + Vector3(0.2, RaftParts.H + 0.05, 0), 0.0)
+	builder.kind = "tile"
+	await _wait(0.2)
+	_aim_local(cc.call(-2, 0) + Vector3(-0.2, 0, 0))
+	await _wait(0.4)
+	print("tile ghost from the roof: target ", builder.has_target, " y ", snappedf(builder._ghost.position.y, 0.01))
+	await _shot("61_tile_from_roof")
+	# Islands: an anchor, an island alongside, jump in, swim over, gather, the shark, back.
+	inv.add("plank", 12)
+	inv.add("rope", 10)
+	inv.add("scrap", 4)
+	player.place(cc.call(0, 1), 0.0)
+	await _wait(0.2)
+	await _build_at("anchor", cc.call(1, 0))
+	trips.islands._spawn(777)
+	var isl: Island = trips.islands.island
+	var rc := raft.global_transform * raft.centroid()
+	isl.position.z = rc.z
+	var side := signf(isl.position.x - rc.x)
+	hand = ""
+	_refresh_hotbar()
+	await _wait(0.3)
+	_aim_local(raft.cell_center(Vector2i(1, 0)) + Vector3(0, 0.4, 0))
+	await _wait(0.3)
+	_on_pressed("use")
+	await _wait(0.5)
+	print("anchored ", trips.anchored(), " near ", trips.islands.near(), " anchored_island ", stats.get("anchored_island", 0))
+	player.place(cc.call(1, 1), 0.0)
+	_aim_local(raft.to_local(isl.global_position) + Vector3(0, 2.0, 0))
+	player.pitch = -0.05
+	await _wait(0.6)
+	await _shot("62_island_alongside")
+	# To a free edge on the island's side and into the water.
+	isl.position.x = rc.x + absf(isl.position.x - rc.x)
+	side = 1.0
+	raft.add_tile(Vector2i(3, 1))
+	var edge_c := Vector2i(3, 1)
+	field.clear_all()
+	player.place(cc.call(edge_c.x, edge_c.y) + Vector3(0.4, 0, 0), 0.0)
+	_aim_local(cc.call(edge_c.x, edge_c.y) + Vector3(3.0, -0.3, 0))
+	await _wait(0.3)
+	print("jump spot ", trips.jump_at != null, " use label ", use_view()["label"])
+	_on_pressed("use")
+	await _wait(1.2)
+	print("swimming ", player.swimming, " off raft ", player.off_raft)
+	_aim_local(raft.to_local(isl.global_position) + Vector3(0, 1.5, 0))
+	player.pitch = 0.0
+	await _wait(0.3)
+	await _shot("63_swimming")
+	var t4 := 0.0
+	while t4 < 25.0 and (player.swimming or not isl.visited):
+		var to := isl.global_position - player.global_position
+		player.yaw = atan2(-to.x, -to.z)
+		player.move_input = Vector2(0, -1)
+		await _wait(0.2)
+		t4 += 0.2
+	player.move_input = Vector2.ZERO
+	print("reached island in ", snappedf(t4, 0.1), " s, visits ", stats.get("island_visits", 0), " swimming ", player.swimming)
+	await _wait(0.3)
+	await _shot("64_on_island")
+	for spot: IslandSpot in isl.spots:
+		var at := isl.to_global(spot.position)
+		var away := (at - isl.global_position)
+		away.y = 0.0
+		player._world = at + away.normalized() * 1.6 + Vector3(0, 1.2, 0)
+		player.global_position = player._world
+		await _wait(0.5)
+		_aim_local(raft.to_local(at + Vector3(0, 0.6, 0)))
+		await _wait(0.2)
+		var label: String = use_view()["label"]
+		for k in spot.left:
+			_on_pressed("use")
+			await _wait(0.1)
+		print("gathered ", spot.kind, " ('", label, "') left ", spot.left)
+		if spot.kind == "palm":
+			await _shot("65_palm")
+	print("stone ", inv.count("stone"), " coconut ", inv.count("coconut"), " chests ", stats.get("chests", 0))
+	# The shark goes for a swimmer.
+	var shore_at := isl.global_position + Vector3(-side, 0, 0) * (isl.radius + 2.5)
+	player.jump_in(shore_at)
+	shark.reset(0.1)
+	await _wait(0.5)
+	shark.state = Shark.State.CIRCLE
+	var hp0 := vitals.health
+	var t5 := 0.0
+	while t5 < 12.0 and vitals.health >= hp0:
+		await _wait(0.2)
+		t5 += 0.2
+	_aim_local(raft.to_local(shark.global_position))
+	await _wait(0.2)
+	print("shark hunting ", shark.hunting(), " health ", snappedf(hp0, 0.1), " -> ", snappedf(vitals.health, 0.1))
+	await _shot("66_shark_hunt")
+	shark.reset(9999.0)
+	vitals.health = 100.0
+	# Back next to the raft and climb on.
+	player.jump_in(raft.to_global(cc.call(edge_c.x, edge_c.y) + Vector3(1.6 * side, 0, 0)))
+	await _wait(0.8)
+	print("climb spot ", trips.climb_at != null, " label ", use_view()["label"])
+	_on_pressed("use")
+	await _wait(0.3)
+	print("back on the raft ", not player.off_raft, " at ", raft.cell_at(player.position))
+	# A fish trap on the outer edge.
+	_select("hammer")
+	inv.add("stone", 3)
+	player.place(cc.call(1, 0) + Vector3(-0.4, 0, 0.3), 0.0)
+	await _build_at("trap", cc.call(1, 0) + Vector3(0.2, 0, -0.6))
+	var traps: Array = raft.parts.edges.values().filter(func(pp: Part) -> bool: return pp.kind == "trap")
+	if not traps.is_empty():
+		traps[0].fish = 2
+		hand = ""
+		_refresh_hotbar()
+		_aim_local(traps[0].position + Basis(Vector3.UP, traps[0].rotation.y) * Vector3(0, -0.1, 0.6))
+		await _wait(0.3)
+		print("trap prompt ", use_view()["label"])
+		await _shot("67_trap")
+		_on_pressed("use")
+		print("trap fish taken ", stats.get("trap_fish", 0))
+	print("goal ", goal_i, ": ", goal_view()["text"])
+	print("island still there ", trips.islands.island == isl, " at ", isl.position.round())
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0
@@ -570,7 +711,9 @@ func _run() -> void:
 	await _shot("56_name")
 	menus.play_world.emit(first)
 	await _wait(0.6)
-	print("world back ", _world_name(), " tiles ", raft.cells().size(), " was ", tiles_first, " parts ", raft.parts.to_list().size(), " was ", parts_first, " stations ", raft.stations.size(), " was ", stations_first)
+	print("world back ", _world_name(), " tiles ", raft.cells().size(), " was ", tiles_first)
+	print("parts ", raft.parts.to_list().size(), " was ", parts_first, " stations ", raft.stations.size(), " was ", stations_first)
+	print("island after load ", trips.islands.island != null)
 	print("world names ", SaveGame.worlds().map(func(w: Dictionary) -> String: return w["name"]))
 	print("CAPTURE DONE")
 	get_tree().quit()

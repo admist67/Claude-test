@@ -254,7 +254,7 @@ func show_pause(world_name: String, note := "") -> void:
 func show_death(cause: String) -> void:
 	var v := _open(0.6)
 	v.add_child(_title("Ты погиб", 84, UiTheme.DANGER))
-	var why := {"thirst": "Океан вокруг, а пить нечего…", "hunger": "Голод победил.", "": "Море было сильнее."}
+	var why := {"thirst": "Океан вокруг, а пить нечего…", "hunger": "Голод победил.", "shark": "Акула оказалась быстрее…", "": "Море было сильнее."}
 	v.add_child(_centered(why.get(cause, why[""]), 30))
 	v.add_child(_centered("Половина припасов утонула. Плот остался.", 22, Color(1, 1, 1, 0.75)))
 	v.add_child(_gap(12))

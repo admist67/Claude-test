@@ -161,6 +161,26 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_box(st, Vector3(0.36, 0.03, 0.24), Vector3(0, 0.02, 0), Color(0.85, 0.8, 0.75), "metal", Vector3(0, 0.3, 0.1))
 			Mk.st_cyl(st, 0.05, 0.3, Vector3(0.05, 0.07, 0.04), Color(0.7, 0.62, 0.55), "metal", Vector3(0, 0.8, PI / 2.0), 8)
 			Mk.st_box(st, Vector3(0.14, 0.12, 0.1), Vector3(-0.1, 0.07, -0.05), Color(0.6, 0.55, 0.5), "metal", Vector3(0.2, 0.5, 0))
+		"stone":
+			for k in 3:
+				var g := 0.8 + k * 0.07
+				Mk.st_box(st, Vector3(0.2, 0.13, 0.17) * (1.0 - k * 0.18), Vector3(-0.07 + k * 0.08, 0.06, -0.04 + k * 0.05), Color(g, g, g), "rock", Vector3(0.3 * k, k * 1.3, 0.2), 0.6)
+		"anchor":
+			for x: float in [-0.34, 0.34]:
+				Mk.st_box(st, Vector3(0.1, 0.75, 0.14), Vector3(x, 0.375, 0), Color(1, 0.93, 0.84), "wood_dark")
+			Mk.st_box(st, Vector3(0.84, 0.08, 0.5), Vector3(0, 0.04, 0), Color(1, 0.93, 0.84), "wood_dark")
+			Mk.st_cyl(st, 0.14, 0.58, Vector3(0, 0.55, 0), Color(1, 0.95, 0.88), "rope", Vector3(0, 0, PI / 2.0), 12, 0.6)
+			Mk.st_cyl(st, 0.03, 0.82, Vector3(0, 0.55, 0), Color(0.6, 0.6, 0.62), "metal", Vector3(0, 0, PI / 2.0), 8)
+			Mk.st_box(st, Vector3(0.04, 0.24, 0.04), Vector3(0.42, 0.45, 0), Color(0.6, 0.6, 0.62), "metal")
+			Mk.st_cyl(st, 0.035, 0.16, Vector3(0.48, 0.34, 0), Color(0.75, 0.55, 0.35), "wood", Vector3(0, 0, PI / 2.0), 8)
+			var iron := Color(0.42, 0.42, 0.45)
+			Mk.st_box(st, Vector3(0.06, 0.5, 0.06), Vector3(0, 0.3, 0.38), iron, "metal", Vector3(0.35, 0, 0))
+			Mk.st_box(st, Vector3(0.42, 0.06, 0.06), Vector3(0, 0.08, 0.3), iron, "metal", Vector3(0.35, 0, 0))
+			for x: float in [-0.21, 0.21]:
+				Mk.st_box(st, Vector3(0.06, 0.16, 0.06), Vector3(x, 0.13, 0.31), iron, "metal", Vector3(0.35, 0, 0.5 * signf(x)))
+			Mk.st_cyl(st, 0.07, 0.03, Vector3(0, 0.56, 0.48), iron, "metal", Vector3(PI / 2.0, 0, 0), 10)
+		"anchor_rope":
+			Mk.st_cyl(st, 0.025, 4.0, Vector3(0, -2.0, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 6, 0.4)
 		"seeds":
 			Mk.st_cyl(st, 0.08, 0.12, Vector3(0, 0.06, 0), Color("#e2cd98"), "canvas", Vector3.ZERO, 10, 0.5, 0.25)
 			Mk.st_cyl(st, 0.03, 0.04, Vector3(0, 0.14, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.5)
@@ -179,7 +199,7 @@ static func mesh(id: String) -> ArrayMesh:
 			return Raft.tile_preview_mesh()
 		"purifier", "grill", "planter":
 			_station(st, id)
-		"wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall", "roof", "stairs", "net", "hammock", "collector":
+		"wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall", "roof", "stairs", "net", "trap", "hammock", "collector":
 			_structure(st, id)
 		_:
 			Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
@@ -431,6 +451,29 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 				var x := -0.64 + i * 0.16
 				Mk.st_box(st, Vector3(0.018, 0.92, 0.018), Vector3(x, 0.0, 0), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
 			Mk.st_box(st, Vector3(1.45, 0.04, 0.04), Vector3(0, 0.5, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 0.6)
+		"trap":
+			# Two beams out over the water and a rope cage hanging half under it.
+			for x: float in [-0.45, 0.45]:
+				Mk.st_box(st, Vector3(0.08, 0.08, 1.1), Vector3(x, 0.04, 0.45), dark, "wood_dark")
+			var cage := Vector3(0.9, 0.62, 0.66)
+			var cc := Vector3(0, -0.3, 0.78)
+			for x: float in [-0.43, 0.43]:
+				for z: float in [-0.31, 0.31]:
+					Mk.st_box(st, Vector3(0.05, cage.y, 0.05), cc + Vector3(x, 0, z), dark, "wood_dark")
+			for y: float in [-0.3, 0.3]:
+				for z: float in [-0.31, 0.31]:
+					Mk.st_box(st, Vector3(cage.x, 0.05, 0.05), cc + Vector3(0, y, z), dark, "wood_dark")
+				for x: float in [-0.43, 0.43]:
+					Mk.st_box(st, Vector3(0.05, 0.05, cage.z), cc + Vector3(x, y, 0), dark, "wood_dark")
+			for i in 6:
+				var x := -0.36 + i * 0.145
+				for z: float in [-0.31, 0.31]:
+					Mk.st_box(st, Vector3(0.015, cage.y - 0.06, 0.015), cc + Vector3(x, 0, z), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
+			for i in 4:
+				var z := -0.22 + i * 0.145
+				for x: float in [-0.43, 0.43]:
+					Mk.st_box(st, Vector3(0.015, cage.y - 0.06, 0.015), cc + Vector3(x, 0, z), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
+			Mk.st_cyl(st, 0.13, 0.5, cc + Vector3(0, 0.38, 0), Color(1, 0.9, 0.8), "plastic", Vector3(0, 0, PI / 2.0), 10, 0.6, 0.2)
 
 
 ## A double-sided canvas funnel (cone frustum) from radius r0 at y0 up to r1 at y1.

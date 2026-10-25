@@ -2,7 +2,8 @@ class_name TouchControls
 extends Control
 ## Multi-touch input: a floating joystick on the left, look-drags elsewhere, and round
 ## buttons (action, use, bag, pause, hotbar and build slots) that work while another finger moves.
-## Also maps keyboard/mouse for desktop testing.
+## The goal plaque is a button too (a rect): tap to open it, "Скрыть" hides it to a small
+## anchor button. Also maps keyboard/mouse for desktop testing.
 
 signal pressed(button: String)
 signal released(button: String)
@@ -13,7 +14,7 @@ const KEYS := {KEY_SPACE: "action", KEY_F: "action", KEY_E: "use", KEY_TAB: "bag
 
 var move := Vector2.ZERO
 var enabled := false
-## name -> {"c": Vector2, "r": float, "on": bool}; positions set by layout().
+## name -> {"c": Vector2, "r": float, "on": bool, "rect": Rect2 (optional)}; set by layout().
 var buttons: Dictionary = {}
 var held: Dictionary = {}          # button name -> true while pressed
 var joy_index := -1
@@ -21,13 +22,31 @@ var joy_center := Vector2.ZERO
 var _ptr: Dictionary = {}          # touch index -> {"btn": String, "last": Vector2}
 var _slots := 0
 var _builds := 0
+var _goal_open := false
+var _goal_hidden := false
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for n: String in ["action", "use", "bag", "pause", "rotate"]:
-		buttons[n] = {"c": Vector2.ZERO, "r": 40.0, "on": n != "rotate"}
+	for n: String in ["action", "use", "bag", "pause", "rotate", "goal", "goal_hide"]:
+		buttons[n] = {"c": Vector2.ZERO, "r": 40.0, "on": not n in ["rotate", "goal_hide"]}
+
+
+## The goal plaque: open (full text and a hide button), or hidden behind a small button.
+func set_goal(open: bool, hidden: bool) -> void:
+	_goal_open = open
+	_goal_hidden = hidden
+	layout()
+
+
+## Where the goal plaque is drawn, by its state (the HUD draws it there).
+func goal_rect() -> Rect2:
+	var vs := get_viewport_rect().size
+	if _goal_hidden:
+		return Rect2(vs.x / 2.0 - 30 - 30, 24, 60, 60)
+	var w := 640.0 if _goal_open else 520.0
+	return Rect2(vs.x / 2.0 - w / 2.0 - 30, 22, w, 112.0 if _goal_open else 62.0)
 
 
 func set_slots(n: int) -> void:
@@ -64,6 +83,10 @@ func layout() -> void:
 	var x0 := vs.x / 2.0 - gap * (_slots - 1) / 2.0
 	for i in _slots:
 		_place("slot%d" % i, Vector2(x0 + gap * i, vs.y - 54), r)
+	var g := goal_rect()
+	buttons["goal"]["rect"] = g
+	buttons["goal_hide"]["on"] = _goal_open and not _goal_hidden
+	buttons["goal_hide"]["rect"] = Rect2(g.end.x - 150, g.end.y + 4, 120, 40)
 	var bgap := 104.0
 	var b0 := vs.x / 2.0 - bgap * (_builds - 1) / 2.0
 	for i in _builds:
@@ -92,7 +115,12 @@ func _notification(what: int) -> void:
 func _hit(pos: Vector2) -> String:
 	for n: String in buttons:
 		var b: Dictionary = buttons[n]
-		if b["on"] and pos.distance_to(b["c"]) <= float(b["r"]) * 1.15:
+		if not b["on"]:
+			continue
+		if b.has("rect"):
+			if (b["rect"] as Rect2).grow(8.0).has_point(pos):
+				return n
+		elif pos.distance_to(b["c"]) <= float(b["r"]) * 1.15:
 			return n
 	return ""
 
