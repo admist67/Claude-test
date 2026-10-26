@@ -103,8 +103,8 @@
     "min_dist": 2.5,
     "max_dist": 9.0,
     "bite": [
-      4.0,
-      10.0
+      7.0,
+      15.0
     ],
     "window": 1.0,
     "catch": [
@@ -129,7 +129,7 @@
         "jerk_reel": 0.25,
         "slip": 0.04,
         "strain": 0.22,
-        "jerk_strain": 1.5,
+        "jerk_strain": 0.8,
         "ease": 1.0,
         "jerk": [
           0.5,
@@ -145,7 +145,7 @@
         "jerk_reel": 0.2,
         "slip": 0.04,
         "strain": 0.26,
-        "jerk_strain": 1.8,
+        "jerk_strain": 1.0,
         "ease": 0.9,
         "jerk": [
           0.6,
@@ -155,7 +155,8 @@
           0.9,
           1.6
         ]
-      }
+      },
+      "warn": 0.6
     }
   },
   "shark": {
@@ -168,7 +169,7 @@
     "orbit_radius": 8.0,
     "speed": 2.6,
     "approach_speed": 4.0,
-    "bite_every": 2.4,
+    "bite_every": 3.6,
     "flee_time": 28.0,
     "respawn": 200.0,
     "hit_reach": 3.2,
@@ -185,7 +186,8 @@
     },
     "player_bite": 16.0,
     "hunt_speed": 3.4,
-    "after_spear": 70.0
+    "after_spear": 70.0,
+    "first_bite": 2.5
   },
   "hook_upgrade": {
     "reel_speed": 8.5,
@@ -289,7 +291,10 @@
         "verb": "Разобрать бревно"
       },
       "chest": {
-        "chance": 0.5,
+        "count": [
+          1,
+          1
+        ],
         "charges": 1,
         "loot": {
           "scrap": 3,
@@ -297,6 +302,21 @@
           "plastic": 2
         },
         "verb": "Открыть сундук"
+      }
+    },
+    "crabs": {
+      "count": [
+        1,
+        3
+      ],
+      "hp": 2,
+      "speed": 1.7,
+      "notice": 6.5,
+      "reach": 1.0,
+      "pinch": 6.0,
+      "pinch_every": 1.6,
+      "loot": {
+        "crab_meat": 1
       }
     }
   },

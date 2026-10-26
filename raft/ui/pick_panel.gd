@@ -7,7 +7,7 @@ signal picked(id: String)
 signal closed
 
 var _title: Label
-var _row: HFlowContainer
+var _row: GridContainer
 var _scroller: TouchScroll
 
 
@@ -22,7 +22,7 @@ func _ready() -> void:
 	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(cc)
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(860, 0)
+	pc.custom_minimum_size = Vector2(1010, 0)
 	cc.add_child(pc)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 12)
@@ -34,10 +34,10 @@ func _ready() -> void:
 	top.add_child(UiTheme.round_button("cross", func() -> void: closed.emit(), 64.0))
 	root.add_child(top)
 	_scroller = TouchScroll.new()
-	_scroller.custom_minimum_size = Vector2(820, 220)
+	_scroller.custom_minimum_size = Vector2(970, 300)
 	root.add_child(_scroller)
-	_row = HFlowContainer.new()
-	_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_row = GridContainer.new()
+	_row.columns = 3
 	_row.add_theme_constant_override("h_separation", 12)
 	_row.add_theme_constant_override("v_separation", 12)
 	_scroller.add_child(_row)
@@ -50,7 +50,7 @@ func open(title: String, options: Array) -> void:
 		c.queue_free()
 	_scroller.clear_taps()
 	for o: Dictionary in options:
-		var card := CraftPanel.card(Vector2(256, 0))
+		var card := CraftPanel.card(Vector2(312, 0))
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
 		card.add_child(v)
@@ -58,7 +58,7 @@ func open(title: String, options: Array) -> void:
 		head.add_child(IconRect.new(o["id"], 64.0))
 		var nl := UiTheme.label(Data.item_name(o["id"]), 20, UiTheme.CREAM, true)
 		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		nl.custom_minimum_size = Vector2(160, 0)
+		nl.custom_minimum_size = Vector2(210, 0)
 		nl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		head.add_child(nl)
 		v.add_child(head)

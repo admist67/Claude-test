@@ -198,3 +198,35 @@ static func chest() -> Array:
 		Mk.st_box(lst, Vector3(0.06, 0.18, 0.62), Vector3(x, 0.08, 0.3), iron, "metal")
 	Mk.st_box(lst, Vector3(0.12, 0.12, 0.04), Vector3(0, 0.0, 0.61), Color(0.8, 0.7, 0.4), "metal")
 	return [body, Mk.st_commit(lst)]
+
+
+## A big beach crab, in pieces that move: [body (shell, eyes), legs on the left, legs on
+## the right, left claw, right claw]. Faces -Z; the claws hinge at their shoulders.
+static func crab() -> Array[ArrayMesh]:
+	var shell := Color("#d4572f")
+	var pale := Color("#f0b48a")
+	var st := Mk.st_begin()
+	Mk.st_box(st, Vector3(0.42, 0.13, 0.3), Vector3(0, 0.2, 0), shell, "clay", Vector3.ZERO, 0.5)
+	Mk.st_box(st, Vector3(0.34, 0.06, 0.24), Vector3(0, 0.28, 0), shell.lightened(0.08), "clay", Vector3.ZERO, 0.5)
+	Mk.st_box(st, Vector3(0.38, 0.05, 0.26), Vector3(0, 0.13, 0), pale, "clay", Vector3.ZERO, 0.5)
+	for x: float in [-0.07, 0.07]:
+		Mk.st_cyl(st, 0.012, 0.09, Vector3(x, 0.32, -0.12), shell, "white", Vector3(-0.3, 0, 0), 6)
+		Mk.st_cyl(st, 0.025, 0.04, Vector3(x, 0.37, -0.14), Color(0.05, 0.05, 0.06), "plastic", Vector3.ZERO, 8, 1.0, 0.5)
+	var body := Mk.st_commit(st)
+	var legs: Array[ArrayMesh] = []
+	for side: float in [-1.0, 1.0]:
+		var ls := Mk.st_begin()
+		for i in 3:
+			var z := -0.06 + i * 0.09
+			Mk.st_box(ls, Vector3(0.2, 0.035, 0.035), Vector3(side * 0.27, 0.2, z), shell, "clay", Vector3(0, 0, side * -0.5), 0.5)
+			Mk.st_box(ls, Vector3(0.035, 0.18, 0.035), Vector3(side * 0.38, 0.1, z), shell.darkened(0.08), "clay", Vector3(0, 0, side * 0.25), 0.5)
+		legs.append(Mk.st_commit(ls))
+	var claws: Array[ArrayMesh] = []
+	for side: float in [-1.0, 1.0]:
+		var cs := Mk.st_begin()
+		Mk.st_box(cs, Vector3(0.05, 0.05, 0.16), Vector3(0, 0, -0.08), shell, "clay", Vector3.ZERO, 0.5)
+		Mk.st_box(cs, Vector3(0.11, 0.08, 0.13), Vector3(side * 0.01, 0.01, -0.21), shell.lightened(0.05), "clay", Vector3.ZERO, 0.5)
+		Mk.st_box(cs, Vector3(0.035, 0.035, 0.1), Vector3(side * 0.03, 0.03, -0.31), pale, "clay", Vector3(0, side * 0.2, 0), 0.5)
+		Mk.st_box(cs, Vector3(0.03, 0.03, 0.08), Vector3(side * -0.02, -0.02, -0.3), pale, "clay", Vector3(0, side * -0.15, 0), 0.5)
+		claws.append(Mk.st_commit(cs))
+	return [body, legs[0], legs[1], claws[0], claws[1]]

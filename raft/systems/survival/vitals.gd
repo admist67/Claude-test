@@ -29,6 +29,7 @@ func tick(delta: float, v: Dictionary, mult := 1.0) -> bool:
 func consume(def: Dictionary) -> void:
 	hunger = minf(100.0, hunger + float(def.get("food", 0)))
 	thirst = minf(100.0, thirst + float(def.get("water", 0)))
+	health = minf(100.0, health + float(def.get("health", 0)))
 
 
 func damage(n: float, why: String) -> bool:

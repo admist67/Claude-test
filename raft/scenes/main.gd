@@ -667,9 +667,17 @@ func _stab() -> void:
 	player.swing()
 	var metal := selected() == "metal_spear"
 	var ms: Dictionary = Data.b["shark"]["metal_spear"]
-	if shark.try_hit(player.cam.global_position, -player.cam.global_basis.z, int(ms["power"]) if metal else 1, float(ms["reach"]) if metal else 0.0):
+	var power := int(ms["power"]) if metal else 1
+	var extra := float(ms["reach"]) if metal else 0.0
+	var eye := player.cam.global_position
+	var fwd := -player.cam.global_basis.z
+	if shark.try_hit(eye, fwd, power, extra):
 		if shark.hits_left() > 0:
 			hud.toast("Попал!", "spear")
+		actions.use_tool(selected())
+	elif trips.islands.hit_crab(eye, fwd, power, 2.3 + extra):
+		Sfx.play("shark_hit", -4.0)
+		Fx.burst(self, eye + fwd * 1.6 + Vector3(0, -1.0, 0), Color("#d4572f"), 10)
 		actions.use_tool(selected())
 	else:
 		Sfx.play("throw", -6.0, 0.2)
@@ -754,6 +762,10 @@ func _consume(id: String) -> void:
 	var def := Data.item(id)
 	vitals.consume(def)
 	player.swing()
+	if def.has("health"):
+		Sfx.play("craft", -4.0)
+		hud.toast("Перевязано: +%d здоровья" % int(def["health"]), id)
+		return
 	var drink := float(def.get("water", 0)) > float(def.get("food", 0))
 	Sfx.play("drink" if drink else "eat")
 	hud.toast(("Выпито: " if drink else "Съедено: ") + Data.item_name(id), id)
@@ -882,7 +894,8 @@ func action_view() -> Dictionary:
 			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Подсечь!", Rod.State.FIGHT: "Держи"}
 			out["label"] = labels[rod.state]
 		"spear":
-			out = {"icon": id, "label": "Ударить", "ok": shark.alive_near() and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
+			var foe := shark.alive_near() or trips.islands.crab_near(player.global_position, 4.0)
+			out = {"icon": id, "label": "Ударить", "ok": foe and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
 		"hammer":
 			if builder.repair:
 				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
@@ -892,7 +905,7 @@ func action_view() -> Dictionary:
 				out = {"icon": builder.kind, "label": "Строить", "ok": builder.has_target and builder.valid and builder.affordable(), "cost": builder.cost()}
 		_:
 			var def := Data.item(id)
-			out["label"] = "Выпить" if float(def.get("water", 0)) > float(def.get("food", 0)) else "Съесть"
+			out["label"] = "Лечиться" if def.has("health") else ("Выпить" if float(def.get("water", 0)) > float(def.get("food", 0)) else "Съесть")
 	return out
 
 
@@ -924,7 +937,7 @@ func _process(delta: float) -> void:
 		var aimed := _aimed_body()
 		demolish_target = aimed if tool_use() == "hammer" and (aimed is Part or aimed is Station) else null
 		station_target = null if demolish_target else aimed as Station
-		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "trap", "door", "hammock"] else null
+		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "net_strong", "trap", "door", "hammock"] else null
 		spot_target = aimed as IslandSpot
 		var busy := station_target or net_target or demolish_target or spot_target
 		grab_target = null if busy else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))

@@ -168,7 +168,7 @@ func _process(delta: float) -> void:
 			_update_goal()
 			if _swim_to(_goal, float(cfg["approach_speed"]), delta) < 0.4:
 				state = State.BITE
-				_bite_t = 0.8
+				_bite_t = float(cfg["first_bite"])
 		State.BITE:
 			if not raft.has_tile(target):
 				_flee(float(cfg["flee_time"]))

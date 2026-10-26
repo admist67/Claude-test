@@ -71,6 +71,22 @@
     "rope": 1
    },
    "once": true
+  },
+  {
+   "id": "bandage",
+   "out": 2,
+   "cost": {
+    "leaf": 3,
+    "rope": 1
+   }
+  },
+  {
+   "id": "fruit_salad",
+   "out": 1,
+   "cost": {
+    "banana": 2,
+    "coconut": 1
+   }
   }
  ]
 }

@@ -1,8 +1,8 @@
 class_name Island
 extends AnimatableBody3D
 ## An island drifting past the raft: sand and grass you can walk on, palms, banana and
-## pineapple plants, rocks, a driftwood log, maybe a sea chest. Built from a seed, so a
-## save brings back the same island with what was already taken.
+## pineapple plants, rocks, a driftwood log, a sea chest, and crabs guarding it all.
+## Built from a seed, so a save brings back the same island with what was already taken.
 
 ## Where each kind of spot grows: [min, max] fraction of the radius from the center.
 const BANDS := {"palm": [0.1, 0.62], "banana": [0.15, 0.55], "pineapple": [0.12, 0.5], "rock": [0.35, 0.78], "log": [0.8, 0.9], "chest": [0.25, 0.6]}
@@ -11,6 +11,7 @@ var seed_v := 0
 var radius := 9.0
 var wob: Array = []
 var spots: Array[IslandSpot] = []
+var crabs: Array[Crab] = []
 var visited := false
 
 
@@ -42,6 +43,16 @@ func build(s: int, cfg: Dictionary) -> void:
 				continue
 			taken.append(at)
 			_add_spot(kind, d, at, rng)
+	var cc: Dictionary = cfg["crabs"]
+	for i in rng.randi_range(int(cc["count"][0]), int(cc["count"][1])):
+		var crab := Crab.new()
+		crab.setup(self, cc, rng.randi())
+		var a := rng.randf() * TAU
+		var p := Vector2(cos(a), sin(a)) * radius * rng.randf_range(0.2, 0.6)
+		crab.position = Vector3(p.x, height_at(p), p.y)
+		add_child(crab)
+		crabs.append(crab)
+		crab.died.connect(func(c: Crab) -> void: crabs.erase(c))
 
 
 func height_at(p: Vector2) -> float:
@@ -142,7 +153,8 @@ func _block(shape: Shape3D, at: Vector3, r: float, h: float) -> CollisionShape3D
 
 
 func to_dict() -> Dictionary:
-	return {"seed": seed_v, "x": position.x, "z": position.z, "left": spots.map(func(s: IslandSpot) -> int: return s.left), "visited": visited}
+	var left := spots.map(func(s: IslandSpot) -> int: return s.left)
+	return {"seed": seed_v, "x": position.x, "z": position.z, "left": left, "visited": visited, "crabs": crabs.size()}
 
 
 ## After build(seed): puts back where it was and what was taken.
@@ -153,3 +165,5 @@ func load_state(d: Dictionary) -> void:
 	for i in mini(left.size(), spots.size()):
 		spots[i].left = int(left[i])
 		spots[i].refresh()
+	while crabs.size() > int(d.get("crabs", crabs.size())):
+		crabs.pop_back().queue_free()

@@ -5,7 +5,8 @@ extends Node3D
 ## the line out empty; too late lets the fish go and you wait again.
 ## A hooked fish has to be played: holding the button reels it in but strains the line,
 ## letting go eases the line while the fish swims off a little. Now and then it jerks —
-## hold through a jerk and the line snaps; give it slack too long and it gets away.
+## the bobber shivers a moment before (time to let go) — hold through a jerk and the line
+## may snap; give it slack too long and it gets away.
 ## Numbers in data/balance.json "fishing" ("fight").
 
 signal caught(id: String)
@@ -26,6 +27,7 @@ var fish := ""                    # the fish on the line while fighting
 var progress := 0.0               # 0 = gone, 1 = landed
 var tension := 0.0                # 1 = the line snaps
 var jerking := false              # the fish fights right now
+var warning := false              # it is about to jerk
 var holding := false
 var _bobber: MeshInstance3D
 var _line: MeshInstance3D
@@ -98,6 +100,7 @@ func _stop() -> void:
 	baited = false
 	holding = false
 	jerking = false
+	warning = false
 
 
 ## Hooked: the fight begins with the button held.
@@ -134,12 +137,20 @@ func _end_fight(result: String) -> void:
 func _fight_step(delta: float) -> void:
 	_phase_t -= delta
 	if _phase_t <= 0.0:
-		jerking = not jerking
-		var r: Array = _fight["jerk" if jerking else "calm"]
-		_phase_t = rng.randf_range(float(r[0]), float(r[1]))
-		if jerking:
+		# calm → a short warning → a jerk → calm again
+		if warning:
+			warning = false
+			jerking = true
+			_phase_t = rng.randf_range(float(_fight["jerk"][0]), float(_fight["jerk"][1]))
 			Input.vibrate_handheld(70)
 			Sfx.play("splash", -12.0, 0.2)
+		elif jerking:
+			jerking = false
+			_phase_t = rng.randf_range(float(_fight["calm"][0]), float(_fight["calm"][1]))
+		else:
+			warning = true
+			_phase_t = float(cfg["fight"]["warn"])
+			Input.vibrate_handheld(25)
 	if holding:
 		progress += float(_fight["reel"]) * (float(_fight["jerk_reel"]) if jerking else 1.0) * delta
 		tension += float(_fight["jerk_strain" if jerking else "strain"]) * delta
@@ -157,7 +168,7 @@ func _fight_step(delta: float) -> void:
 		# The bobber comes in toward the raft as the fish tires, thrashing while it jerks.
 		var near := tip().lerp(_bite_at, 0.25)
 		var p := _bite_at.lerp(near, progress)
-		p += Vector3(sin(_t * 23.0), 0, cos(_t * 19.0)) * (0.18 if jerking else 0.04)
+		p += Vector3(sin(_t * 23.0), 0, cos(_t * 19.0)) * (0.18 if jerking else (0.09 if warning else 0.04))
 		p.y = Ocean.height_at(p.x, p.z) + (-0.15 + sin(_t * 31.0) * 0.08 if jerking else -0.05)
 		_bobber.global_position = p
 

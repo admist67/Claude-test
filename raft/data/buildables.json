@@ -139,7 +139,8 @@
    "cook": {
     "shark_meat": "shark_steak",
     "big_fish": "big_fish_cooked",
-    "fish": "fish_cooked"
+    "fish": "fish_cooked",
+    "crab_meat": "crab_cooked"
    },
    "fuel": {
     "leaf": 20.0,
@@ -185,6 +186,18 @@
    "cost": {
     "rope": 4,
     "plank": 2
+   },
+   "capacity": 5,
+   "group": "Хозяйство"
+  },
+  {
+   "id": "net_strong",
+   "name": "Прочная сеть",
+   "on": "edge_out",
+   "cost": {
+    "rope": 6,
+    "plank": 3,
+    "scrap": 2
    },
    "capacity": 8,
    "group": "Хозяйство"

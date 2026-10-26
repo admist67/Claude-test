@@ -663,6 +663,30 @@ func _run() -> void:
 		if spot.kind == "palm":
 			await _shot("65_palm")
 	print("stone ", inv.count("stone"), " coconut ", inv.count("coconut"), " chests ", stats.get("chests", 0))
+	# Crabs guard the island: let one come close, then spear them all.
+	print("crabs on the island ", isl.crabs.size(), " health ", snappedf(vitals.health, 0.1))
+	if not isl.crabs.is_empty():
+		var c0: Crab = isl.crabs[0]
+		player._world = c0.global_position + Vector3(2.5, 1.2, 0)
+		player.global_position = player._world
+		await _wait(1.5)
+		_aim_local(raft.to_local(c0.global_position + Vector3(0, 0.25, 0)))
+		await _wait(0.1)
+		await _shot("72_crab")
+	_select("metal_spear")
+	var t6 := 0.0
+	while not isl.crabs.is_empty() and t6 < 25.0:
+		var cr: Crab = isl.crabs[0]
+		var away := Vector3(cr.global_position.x - isl.global_position.x, 0, cr.global_position.z - isl.global_position.z).normalized()
+		player._world = cr.global_position - away * 1.3 + Vector3(0, 1.2, 0)
+		player.global_position = player._world
+		await _wait(0.15)
+		_aim_local(raft.to_local(cr.global_position + Vector3(0, 0.2, 0)))
+		_spear_cd = 0.0
+		_on_pressed("action")
+		await _wait(0.3)
+		t6 += 0.45
+	print("crabs beaten ", stats.get("crabs", 0), " crab meat ", inv.count("crab_meat"), " health ", snappedf(vitals.health, 0.1))
 	# The shark goes for a swimmer.
 	var shore_at := isl.global_position + Vector3(-side, 0, 0) * (isl.radius + 2.5)
 	player.jump_in(shore_at)
@@ -705,6 +729,42 @@ func _run() -> void:
 		print("trap fish taken ", stats.get("trap_fish", 0))
 	print("goal ", goal_i, ": ", goal_view()["text"])
 	print("island still there ", trips.islands.island == isl, " at ", isl.position.round())
+	# v0.10: a roof built looking up from the deck; the strong net; four things to grill.
+	_select("hammer")
+	builder.kind = "roof"
+	player.place(cc.call(0, 1) + Vector3(0.5, 0, 0), 0.0)
+	await _wait(0.2)
+	_aim_local(cc.call(0, 1) + Vector3(-0.2, RaftParts.H, 0))
+	await _wait(0.4)
+	print("roof looking up: target ", builder.has_target, " valid ", builder.valid, " key ", builder.key)
+	await _shot("71_roof_from_below")
+	await _build_at("roof", cc.call(0, 1) + Vector3(-0.2, RaftParts.H, 0))
+	inv.add("scrap", 2)
+	player.place(cc.call(3, 1), 0.0)
+	await _build_at("net_strong", cc.call(3, 1) + Vector3(0, 0, -0.6))
+	for n: Part in raft.parts.nets():
+		print("net ", n.kind, " holds ", n.capacity)
+	inv.add("shark_meat", 2)
+	inv.add("big_fish", 1)
+	inv.add("fish", 2)
+	inv.add("crab_meat", 1)
+	inv.add("plank", 6)
+	inv.add("leaf", 6)
+	inv.add("plastic", 2)
+	player.place(cc.call(0, 1) + Vector3(0.4, 0, 0), 0.0)
+	await _build_at("grill", cc.call(-1, 1))
+	hand = ""
+	_refresh_hotbar()
+	await _wait(0.2)
+	_look_cell(Vector2i(-1, 1), 0.4)
+	await _wait(0.3)
+	_on_pressed("use")
+	await _wait(0.4)
+	await _shot("73_grill_pick")
+	if actions.picker.visible:
+		actions._on_picked("crab_meat")
+	var gk := Vector3i(-1, 1, 0)
+	print("grilling ", raft.stations[gk].cooking if raft.stations.has(gk) else "?")
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

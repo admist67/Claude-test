@@ -12,6 +12,8 @@ extends Node3D
 const H := 2.4
 const MAX_LEVEL := 3
 const DIRS: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
+const NETS := ["net", "net_strong"]
+const LOW := ["net", "net_strong", "trap"]        # low things on the outer rim, not walls
 
 var raft: Raft
 var daynight: DayNight
@@ -143,7 +145,7 @@ func can_edge(k: Vector4i, outer: bool, kind := "", d := 0) -> bool:
 	var n := _floors_touching(edge_cells(k), k.w)
 	if not ((n == 1 and k.w == 0) if outer else n >= 1):
 		return false
-	if kind in ["net", "trap"]:
+	if kind in LOW:
 		return true
 	# A lantern arm pointing along this edge would end up inside the wall.
 	var ends: Array[Vector3i] = [Vector3i(k.x, k.y, k.w), Vector3i(k.x, k.y - 1, k.w) if k.z == 0 else Vector3i(k.x - 1, k.y, k.w)]
@@ -165,7 +167,7 @@ func can_corner(k: Vector3i, kind := "", d := 0) -> bool:
 	if corners.has(k) or _floors_touching(corner_cells(k), k.z) == 0:
 		return false
 	var wall: Part = edges.get(arm_edge(k, d))
-	return kind == "pillar" or wall == null or wall.kind in ["net", "trap"]
+	return kind == "pillar" or wall == null or wall.kind in LOW
 
 
 ## On a wall or window (a door leaf moves), clear of any door's sweep.
@@ -186,7 +188,7 @@ func supported(c: Vector2i, lvl: int) -> bool:
 		if roofs.has(Vector3i(c.x + d.x, c.y + d.y, lvl)):
 			return true
 		var e: Part = edges.get(edge_of(c, d, lvl - 1))
-		if e and not e.kind in ["net", "trap"]:
+		if e and not e.kind in LOW:
 			return true
 	for k: Vector2i in [c, c - Vector2i(1, 0), c - Vector2i(0, 1), c - Vector2i(1, 1)]:
 		var p: Part = corners.get(Vector3i(k.x, k.y, lvl - 1))
@@ -233,7 +235,7 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 			p.position = edge_center(k)
 			p.rotation.y = door_yaw(k, d) if kind == "door" else edge_yaw(k)
 			edges[k] = p
-		"net", "trap":
+		"net", "net_strong", "trap":
 			p.rotation.y = outward_yaw(k)
 			p.position = edge_center(k) + Basis(Vector3.UP, p.rotation.y) * Vector3(0, 0, 0.18)
 			edges[k] = p
@@ -299,7 +301,7 @@ func prune() -> void:
 		changed = false
 		for k: Vector4i in edges.keys():
 			var n := _floors_touching(edge_cells(k), k.w)
-			if n == 0 or (edges[k].kind in ["net", "trap"] and n != 1):
+			if n == 0 or (edges[k].kind in LOW and n != 1):
 				changed = _drop(edges, k) or changed
 		for k: Vector3i in corners.keys():
 			if _floors_touching(corner_cells(k), k.z) == 0:
@@ -349,7 +351,7 @@ func from_list(list: Array) -> void:
 		var kind: String = e["kind"]
 		var k: Variant
 		match kind:
-			"wall", "window", "door", "net", "trap", "lantern_wall":
+			"wall", "window", "door", "net", "net_strong", "trap", "lantern_wall":
 				if a.size() < 3:
 					continue
 				k = Vector4i(int(a[0]), int(a[1]), int(a[2]), int(a[3]) if a.size() > 3 else 0)
@@ -366,7 +368,7 @@ func from_list(list: Array) -> void:
 # ---------------------------------------------------------------- nets
 
 func nets() -> Array:
-	return edges.values().filter(func(p: Part) -> bool: return p.kind == "net")
+	return edges.values().filter(func(p: Part) -> bool: return p.kind in NETS)
 
 
 ## Debris drifting into a net stays in it. Returns true when `d` got caught.

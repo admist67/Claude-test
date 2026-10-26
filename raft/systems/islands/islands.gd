@@ -5,8 +5,11 @@ extends Node3D
 ## Numbers in data/balance.json "islands".
 
 signal sighted(island: Island)
+signal pinched                      # a crab got the player
+signal crab_died
 
 var raft: Raft
+var player: Player
 var cfg: Dictionary
 var island: Island
 var anchored := false
@@ -76,7 +79,36 @@ func _spawn(s: int) -> void:
 	isl.position = Vector3(c.x + side * (_half_width() + isl.radius * 1.15 + float(cfg["side_gap"])), 0.0, c.z - float(cfg["ahead"]))
 	add_child(isl)
 	island = isl
+	_wire(isl)
 	sighted.emit(isl)
+
+
+## The island's crabs know the player and report bites and deaths.
+func _wire(isl: Island) -> void:
+	for c in isl.crabs:
+		c.player = player
+		c.pinched.connect(func() -> void: pinched.emit())
+		c.died.connect(func(_c: Crab) -> void: crab_died.emit())
+
+
+## A spear thrust: hits a crab in front if there is one.
+func hit_crab(eye: Vector3, fwd: Vector3, power: int, reach: float) -> bool:
+	if island == null:
+		return false
+	for c in island.crabs:
+		if c.try_hit(eye, fwd, power, reach):
+			return true
+	return false
+
+
+## A live crab within `d` meters of a world point.
+func crab_near(at: Vector3, d: float) -> bool:
+	if island == null:
+		return false
+	for c in island.crabs:
+		if not c.dead and c.global_position.distance_to(at) < d:
+			return true
+	return false
 
 
 func to_dict() -> Dictionary:
@@ -92,3 +124,4 @@ func from_dict(d: Dictionary) -> void:
 		add_child(isl)
 		isl.load_state(id)
 		island = isl
+		_wire(isl)

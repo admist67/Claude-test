@@ -90,7 +90,7 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			])
 			cs.shape = shape
 			add_child(cs)
-		"net":
+		"net", "net_strong":
 			_use_box(Vector3(1.4, 1.0, 0.3), Vector3(0, 0.05, 0))
 		"trap":
 			_use_box(Vector3(1.1, 1.0, 1.4), Vector3(0, -0.1, 0.55))
@@ -180,4 +180,5 @@ func prompt(_inv: Inventory) -> Dictionary:
 	if kind == "hammock":
 		var dn: DayNight = get_parent().daynight
 		return {"text": "Спать", "ok": dn != null and dn.is_night(), "icon": "hammock"}
-	return {"text": "Собрать (%d)" % caught.size() if not caught.is_empty() else "Пусто", "ok": not caught.is_empty(), "icon": "net"}
+	var text := "Собрать (%d/%d)" % [caught.size(), capacity] if not caught.is_empty() else "Пусто (0/%d)" % capacity
+	return {"text": text, "ok": not caught.is_empty(), "icon": kind}

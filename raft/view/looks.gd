@@ -10,6 +10,8 @@ const MODELS := {
 const T := 1.5     # tile size, as in data/balance.json raft.tile
 const H := 2.4     # wall height = upper floor level
 const TALL_LAMP := 2.3   # tall lantern post, a little under the wall top
+const STRUCTURES := ["wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall",
+		"roof", "stairs", "net", "net_strong", "trap", "hammock", "collector"]
 const PLASTIC := Color("#bfe0f2")
 const CAP := Color("#2a6fb0")
 
@@ -189,6 +191,34 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_cyl(st, 0.07, 0.03, Vector3(0, 0.56, 0.48), iron, "metal", Vector3(PI / 2.0, 0, 0), 10)
 		"anchor_rope":
 			Mk.st_cyl(st, 0.025, 4.0, Vector3(0, -2.0, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 6, 0.4)
+		"crab_meat", "crab_cooked":
+			# A crab claw: a rounded palm, two pincer fingers in a V and a jointed arm.
+			var cooked := id == "crab_cooked"
+			var shell := Color("#e0482a") if cooked else Color("#c47a55")
+			var tip := Color("#3a2a24")
+			var rz := Vector3(0, 0, PI / 2.0)
+			Mk.st_cyl(st, 0.07, 0.17, Vector3(0, 0.07, 0), shell, "clay", rz, 12, 0.5, 0.45)
+			# Upper finger tilts up, lower one down: an open pincer.
+			Mk.st_box(st, Vector3(0.2, 0.045, 0.055), Vector3(0.17, 0.13, 0), shell.lightened(0.08), "clay", Vector3(0, 0, 0.45), 0.5)
+			Mk.st_box(st, Vector3(0.17, 0.04, 0.05), Vector3(0.16, 0.025, 0), shell.lightened(0.12), "clay", Vector3(0, 0, -0.35), 0.5)
+			Mk.st_box(st, Vector3(0.05, 0.035, 0.04), Vector3(0.265, 0.18, 0), tip, "white", Vector3(0, 0, 0.45))
+			Mk.st_box(st, Vector3(0.045, 0.03, 0.035), Vector3(0.24, -0.005, 0), tip, "white", Vector3(0, 0, -0.35))
+			Mk.st_cyl(st, 0.035, 0.12, Vector3(-0.13, 0.06, 0), shell.darkened(0.08), "clay", rz, 8, 0.5)
+			Mk.st_cyl(st, 0.04, 0.03, Vector3(-0.2, 0.06, 0), Color("#f6d8c4") if not cooked else Color("#f8e6d4"), "clay", rz, 8, 0.5)
+		"fruit_salad":
+			# A coconut shell bowl heaped with banana and pineapple pieces.
+			Mk.st_cyl(st, 0.16, 0.1, Vector3(0, 0.05, 0), Color("#7a5532"), "clay", Vector3.ZERO, 14, 1.0, 0.3)
+			Mk.st_cyl(st, 0.145, 0.02, Vector3(0, 0.1, 0), Color("#f4ecd8"), "white", Vector3.ZERO, 14)
+			var bits := [[Color("#f2d24a"), Vector3(0.05, 0.12, 0.03)], [Color("#f4b23c"), Vector3(-0.05, 0.12, 0.04)], [Color("#fff2c0"), Vector3(0.0, 0.13, -0.05)],
+					[Color("#e9d07a"), Vector3(0.07, 0.12, -0.05)], [Color("#f6a830"), Vector3(-0.06, 0.12, -0.04)]]
+			for b: Array in bits:
+				Mk.st_box(st, Vector3(0.05, 0.04, 0.05), b[1], b[0], "white", Vector3(0.3, b[1].x * 20.0, 0.2))
+		"bandage":
+			Mk.st_cyl(st, 0.09, 0.1, Vector3(0, 0.09, 0), Color("#f2efe6"), "canvas", Vector3(PI / 2.0, 0, 0), 14, 0.5)
+			Mk.st_cyl(st, 0.035, 0.102, Vector3(0, 0.09, 0), Color("#d9d2c0"), "canvas", Vector3(PI / 2.0, 0, 0), 10, 0.5)
+			Mk.st_box(st, Vector3(0.12, 0.004, 0.08), Vector3(0.07, 0.003, 0.0), Color("#f2efe6"), "canvas", Vector3(0, 0, 0.1), 0.5)
+			Mk.st_box(st, Vector3(0.02, 0.06, 0.004), Vector3(0, 0.09, 0.052), Color("#d8352a"), "white")
+			Mk.st_box(st, Vector3(0.06, 0.02, 0.004), Vector3(0, 0.09, 0.052), Color("#d8352a"), "white")
 		"banana_shoot":
 			leaf = true
 			var r := Mk.cell("palm")
@@ -215,10 +245,11 @@ static func mesh(id: String) -> ArrayMesh:
 			return Raft.tile_preview_mesh()
 		"purifier", "grill", "planter":
 			_station(st, id)
-		"wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall", "roof", "stairs", "net", "trap", "hammock", "collector":
-			_structure(st, id)
 		_:
-			Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
+			if id in STRUCTURES:
+				_structure(st, id)
+			else:
+				Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
 	var m := Mk.st_commit(st, leaf)
 	_cache[id] = m
 	return m
@@ -486,16 +517,25 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 				Mk.st_box(st, Vector3(Vector2(x1 - x0, y1 - y0).length() + 0.01, 0.025, 0.62), mid, Color("#e8d8b0"), "canvas", Vector3(0, 0, ang), 1.0)
 			for z: float in [-0.31, 0.31]:
 				Mk.st_box(st, Vector3(0.02, 0.02, 0.02), Vector3(0, 0.5, z), Color("#b03a2a"), "white")
-		"net":
+		"net", "net_strong":
+			# The strong net: thicker posts with iron caps, a tarred denser mesh.
+			var strong := id == "net_strong"
+			var post := 0.1 if strong else 0.07
+			var cord := Color(0.55, 0.45, 0.32) if strong else Color(1, 0.97, 0.9)
+			var th := 0.026 if strong else 0.018
 			for x: float in [-0.7, 0.7]:
-				Mk.st_box(st, Vector3(0.07, 1.15, 0.07), Vector3(x, 0.05, 0), dark, "wood_dark")
-			for i in 5:
-				var y := -0.45 + i * 0.22
-				Mk.st_box(st, Vector3(1.36, 0.018, 0.018), Vector3(0, y, 0), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
-			for i in 9:
-				var x := -0.64 + i * 0.16
-				Mk.st_box(st, Vector3(0.018, 0.92, 0.018), Vector3(x, 0.0, 0), Color(1, 0.97, 0.9), "rope", Vector3.ZERO, 0.6)
-			Mk.st_box(st, Vector3(1.45, 0.04, 0.04), Vector3(0, 0.5, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 0.6)
+				Mk.st_box(st, Vector3(post, 1.15, post), Vector3(x, 0.05, 0), dark, "wood_dark")
+				if strong:
+					Mk.st_box(st, Vector3(post + 0.02, 0.08, post + 0.02), Vector3(x, 0.62, 0), Color(0.55, 0.55, 0.58), "metal")
+			var rows := 7 if strong else 5
+			for i in rows:
+				var y := -0.45 + i * 0.88 / (rows - 1)
+				Mk.st_box(st, Vector3(1.36, th, th), Vector3(0, y, 0), cord, "rope", Vector3.ZERO, 0.6)
+			var cols := 12 if strong else 9
+			for i in cols:
+				var x := -0.64 + i * 1.28 / (cols - 1)
+				Mk.st_box(st, Vector3(th, 0.92, th), Vector3(x, 0.0, 0), cord, "rope", Vector3.ZERO, 0.6)
+			Mk.st_box(st, Vector3(1.45, 0.05 if strong else 0.04, 0.05 if strong else 0.04), Vector3(0, 0.5, 0), cord.lightened(0.1), "rope", Vector3.ZERO, 0.6)
 		"trap":
 			# Two beams out over the water and a rope cage hanging half under it.
 			for x: float in [-0.45, 0.45]:

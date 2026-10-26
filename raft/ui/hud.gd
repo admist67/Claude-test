@@ -270,10 +270,16 @@ func _draw_fight(c: Vector2) -> void:
 	_round_rect(Rect2(bar.position, Vector2(maxf(bar.size.y, w * t), bar.size.y)), col, 9.0)
 	_round_rect_border(bar, Color(0, 0, 0, 0), UiTheme.GOLD, 9.0, 2)
 	_text("Натяжение", bar.position + Vector2(0, 40), 18, Color(1, 1, 1, 0.75), HORIZONTAL_ALIGNMENT_LEFT, -1, font)
-	var hint := "Рыба дёргает — отпусти!" if rod.jerking else ("Держи и тяни" if rod.tension < 0.75 else "Леска на пределе — отпусти!")
+	var hint := "Держи и тяни"
+	if rod.jerking:
+		hint = "Рыба дёргает — отпусти!"
+	elif rod.warning:
+		hint = "Сейчас дёрнет — отпускай!"
+	elif rod.tension >= 0.75:
+		hint = "Леска на пределе — отпусти!"
 	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 90.0)
-	var hc := Color("#ff8a7a", pulse) if rod.jerking or rod.tension >= 0.75 else Color("#ffd24a")
-	_text(hint, c + Vector2(-200, -70), 34, hc, HORIZONTAL_ALIGNMENT_CENTER, 400, title)
+	var hc := Color("#ff8a7a", pulse) if rod.jerking or rod.tension >= 0.75 else (Color("#ffb35a", pulse) if rod.warning else Color("#ffd24a"))
+	_text(hint, c + Vector2(-320, -70), 34, hc, HORIZONTAL_ALIGNMENT_CENTER, 640, title)
 
 
 ## The charge bar: a dark rounded frame with a gold rim and a rounded fill inset inside it.

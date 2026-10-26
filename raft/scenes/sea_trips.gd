@@ -17,8 +17,11 @@ func setup(g: Node) -> void:
 	_cfg = Data.b["player"]
 	islands = Islands.new()
 	islands.raft = g.raft
+	islands.player = g.player
 	g.add_child(islands)
 	islands.sighted.connect(_on_sighted)
+	islands.pinched.connect(_on_pinched)
+	islands.crab_died.connect(_on_crab_died)
 	g.shark.bit_player.connect(_on_bitten)
 
 
@@ -164,6 +167,28 @@ func _check_far() -> void:
 	if Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length() > float(_cfg["max_swim"]) or p.global_position.y < -20.0:
 		p.place(game.raft.nearest_tile(game.raft.to_local(p.global_position)), p.yaw)
 		game.hud.toast("Течение принесло тебя обратно к плоту", "tile")
+
+
+func _on_pinched() -> void:
+	Sfx.play("bite", -6.0, 0.3)
+	Input.vibrate_handheld(60)
+	if not game.stats.has("crab_hint"):
+		game.stats["crab_hint"] = 1
+		game.hud.toast("Краб щиплется! Отбейся копьём", "spear")
+	if game.vitals.damage(float(Data.b["islands"]["crabs"]["pinch"]), "crab"):
+		game.die()
+
+
+func _on_crab_died() -> void:
+	var stats: Dictionary = game.stats
+	stats["crabs"] = int(stats.get("crabs", 0)) + 1
+	Sfx.play("goal", -6.0)
+	for id: String in Data.b["islands"]["crabs"]["loot"]:
+		var n := int(Data.b["islands"]["crabs"]["loot"][id])
+		game.inv.add(id, n)
+		stats["got_" + id] = int(stats.get("got_" + id, 0)) + n
+		game.hud.toast("Краб повержен! +%d %s" % [n, Data.item_name(id)], id)
+	game.check_goals()
 
 
 func _on_bitten() -> void:

@@ -140,6 +140,19 @@ func _deck_hit(level_y := 0.0) -> Variant:
 	return hit
 
 
+## Where the view ray meets the level plane at raft-local height `y` from below (looking up
+## at a ceiling), within build reach; or null.
+func _ceiling_hit(y: float) -> Variant:
+	var o := raft.to_local(player.cam.global_position)
+	var d := raft.global_basis.inverse() * -player.cam.global_basis.z
+	if d.y < 0.08 or y <= o.y:
+		return null
+	var hit := o + d * ((y - o.y) / d.y)
+	if Vector2(hit.x - o.x, hit.z - o.z).length() > float(Data.b["raft"]["build_reach"]):
+		return null
+	return hit
+
+
 func _floor_hit() -> Variant:
 	return _deck_hit(level * H)
 
@@ -257,9 +270,18 @@ func _find_wall() -> void:
 	valid = raft.parts.can_lamp(key)
 
 
-## A roof one level up over the floor you look at; from an upper floor, looking past its
-## edge extends that floor.
+## A roof one level up: in the ceiling you look up at, or over the floor you look down
+## at; from an upper floor, looking past its edge extends that floor.
 func _find_roof() -> void:
+	var up: Variant = _ceiling_hit((level + 1) * H)
+	if up != null:
+		var uc := raft.cell_at(up)
+		if raft.has_tile(uc):
+			cell = uc
+			key = Vector3i(uc.x, uc.y, level + 1)
+			has_target = true
+			valid = raft.parts.can_roof(uc, level + 1)
+		return
 	var hit: Variant = _floor_hit()
 	if hit == null:
 		return
@@ -306,7 +328,7 @@ static func hint(on: String) -> String:
 		"corner":
 			return "Посмотри на пол у угла клетки"
 		"roof":
-			return "Крыше нужна опора: стена, столб или соседняя крыша"
+			return "Крыше нужна опора: стена, столб или соседняя крыша. Смотри вверх или на пол"
 		"wall":
 			return "Посмотри на стену или окно: фонарь повиснет с твоей стороны"
 	return "Посмотри на свободную клетку плота"
