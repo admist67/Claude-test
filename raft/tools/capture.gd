@@ -166,9 +166,11 @@ func _run() -> void:
 	_on_released("action")
 	print("stations: ", raft.stations.size())
 	_select("hook")
+	inv.add("bucket_water")
 	_look_cell(Vector2i(1, 0), 0.4)
 	await _wait(0.3)
 	_on_pressed("use")
+	print("purifier took the bucket: ", inv.count("bucket"), " empty, poured ", stats.get("poured", 0))
 	_look_cell(Vector2i(0, 1), 0.4)
 	await _wait(0.3)
 	_on_pressed("use")
@@ -646,23 +648,6 @@ func _run() -> void:
 	print("reached island in ", snappedf(t4, 0.1), " s, visits ", stats.get("island_visits", 0), " swimming ", player.swimming)
 	await _wait(0.3)
 	await _shot("64_on_island")
-	for spot: IslandSpot in isl.spots:
-		var at := isl.to_global(spot.position)
-		var away := (at - isl.global_position)
-		away.y = 0.0
-		player._world = at + away.normalized() * 1.6 + Vector3(0, 1.2, 0)
-		player.global_position = player._world
-		await _wait(0.5)
-		_aim_local(raft.to_local(at + Vector3(0, 0.6, 0)))
-		await _wait(0.2)
-		var label: String = use_view()["label"]
-		for k in spot.left:
-			_on_pressed("use")
-			await _wait(0.1)
-		print("gathered ", spot.kind, " ('", label, "') left ", spot.left)
-		if spot.kind == "palm":
-			await _shot("65_palm")
-	print("stone ", inv.count("stone"), " coconut ", inv.count("coconut"), " chests ", stats.get("chests", 0))
 	# Crabs guard the island: let one come close, then spear them all.
 	print("crabs on the island ", isl.crabs.size(), " health ", snappedf(vitals.health, 0.1))
 	if not isl.crabs.is_empty():
@@ -687,6 +672,41 @@ func _run() -> void:
 		await _wait(0.3)
 		t6 += 0.45
 	print("crabs beaten ", stats.get("crabs", 0), " crab meat ", inv.count("crab_meat"), " health ", snappedf(vitals.health, 0.1))
+	vitals.health = 100.0
+	for spot: IslandSpot in isl.spots:
+		var at := isl.to_global(spot.position)
+		var away := (at - isl.global_position)
+		away.y = 0.0
+		player._world = at + away.normalized() * 1.6 + Vector3(0, 1.2, 0)
+		player.global_position = player._world
+		await _wait(0.5)
+		_aim_local(raft.to_local(at + Vector3(0, 0.6, 0)))
+		await _wait(0.2)
+		var label: String = use_view()["label"]
+		if spot.kind == "rock":
+			inv.add("pickaxe")
+			_select("pickaxe")
+			label = action_view()["label"]
+			for k in spot.left * int(spot.def["hits"]):
+				_on_pressed("action")
+				await _wait(0.05)
+			hand = ""
+			_refresh_hotbar()
+		elif spot.kind == "chest":
+			_on_pressed("use")
+			await _wait(0.4)
+			print("island chest holds ", spot.items)
+			await _shot("74_island_chest")
+			actions.storage._take_all()
+			actions._close_chest()
+		else:
+			for k in spot.left:
+				_on_pressed("use")
+				await _wait(0.1)
+		print("gathered ", spot.kind, " ('", label, "') left ", spot.left)
+		if spot.kind == "palm":
+			await _shot("65_palm")
+	print("stone ", inv.count("stone"), " coconut ", inv.count("coconut"), " chests ", stats.get("chests", 0))
 	# The shark goes for a swimmer.
 	var shore_at := isl.global_position + Vector3(-side, 0, 0) * (isl.radius + 2.5)
 	player.jump_in(shore_at)
@@ -765,6 +785,45 @@ func _run() -> void:
 		actions._on_picked("crab_meat")
 	var gk := Vector3i(-1, 1, 0)
 	print("grilling ", raft.stations[gk].cooking if raft.stations.has(gk) else "?")
+	# v0.11: scoop seawater with a bucket at the edge; a chest to keep things in.
+	inv.add("bucket")
+	player.place(cc.call(3, 1) + Vector3(0.4, 0, 0), 0.0)
+	_select("bucket")
+	_aim_local(cc.call(3, 1) + Vector3(2.2, -0.3, 0))
+	await _wait(0.3)
+	print("bucket label ", action_view()["label"])
+	_on_pressed("action")
+	await _wait(0.3)
+	print("bucket filled: ", inv.count("bucket_water"), " hand '", hand, "'")
+	await _shot("75_bucket")
+	inv.add("plank", 8)
+	inv.add("rope", 2)
+	inv.add("scrap", 1)
+	_select("hammer")
+	player.place(cc.call(0, 1) + Vector3(-0.5, 0, -0.45), 0.0)
+	await _build_at("chest", cc.call(-1, 0))
+	hand = ""
+	_refresh_hotbar()
+	var chest_st: Station = null
+	for st: Station in raft.stations.values():
+		if st.kind == "chest":
+			chest_st = st
+	_aim_local(chest_st.position + Vector3(0, 0.35, 0))
+	await _wait(0.3)
+	print("chest at ", chest_st.cell, " prompt ", use_view()["label"])
+	_on_pressed("use")
+	await _wait(0.4)
+	actions.storage._put("plank")
+	actions.storage._put("rope")
+	actions.storage.one = true
+	actions.storage._put("leaf")
+	actions.storage.refresh()
+	await _wait(0.3)
+	await _shot("76_chest")
+	print("chest holds ", actions.storage.store, " stored ", stats.get("stored", 0))
+	actions.storage._take("rope")
+	actions._close_chest()
+	print("after taking rope: chest ", chest_st.items)
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

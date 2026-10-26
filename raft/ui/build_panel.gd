@@ -59,27 +59,39 @@ func open(cur: String) -> void:
 
 
 func _card(d: Dictionary) -> Control:
-	var c := CraftPanel.card(Vector2(208, 0), d["id"] == current)
+	var c := card_for(d, inv, d["id"] == current)
+	_scroller.on_tap(c, func() -> void: picked.emit(d["id"]))
+	return c
+
+
+## A building card, all the same size: a big icon, the name under it and the cost at the
+## bottom (have/need, red when short). Also used in the bag's buildings tab.
+static func card_for(d: Dictionary, inv: Inventory, sel := false) -> Control:
+	var c := CraftPanel.card(Vector2(208, 214), sel)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	c.add_child(v)
-	var head := HBoxContainer.new()
-	head.add_child(IconRect.new(d["id"], 56.0))
-	var name_l := UiTheme.label(d["name"], 21, UiTheme.CREAM, true)
+	var ic := CenterContainer.new()
+	ic.add_child(IconRect.new(d["id"], 86.0))
+	v.add_child(ic)
+	var name_l := UiTheme.label(d["name"], 19, UiTheme.CREAM, true)
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.custom_minimum_size = Vector2(118, 0)
-	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	head.add_child(name_l)
-	v.add_child(head)
-	var row := HFlowContainer.new()     # costs wrap onto a second line
-	row.add_theme_constant_override("separation", 2)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.custom_minimum_size = Vector2(180, 0)
+	v.add_child(name_l)
+	var gap := Control.new()
+	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(gap)
+	var row := HFlowContainer.new()
+	row.alignment = FlowContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 0)
 	for id: String in d["cost"]:
 		var need := int(d["cost"][id])
 		var chip := HBoxContainer.new()
 		chip.add_theme_constant_override("separation", 1)
-		chip.add_child(IconRect.new(id, 28.0))
-		chip.add_child(UiTheme.label("%d/%d " % [inv.count(id), need], 16, UiTheme.CREAM if inv.count(id) >= need else UiTheme.DANGER))
+		chip.add_child(IconRect.new(id, 26.0))
+		chip.add_child(UiTheme.label("%d/%d" % [inv.count(id), need], 16, UiTheme.CREAM if inv.count(id) >= need else UiTheme.DANGER))
 		row.add_child(chip)
 	v.add_child(row)
-	_scroller.on_tap(c, func() -> void: picked.emit(d["id"]))
 	return c

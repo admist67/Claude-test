@@ -186,18 +186,30 @@ static func log_mesh() -> ArrayMesh:
 ## A sea chest: [body mesh, lid mesh (hinged at its back edge, local origin on the hinge)].
 static func chest() -> Array:
 	var st := Mk.st_begin()
+	chest_into(st, false)
+	var lst := Mk.st_begin()
+	_chest_lid(lst, Vector3.ZERO)
+	return [Mk.st_commit(st), Mk.st_commit(lst)]
+
+
+## The chest's body into `st`, with its lid closed on top when `closed` (one mesh: icons).
+static func chest_into(st: SurfaceTool, closed: bool) -> void:
 	var wood := Color(0.95, 0.85, 0.75)
 	var iron := Color(0.55, 0.52, 0.5)
 	Mk.st_box(st, Vector3(0.9, 0.45, 0.58), Vector3(0, 0.225, 0), wood, "wood_warm")
 	for x: float in [-0.3, 0.3]:
 		Mk.st_box(st, Vector3(0.06, 0.47, 0.6), Vector3(x, 0.235, 0), iron, "metal")
-	var body := Mk.st_commit(st)
-	var lst := Mk.st_begin()
-	Mk.st_box(lst, Vector3(0.92, 0.16, 0.6), Vector3(0, 0.08, 0.3), wood.darkened(0.1), "wood_warm")
+	if closed:
+		_chest_lid(st, Vector3(0, 0.45, -0.3))
+
+
+static func _chest_lid(st: SurfaceTool, at: Vector3) -> void:
+	var wood := Color(0.95, 0.85, 0.75)
+	var iron := Color(0.55, 0.52, 0.5)
+	Mk.st_box(st, Vector3(0.92, 0.16, 0.6), at + Vector3(0, 0.08, 0.3), wood.darkened(0.1), "wood_warm")
 	for x: float in [-0.3, 0.3]:
-		Mk.st_box(lst, Vector3(0.06, 0.18, 0.62), Vector3(x, 0.08, 0.3), iron, "metal")
-	Mk.st_box(lst, Vector3(0.12, 0.12, 0.04), Vector3(0, 0.0, 0.61), Color(0.8, 0.7, 0.4), "metal")
-	return [body, Mk.st_commit(lst)]
+		Mk.st_box(st, Vector3(0.06, 0.18, 0.62), at + Vector3(x, 0.08, 0.3), iron, "metal")
+	Mk.st_box(st, Vector3(0.12, 0.12, 0.04), at + Vector3(0, 0.0, 0.61), Color(0.8, 0.7, 0.4), "metal")
 
 
 ## A big beach crab, in pieces that move: [body (shell, eyes), legs on the left, legs on

@@ -1,13 +1,16 @@
 class_name RaftActions
 extends Node
 ## What the use button does with things on the raft: stations (the grill and the planter
-## ask what goes in), fish traps, the hammer taking things down; and tools wearing out
-## with use until they break. Glue between the game and those systems.
+## ask what goes in, a chest opens its storage), fish traps, the hammer taking things
+## down, the bucket scooping seawater; and tools wearing out with use until they break.
+## Glue between the game and those systems.
 
 var game: Node                     # main.gd
 var picker: PickPanel
+var storage: StoragePanel
 var wear := Durability.new()
 var _picking: Station
+var _chest: Station
 
 
 func setup(g: Node, layer: CanvasLayer) -> void:
@@ -17,10 +20,26 @@ func setup(g: Node, layer: CanvasLayer) -> void:
 	layer.add_child(picker)
 	picker.picked.connect(_on_picked)
 	picker.closed.connect(_close_picker)
+	storage = StoragePanel.new()
+	storage.visible = false
+	storage.inv = g.inv
+	storage.condition = condition
+	layer.add_child(storage)
+	storage.closed.connect(_close_chest)
+	storage.moved.connect(func(_id: String, _n: int, into: bool) -> void:
+		if into:
+			game.stats["stored"] = int(game.stats.get("stored", 0)) + 1
+			game.check_goals()
+	)
 
 
 ## The use button on a station. An idle grill or planter opens the list to choose from.
 func use_station(st: Station) -> void:
+	if st.kind == "chest":
+		_chest = st
+		st.open_lid(true)
+		open_chest(st.items, "Сундук", int(st.def.get("slots", 20)), false)
+		return
 	if st.wants_choice():
 		if not st.prompt(game.inv)["ok"]:
 			_finish(st, st.interact(game.inv), false)      # says what is missing
@@ -31,6 +50,21 @@ func use_station(st: Station) -> void:
 		return
 	var was_busy := st.busy()
 	_finish(st, st.interact(game.inv), was_busy)
+
+
+## A chest's storage over the game: `items` is the chest's own dictionary.
+func open_chest(items: Dictionary, title: String, slots: int, take_only: bool) -> void:
+	game.open_modal()
+	Sfx.play("door", -6.0)
+	storage.open(title, items, slots, take_only)
+
+
+func _close_chest() -> void:
+	storage.visible = false
+	if is_instance_valid(_chest):
+		_chest.open_lid(false)
+	_chest = null
+	game.close_modal()
 
 
 func _on_picked(id: String) -> void:
@@ -54,6 +88,8 @@ func _finish(st: Station, res: Array, was_busy: bool) -> void:
 		game.trips.on_anchor(st)
 	if st.kind == "planter" and not was_busy and st.busy():
 		stats["planted"] = int(stats.get("planted", 0)) + 1
+	if st.kind == "purifier" and not was_busy and st.busy():
+		stats["poured"] = int(stats.get("poured", 0)) + 1
 	game.player.swing()
 	if got != "":
 		stats["got_" + got] = int(stats.get("got_" + got, 0)) + 1
@@ -124,6 +160,45 @@ func use_tool(id: String, n := 1) -> void:
 	var warn := int(ceil(full * 0.2))
 	if before > warn and wear.uses_left(id, full) <= warn:
 		game.hud.toast("%s скоро сломается" % Data.item_name(id), id)
+
+
+## The bucket in hand: scoop seawater over the raft's edge (or while swimming), pour it
+## into the purifier, or back into the sea.
+func use_bucket() -> void:
+	var full: bool = game.hand == "bucket_water"
+	var st: Station = game.station_target
+	if full and st and st.kind == "purifier":
+		use_station(st)
+		return
+	var at: Variant = _water_ahead()
+	if at == null:
+		Sfx.play("build_fail", -6.0)
+		game.hud.toast("Залей воду в очиститель" if full else "Посмотри на воду у края плота", "bucket")
+		return
+	game.player.swing()
+	game.on_splash(at)
+	game.swap_item("bucket_water" if full else "bucket", "bucket" if full else "bucket_water")
+	game.hud.toast("Вылито в море" if full else "Ведро морской воды — залей в очиститель", "bucket" if full else "bucket_water")
+
+
+## Where the view meets open sea close by (not the deck, nothing in the way), or null.
+func _water_ahead() -> Variant:
+	var p: Player = game.player
+	if p.swimming:
+		return p.global_position + Vector3(0, 1.2, 0)
+	var from := p.cam.global_position
+	var fwd := -p.cam.global_basis.z
+	if fwd.y > -0.15:
+		return null
+	var t := (Ocean.height_at(from.x, from.z) - from.y) / fwd.y
+	if t > 4.5:
+		return null
+	var hit := from + fwd * t
+	var q := PhysicsRayQueryParameters3D.create(from, hit, 1, [p.get_rid()])
+	if not game.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+		return null
+	var raft: Raft = game.raft
+	return null if raft.walkable(raft.to_local(hit)) else hit
 
 
 ## How worn a tool is, 1 = new; -1 for things that do not wear.

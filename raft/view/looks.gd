@@ -171,6 +171,28 @@ static func mesh(id: String) -> ArrayMesh:
 			Mk.st_box(st, Vector3(0.36, 0.03, 0.24), Vector3(0, 0.02, 0), Color(0.85, 0.8, 0.75), "metal", Vector3(0, 0.3, 0.1))
 			Mk.st_cyl(st, 0.05, 0.3, Vector3(0.05, 0.07, 0.04), Color(0.7, 0.62, 0.55), "metal", Vector3(0, 0.8, PI / 2.0), 8)
 			Mk.st_box(st, Vector3(0.14, 0.12, 0.1), Vector3(-0.1, 0.07, -0.05), Color(0.6, 0.55, 0.5), "metal", Vector3(0.2, 0.5, 0))
+		"pickaxe":
+			Mk.st_cyl(st, 0.026, 0.8, Vector3(0, 0.2, 0), Color(1, 0.93, 0.8), "wood_warm", Vector3.ZERO, 8)
+			Mk.st_cyl(st, 0.032, 0.12, Vector3(0, 0.56, 0), Color(1, 0.95, 0.88), "rope", Vector3.ZERO, 8, 0.6)
+			var ir := Color(0.62, 0.63, 0.67)
+			Mk.st_box(st, Vector3(0.12, 0.07, 0.06), Vector3(0, 0.6, 0), ir, "metal")
+			for sx: float in [-1.0, 1.0]:
+				Mk.st_box(st, Vector3(0.2, 0.05, 0.045), Vector3(sx * 0.15, 0.58, 0), ir, "metal", Vector3(0, 0, sx * -0.2))
+				Mk.st_box(st, Vector3(0.08, 0.035, 0.03), Vector3(sx * 0.27, 0.54, 0), ir.lightened(0.15), "metal", Vector3(0, 0, sx * -0.45))
+		"bucket", "bucket_water":
+			var wd := Color(1, 0.9, 0.78)
+			Mk.st_cyl(st, 0.15, 0.3, Vector3(0, 0.15, 0), wd, "wood_warm", Vector3.ZERO, 14, 1.0, 0.06)
+			for y: float in [0.06, 0.25]:
+				Mk.st_cyl(st, 0.158, 0.025, Vector3(0, y, 0), Color(0.55, 0.56, 0.6), "metal", Vector3.ZERO, 14)
+			for k in 7:
+				var a := PI * k / 6.0
+				Mk.st_box(st, Vector3(0.05, 0.012, 0.012), Vector3(cos(a) * 0.15, 0.3 + sin(a) * 0.12, 0), Color(0.5, 0.5, 0.55), "metal", Vector3(0, 0, a + PI / 2.0))
+			if id == "bucket_water":
+				Mk.st_cyl(st, 0.14, 0.01, Vector3(0, 0.27, 0), Color("#2f86c8"), "white", Vector3.ZERO, 14)
+			else:
+				Mk.st_cyl(st, 0.14, 0.01, Vector3(0, 0.03, 0), Color(0.55, 0.4, 0.3), "wood_dark", Vector3.ZERO, 14)
+		"chest":
+			IslandLooks.chest_into(st, true)
 		"stone":
 			for k in 3:
 				var g := 0.8 + k * 0.07
@@ -325,21 +347,50 @@ static func _station(st: SurfaceTool, kind: String) -> void:
 			Mk.st_box(st, Vector3(1.18, 0.36, 0.08), Vector3(0, 0.18, z), Color(1, 0.93, 0.84), "wood")
 		Mk.st_box(st, Vector3(1.04, 0.3, 1.04), Vector3(0, 0.15, 0), Color(0.45, 0.32, 0.22), "clay", Vector3.ZERO, 1.0)
 		return
+	var dark := Color(0.98, 0.9, 0.82)
+	var iron := Color(0.42, 0.43, 0.47)
+	var ash := Color(0.15, 0.13, 0.12)
 	if kind == "purifier":
-		Mk.st_box(st, Vector3(0.62, 0.36, 0.62), Vector3(0, 0.18, 0), brick, "bricks", Vector3.ZERO, 1.0)
-		Mk.st_box(st, Vector3(0.3, 0.16, 0.05), Vector3(0, 0.1, 0.3), Color(0.15, 0.13, 0.12), "ash")
-		Mk.st_cyl(st, 0.24, 0.3, Vector3(0, 0.51, 0), Color(1, 0.95, 0.9), "clay", Vector3.ZERO, 14, 0.8, 0.12)
-		Mk.st_cyl(st, 0.2, 0.03, Vector3(0, 0.67, 0), Color(0.75, 0.77, 0.8), "metal", Vector3.ZERO, 14)
-		Mk.st_cyl(st, 0.025, 0.05, Vector3(0, 0.7, 0), Color(0.75, 0.77, 0.8), "metal", Vector3.ZERO, 8)
-		Mk.st_cyl(st, 0.02, 0.3, Vector3(0.28, 0.6, 0), Color(0.75, 0.77, 0.8), "metal", Vector3(0, 0, 1.2), 8)
+		# A brick stove, a big clay boiler with a lid, a pipe through a cooling coil into a
+		# cup on its own little shelf.
+		Mk.st_box(st, Vector3(0.66, 0.42, 0.66), Vector3(0, 0.21, 0), brick, "bricks", Vector3.ZERO, 1.0)
+		Mk.st_box(st, Vector3(0.7, 0.04, 0.7), Vector3(0, 0.43, 0), brick.darkened(0.15), "bricks", Vector3.ZERO, 1.0)
+		Mk.st_box(st, Vector3(0.3, 0.18, 0.04), Vector3(0, 0.13, 0.32), ash, "ash")
+		Mk.st_cyl(st, 0.3, 0.04, Vector3(0, 0.47, 0), iron, "metal", Vector3.ZERO, 16)
+		Mk.st_cyl(st, 0.27, 0.36, Vector3(0, 0.67, 0), Color(1, 0.93, 0.86), "clay", Vector3.ZERO, 16, 0.8, 0.15)
+		Mk.st_cyl(st, 0.255, 0.05, Vector3(0, 0.86, 0), Color(1, 0.97, 0.92), "clay", Vector3.ZERO, 16, 0.8)
+		Mk.st_cyl(st, 0.23, 0.06, Vector3(0, 0.9, 0), Color(0.78, 0.8, 0.84), "metal", Vector3.ZERO, 16, 1.0, 0.4)
+		Mk.st_cyl(st, 0.03, 0.05, Vector3(-0.08, 0.95, 0), iron, "metal", Vector3.ZERO, 8)
+		var copper := Color(0.95, 0.62, 0.42)
+		Mk.st_cyl(st, 0.022, 0.16, Vector3(0.06, 0.99, 0), copper, "metal", Vector3.ZERO, 8)
+		Mk.st_cyl(st, 0.022, 0.36, Vector3(0.24, 1.07, 0), copper, "metal", Vector3(0, 0, PI / 2.0), 8)
+		Mk.st_cyl(st, 0.022, 0.3, Vector3(0.42, 0.92, 0), copper, "metal", Vector3.ZERO, 8)
+		for k in 3:
+			Mk.st_cyl(st, 0.075, 0.02, Vector3(0.42, 0.8 + k * 0.08, 0), copper.darkened(0.1), "metal", Vector3(0.25, 0, 0), 12)
+		Mk.st_box(st, Vector3(0.26, 0.04, 0.3), Vector3(0.44, 0.44, 0.06), Color(1, 0.93, 0.84), "wood")
+		Mk.st_box(st, Vector3(0.05, 0.42, 0.05), Vector3(0.52, 0.21, 0.16), Color(1, 0.93, 0.84), "wood_dark")
 	else:
-		Mk.st_box(st, Vector3(0.8, 0.4, 0.55), Vector3(0, 0.2, 0), brick, "bricks", Vector3.ZERO, 1.0)
-		Mk.st_box(st, Vector3(0.66, 0.06, 0.42), Vector3(0, 0.38, 0), Color(0.18, 0.15, 0.14), "ash")
-		for i in 7:
-			Mk.st_box(st, Vector3(0.012, 0.012, 0.46), Vector3(-0.3 + i * 0.1, 0.44, 0), Color(0.45, 0.46, 0.5), "metal")
-		for z: float in [-0.2, 0.2]:
-			Mk.st_box(st, Vector3(0.7, 0.012, 0.012), Vector3(0, 0.44, z), Color(0.45, 0.46, 0.5), "metal")
-		Mk.st_box(st, Vector3(0.3, 0.14, 0.05), Vector3(0, 0.12, 0.28), Color(0.15, 0.13, 0.12), "ash")
+		# The grill: a brick firebox on a wooden stand with firewood below, an iron grate,
+		# a back plate with a little chimney and a side board.
+		for x: float in [-0.36, 0.36]:
+			for z: float in [-0.22, 0.22]:
+				Mk.st_box(st, Vector3(0.07, 0.5, 0.07), Vector3(x, 0.25, z), dark, "wood_dark")
+		Mk.st_box(st, Vector3(0.8, 0.04, 0.52), Vector3(0, 0.16, 0), Color(1, 0.93, 0.84), "wood")
+		for k in 3:
+			Mk.st_cyl(st, 0.045, 0.46, Vector3(-0.16 + k * 0.15, 0.23, 0), Color(0.85, 0.7, 0.55), "wood", Vector3(PI / 2.0, 0, 0), 8)
+		Mk.st_box(st, Vector3(0.88, 0.34, 0.6), Vector3(0, 0.67, 0), brick, "bricks", Vector3.ZERO, 1.0)
+		Mk.st_box(st, Vector3(0.48, 0.17, 0.04), Vector3(0, 0.62, 0.3), ash, "ash")
+		Mk.st_box(st, Vector3(0.74, 0.04, 0.46), Vector3(0, 0.85, 0), Color(0.2, 0.17, 0.15), "ash")
+		for k in 9:
+			Mk.st_box(st, Vector3(0.014, 0.014, 0.5), Vector3(-0.34 + k * 0.085, 0.9, 0), iron, "metal")
+		for z: float in [-0.24, 0.0, 0.24]:
+			Mk.st_box(st, Vector3(0.78, 0.016, 0.016), Vector3(0, 0.9, z), iron, "metal")
+		Mk.st_box(st, Vector3(0.88, 0.32, 0.03), Vector3(0, 1.0, -0.29), iron, "metal")
+		Mk.st_cyl(st, 0.05, 0.42, Vector3(0.32, 1.25, -0.27), iron.darkened(0.1), "metal", Vector3.ZERO, 10)
+		Mk.st_cyl(st, 0.07, 0.04, Vector3(0.32, 1.47, -0.27), iron.darkened(0.2), "metal", Vector3.ZERO, 10)
+		Mk.st_box(st, Vector3(0.26, 0.04, 0.5), Vector3(0.58, 0.8, 0), Color(1, 0.93, 0.84), "wood")
+		Mk.st_box(st, Vector3(0.03, 0.2, 0.03), Vector3(0.6, 0.68, 0.22), iron, "metal")
+		Mk.st_box(st, Vector3(0.08, 0.012, 0.1), Vector3(0.6, 0.57, 0.22), iron, "metal")
 
 
 ## The shark as two meshes, [body, tail]: a lofted body (nose at -Z) with dorsal and

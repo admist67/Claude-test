@@ -13,6 +13,7 @@ var player: Player
 var cfg: Dictionary
 var island: Island
 var anchored := false
+var want_chest := false             # the chest goal is on: the next island has one for sure
 var active := false                 # only while playing: no islands go by in the menu
 var timer := 0.0
 var rng := RandomNumberGenerator.new()
@@ -74,7 +75,7 @@ func _physics_process(delta: float) -> void:
 func _spawn(s: int) -> void:
 	var c := _center()
 	var isl := Island.new()
-	isl.build(s, cfg)
+	isl.build(s, cfg, want_chest)
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
 	isl.position = Vector3(c.x + side * (_half_width() + isl.radius * 1.15 + float(cfg["side_gap"])), 0.0, c.z - float(cfg["ahead"]))
 	add_child(isl)
@@ -120,7 +121,7 @@ func from_dict(d: Dictionary) -> void:
 	var id: Dictionary = d.get("island", {})
 	if id.has("seed"):
 		var isl := Island.new()
-		isl.build(int(id["seed"]), cfg)
+		isl.build(int(id["seed"]), cfg, bool(id.get("chest", false)))
 		add_child(isl)
 		isl.load_state(id)
 		island = isl

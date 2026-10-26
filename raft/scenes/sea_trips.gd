@@ -23,6 +23,9 @@ func setup(g: Node) -> void:
 	islands.pinched.connect(_on_pinched)
 	islands.crab_died.connect(_on_crab_died)
 	g.shark.bit_player.connect(_on_bitten)
+	g.shark.attacked.connect(_on_shark_attack)
+	g.shark.bit.connect(_on_shark_bite)
+	g.shark.fled.connect(_on_shark_driven)
 
 
 func anchored() -> bool:
@@ -36,6 +39,8 @@ func anchored() -> bool:
 func update() -> void:
 	var p: Player = game.player
 	islands.anchored = anchored()
+	var goals: Array = Data.goals
+	islands.want_chest = game.goal_i < goals.size() and goals[game.goal_i]["stat"] == "chests"
 	game.shark.swimmer = p if p.swimming else null
 	jump_at = null
 	climb_at = null
@@ -114,6 +119,20 @@ func view() -> Dictionary:
 
 
 func gather(spot: IslandSpot) -> void:
+	if spot.kind == "chest":
+		if spot.left > 0:
+			spot.open_chest()
+			game.stats["chests"] = int(game.stats.get("chests", 0)) + 1
+			game.check_goals()
+		game.actions.open_chest(spot.items, "Сундук на острове", 99, true)
+		return
+	if spot.kind == "rock":
+		if game.tool_use() == "pickaxe":
+			mine(spot)
+		else:
+			Sfx.play("build_fail", -6.0)
+			game.hud.toast("Камень копают киркой — сделай её в сумке", "pickaxe")
+		return
 	var loot := spot.take()
 	if loot.is_empty():
 		Sfx.play("build_fail", -6.0)
@@ -125,9 +144,28 @@ func gather(spot: IslandSpot) -> void:
 		game.inv.add(id, n)
 		game.stats["got_" + id] = int(game.stats.get("got_" + id, 0)) + n
 		game.hud.toast("+%d %s" % [n, Data.item_name(id)], id)
-	if spot.kind == "chest":
-		game.stats["chests"] = int(game.stats.get("chests", 0)) + 1
 	game.check_goals()
+
+
+## A pickaxe blow on the rock in front: every few blows a chunk of stone comes off.
+func mine(spot: IslandSpot) -> void:
+	if spot == null or spot.kind != "rock" or spot.left <= 0:
+		game.hud.toast("Наведись на камень", "pickaxe")
+		return
+	game.player.swing()
+	Sfx.play("hammer", -3.0, 0.25)
+	Fx.burst(game, spot.global_position + Vector3(0, 0.5, 0), Color("#8a8a86"), 8)
+	game.actions.use_tool(game.hand)
+	var loot := spot.dig()
+	for id: String in loot:
+		var n := int(loot[id])
+		game.inv.add(id, n)
+		game.stats["got_" + id] = int(game.stats.get("got_" + id, 0)) + n
+		game.stats["mined"] = int(game.stats.get("mined", 0)) + n
+		game.hud.toast("+%d %s" % [n, Data.item_name(id)], id)
+	if not loot.is_empty():
+		Sfx.play("pop", -2.0)
+		game.check_goals()
 
 
 ## The anchor went down: counts when an island is near.
@@ -188,6 +226,41 @@ func _on_crab_died() -> void:
 		game.inv.add(id, n)
 		stats["got_" + id] = int(stats.get("got_" + id, 0)) + n
 		game.hud.toast("Краб повержен! +%d %s" % [n, Data.item_name(id)], id)
+	game.check_goals()
+
+
+func _on_shark_attack(_cell: Vector2i) -> void:
+	Sfx.play("warning", -2.0)
+	game.hud.toast("Акула грызёт плот!", "spear")
+	if game.inv.count("spear") == 0 and not game.stats.has("spear_hint"):
+		game.stats["spear_hint"] = 1
+		game.hud.toast("Сделай копьё в сумке, чтобы отбиться", "spear")
+
+
+func _on_shark_bite(cell: Vector2i, sank: bool) -> void:
+	Sfx.play("bite")
+	var p: Vector3 = game.raft.to_global(game.raft.cell_center(cell))
+	Fx.burst(game, p, Color("#8a6a48"), 14)
+	game.on_splash(p)
+	Input.vibrate_handheld(120)
+	if sank:
+		game.hud.toast("Акула утащила клетку плота!", "tile")
+		if not game.player.off_raft and not game.raft.on_raft(game.player.position):
+			game.player.place(game.raft.nearest_tile(game.player.position), game.player.yaw)
+	else:
+		game.hud.toast("Чини молотком: 1 доска", "hammer")
+
+
+## Enough spear hits: the shark swims off, leaving a torn-off piece behind.
+func _on_shark_driven() -> void:
+	var stats: Dictionary = game.stats
+	stats["shark_driven"] = int(stats.get("shark_driven", 0)) + 1
+	game.hud.toast("Акула уплыла зализывать раны", "spear")
+	for id: String in Data.b["shark"]["reward"]:
+		var n := int(Data.b["shark"]["reward"][id])
+		game.inv.add(id, n)
+		game.hud.toast("+%d %s" % [n, Data.item_name(id)], id)
+	Sfx.play("goal", -4.0)
 	game.check_goals()
 
 

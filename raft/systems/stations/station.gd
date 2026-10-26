@@ -5,6 +5,7 @@ extends StaticBody3D
 ## planks) burns only while something cooks; the result waits until the player takes it.
 ## The rain collector fills by itself (much faster in a storm) and holds a few cups.
 ## The anchor's winch drops and raises the anchor (stored = 1 while it holds the raft).
+## The purifier boils a bucket of seawater; a chest keeps items (`items`).
 
 signal finished(station: Station)
 
@@ -18,6 +19,7 @@ var cooking := ""           # item being cooked; "seawater" in the purifier
 var progress := 0.0
 var ready_item := ""
 var stored := 0                    # collector: cups of rain water inside; anchor: 1 = down
+var items: Dictionary = {}         # chest: item id -> count
 var _fire: Node3D
 var _light: OmniLight3D
 var _steam: CPUParticles3D
@@ -25,6 +27,7 @@ var _food: MeshInstance3D
 var _crop: Node3D
 var _water: MeshInstance3D
 var _rope: MeshInstance3D
+var _lid: Node3D
 var _t := 0.0
 
 
@@ -33,21 +36,32 @@ func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 	cell = c
 	def = d
 	var body := MeshInstance3D.new()
-	body.mesh = Looks.mesh(kind)
 	add_child(body)
+	if kind == "chest":
+		var parts := IslandLooks.chest()
+		body.mesh = parts[0]
+		_lid = Node3D.new()
+		_lid.position = Vector3(0, 0.45, -0.3)
+		var lm := MeshInstance3D.new()
+		lm.mesh = parts[1]
+		_lid.add_child(lm)
+		add_child(_lid)
+	else:
+		body.mesh = Looks.mesh(kind)
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(0.8, 0.8, 0.65)
+	var tall := kind in ["grill", "purifier"]
+	shape.size = Vector3(0.9, 1.0, 0.68) if tall else Vector3(0.8, 0.8, 0.65)
 	cs.shape = shape
-	cs.position.y = 0.4
+	cs.position.y = shape.size.y / 2.0
 	add_child(cs)
 	_fire = _make_fire()
-	_fire.position = Vector3(0, 0.08, 0.3 if kind == "purifier" else 0.29)
+	_fire.position = Vector3(0, 0.1, 0.3) if kind == "purifier" else Vector3(0, 0.56, 0.27)
 	add_child(_fire)
 	_light = OmniLight3D.new()
 	_light.light_color = Color("#ff9a4a")
 	_light.omni_range = 3.5
-	_light.position = Vector3(0, 0.3, 0.45)
+	_light.position = Vector3(0, 0.3, 0.5) if kind == "purifier" else Vector3(0, 0.75, 0.5)
 	add_child(_light)
 	_fire.visible = false
 	_light.visible = false
@@ -78,11 +92,11 @@ func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 		_steam.initial_velocity_min = 0.2
 		_steam.initial_velocity_max = 0.4
 		_steam.scale_amount_max = 2.0
-		_steam.position = Vector3(0.38, 0.7, 0)
+		_steam.position = Vector3(0, 0.98, 0)
 		_steam.emitting = false
 		add_child(_steam)
 	_food = MeshInstance3D.new()
-	_food.position = Vector3(0, 0.47, 0) if kind == "grill" else Vector3(0.3, 0.37, 0.2)
+	_food.position = Vector3(0, 0.93, 0) if kind == "grill" else Vector3(0.44, 0.47, 0.06)
 	add_child(_food)
 	if kind == "collector":
 		_water = MeshInstance3D.new()
@@ -145,7 +159,7 @@ func busy() -> bool:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if kind == "anchor":
+	if kind in ["anchor", "chest"]:
 		return
 	if kind == "collector":
 		_collect_rain(delta)
@@ -216,6 +230,26 @@ func choices(inv: Inventory) -> Array:
 	return out
 
 
+## The chest, the anchor, the collector and a purifier waiting for water; {} otherwise.
+func _special_prompt(inv: Inventory) -> Dictionary:
+	match kind:
+		"chest":
+			var n := 0
+			for id: String in items:
+				n += int(items[id])
+			return {"text": "Открыть сундук" + (" (%d)" % n if n > 0 else ""), "ok": true, "icon": "chest"}
+		"anchor":
+			return {"text": "Поднять якорь" if stored == 1 else "Бросить якорь", "ok": true, "icon": "anchor"}
+		"collector":
+			if stored > 0:
+				return {"text": "Набрать (%d)" % stored, "ok": true, "icon": "cup_water"}
+			return {"text": "%d%%" % int(progress / float(def["time"]) * 100.0), "ok": false, "icon": "collector"}
+		"purifier":
+			if cooking == "" and ready_item == "" and inv.count("bucket_water") == 0:
+				return {"text": "Нужно ведро воды", "ok": false, "icon": "bucket"}
+	return {}
+
+
 func _raw_in(inv: Inventory) -> String:
 	for id: String in _table():
 		if inv.count(id) > 0:
@@ -232,12 +266,9 @@ func _fuel_in(inv: Inventory) -> String:
 
 ## What the use button says right now: {"text", "ok"}.
 func prompt(inv: Inventory) -> Dictionary:
-	if kind == "anchor":
-		return {"text": "Поднять якорь" if stored == 1 else "Бросить якорь", "ok": true, "icon": "anchor"}
-	if kind == "collector":
-		if stored > 0:
-			return {"text": "Набрать (%d)" % stored, "ok": true, "icon": "cup_water"}
-		return {"text": "%d%%" % int(progress / float(def["time"]) * 100.0), "ok": false, "icon": "collector"}
+	var special := _special_prompt(inv)
+	if not special.is_empty():
+		return special
 	if ready_item != "":
 		return {"text": "Забрать", "ok": true, "icon": ready_item}
 	if cooking != "":
@@ -248,8 +279,8 @@ func prompt(inv: Inventory) -> Dictionary:
 	if raw == "":
 		return {"text": "Нет семян" if kind == "planter" else "Нет рыбы", "ok": false, "icon": "seeds" if kind == "planter" else "fish"}
 	var ok := not needs_fuel() or fuel > 0.0 or _fuel_in(inv) != ""
-	var verbs := {"purifier": "Кипятить", "grill": "Жарить", "planter": "Посадить"}
-	return {"text": verbs[kind], "ok": ok, "icon": raw if kind == "planter" else kind}
+	var verbs := {"purifier": "Залить воду", "grill": "Жарить", "planter": "Посадить"}
+	return {"text": verbs[kind], "ok": ok, "icon": raw if kind == "planter" else ("bucket_water" if kind == "purifier" else kind)}
 
 
 ## Does what prompt() says. Returns [message, item taken or ""].
@@ -278,12 +309,17 @@ func interact(inv: Inventory) -> Array:
 
 ## Puts `raw` in (seawater for the purifier) and lights the fire. Returns [message, ""].
 func start(inv: Inventory, raw: String) -> Array:
+	if raw == "seawater" and inv.count("bucket_water") == 0:
+		return ["Набери ведром морской воды (с края плота) и залей сюда", ""]
 	if raw != "seawater" and inv.count(raw) == 0:
 		return ["Нет: " + Data.item_name(raw), ""]
 	if needs_fuel() and fuel <= 0.0 and not _add_fuel(inv):
 		return ["Нужно топливо: лист или доска", ""]
 	if raw != "seawater":
 		inv.remove(raw)
+	else:
+		inv.add("bucket")              # the water goes in, the empty bucket back to the hand
+		inv.remove("bucket_water")
 	cooking = raw
 	progress = 0.0
 	_refresh()
@@ -318,7 +354,15 @@ func _add_fuel(inv: Inventory) -> bool:
 	return true
 
 
+## The chest's lid while its panel is open.
+func open_lid(open: bool) -> void:
+	if _lid:
+		create_tween().tween_property(_lid, "rotation:x", -1.9 if open else 0.0, 0.3)
+
+
 func _refresh() -> void:
+	if kind == "chest":
+		return
 	if kind == "anchor":
 		_rope.visible = stored == 1
 		return
@@ -340,7 +384,7 @@ func _refresh() -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"kind": kind, "cell": [cell.x, cell.y, cell.z], "fuel": fuel, "cooking": cooking, "progress": progress, "ready": ready_item, "stored": stored}
+	return {"kind": kind, "cell": [cell.x, cell.y, cell.z], "fuel": fuel, "cooking": cooking, "progress": progress, "ready": ready_item, "stored": stored, "items": items}
 
 
 func load_state(d: Dictionary) -> void:
@@ -349,4 +393,8 @@ func load_state(d: Dictionary) -> void:
 	progress = float(d.get("progress", 0.0))
 	ready_item = d.get("ready", "")
 	stored = int(d.get("stored", 0))
+	items.clear()
+	var it: Dictionary = d.get("items", {})
+	for id: String in it:
+		items[id] = int(it[id])
 	_refresh()

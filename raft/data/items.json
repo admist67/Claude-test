@@ -42,6 +42,25 @@
    "durability": 70
   },
   {
+   "id": "pickaxe",
+   "kind": "tool",
+   "name": "Кирка",
+   "use": "pickaxe",
+   "durability": 60
+  },
+  {
+   "id": "bucket",
+   "kind": "tool",
+   "name": "Ведро",
+   "use": "bucket"
+  },
+  {
+   "id": "bucket_water",
+   "kind": "tool",
+   "name": "Ведро морской воды",
+   "use": "bucket"
+  },
+  {
    "id": "plank",
    "name": "Доска",
    "kind": "resource"

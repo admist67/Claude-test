@@ -15,7 +15,8 @@ var crabs: Array[Crab] = []
 var visited := false
 
 
-func build(s: int, cfg: Dictionary) -> void:
+## `force_chest`: a chest even when its chance roll fails (the chest goal is on).
+func build(s: int, cfg: Dictionary, force_chest := false) -> void:
 	seed_v = s
 	sync_to_physics = false           # moved by code; a placed or loaded island stays put
 	collision_layer = 1
@@ -36,7 +37,12 @@ func build(s: int, cfg: Dictionary) -> void:
 	var sd: Dictionary = cfg["spots"]
 	for kind: String in ["chest", "log", "rock", "palm", "banana", "pineapple"]:
 		var d: Dictionary = sd[kind]
-		var n := rng.randi_range(int(d["count"][0]), int(d["count"][1])) if d.has("count") else (1 if rng.randf() < float(d["chance"]) else 0)
+		var n := 0
+		if d.has("count"):
+			n = rng.randi_range(int(d["count"][0]), int(d["count"][1]))
+		else:
+			var roll := rng.randf()
+			n = 1 if force_chest or roll < float(d["chance"]) else 0
 		for i in n:
 			var at := _free_spot(rng, kind, taken)
 			if at.x > 1e6:
@@ -122,6 +128,7 @@ func _add_spot(kind: String, d: Dictionary, at: Vector2, rng: RandomNumberGenera
 			spot.lid.add_child(_mi(c[1]))
 			root.add_child(spot.lid)
 			spot.setup(kind, d, Vector3(1.1, 0.9, 0.8), Vector3(0, 0.4, 0))
+			spot.items = _roll_contents(d["contents"], rng)
 			spot.block = _block(BoxShape3D.new(), pos + Vector3(0, 0.3, 0), 0.45, 0.6)
 	spot.position = pos
 	spot.rotation.y = root.rotation.y
@@ -130,6 +137,24 @@ func _add_spot(kind: String, d: Dictionary, at: Vector2, rng: RandomNumberGenera
 	add_child(spot)
 	spots.append(spot)
 	spot.refresh()
+
+
+## A chest's contents from its table: each line maybe (its chance), count in its range.
+func _roll_contents(table: Array, rng: RandomNumberGenerator) -> Dictionary:
+	var out := {}
+	for e: Dictionary in table:
+		var roll := rng.randf()
+		var n := rng.randi_range(int(e["n"][0]), int(e["n"][1]))
+		if roll < float(e.get("chance", 1.0)):
+			out[e["item"]] = int(out.get(e["item"], 0)) + n
+	return out
+
+
+func chest() -> IslandSpot:
+	for sp in spots:
+		if sp.kind == "chest":
+			return sp
+	return null
 
 
 func _mi(m: Mesh) -> MeshInstance3D:
@@ -154,7 +179,9 @@ func _block(shape: Shape3D, at: Vector3, r: float, h: float) -> CollisionShape3D
 
 func to_dict() -> Dictionary:
 	var left := spots.map(func(s: IslandSpot) -> int: return s.left)
-	return {"seed": seed_v, "x": position.x, "z": position.z, "left": left, "visited": visited, "crabs": crabs.size()}
+	var c := chest()
+	return {"seed": seed_v, "x": position.x, "z": position.z, "left": left, "visited": visited, "crabs": crabs.size(),
+		"chest": c != null, "chest_items": c.items if c else {}}
 
 
 ## After build(seed): puts back where it was and what was taken.
@@ -165,5 +192,11 @@ func load_state(d: Dictionary) -> void:
 	for i in mini(left.size(), spots.size()):
 		spots[i].left = int(left[i])
 		spots[i].refresh()
+	var c := chest()
+	if c and d.has("chest_items"):
+		c.items.clear()
+		var it: Dictionary = d["chest_items"]
+		for id: String in it:
+			c.items[id] = int(it[id])
 	while crabs.size() > int(d.get("crabs", crabs.size())):
 		crabs.pop_back().queue_free()

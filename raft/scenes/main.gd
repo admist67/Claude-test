@@ -5,6 +5,7 @@ extends Node3D
 enum Mode { MENU, PLAY, BAG, PAUSE, DEAD }
 
 const START_TILES: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]
+const PAIRS := {"bucket": "bucket_water", "bucket_water": "bucket"}   # one item, two states
 
 var mode := Mode.MENU
 var vitals := Vitals.new()
@@ -135,13 +136,10 @@ func _build_world() -> void:
 	shark.raft = raft
 	shark.daynight = daynight
 	add_child(shark)
-	shark.attacked.connect(_on_shark_attack)
-	shark.bit.connect(_on_shark_bite)
 	shark.hurt.connect(func(_left: int) -> void:
 		Sfx.play("shark_hit")
 		Fx.burst(self, shark.global_position + Vector3(0, 0.3, 0), Color("#b8231d"), 22)
 	)
-	shark.fled.connect(_on_shark_driven)
 	trips = SeaTrips.new()
 	add_child(trips)
 	trips.setup(self)
@@ -475,12 +473,23 @@ func _carried() -> Array[String]:
 
 ## The hotbar in the player's own order, without the items they hid.
 func _refresh_hotbar() -> void:
+	for a: String in PAIRS:
+		if a in layout.order and not PAIRS[a] in layout.order:
+			layout.order.insert(layout.order.find(a) + 1, PAIRS[a])
 	hotbar = layout.slots(_carried())
 	if not hand in hotbar:
-		hand = ""                  # used up or hidden: the hands are empty
+		var other: String = PAIRS.get(hand, "")
+		hand = other if other in hotbar else ""      # used up or hidden: the hands are empty
 	sel = hotbar.find(hand)
 	touch.set_slots(hotbar.size())
 	_apply_selection()
+
+
+## One item turns into another in the hand (an empty bucket fills up, and back).
+func swap_item(old: String, new: String) -> void:
+	inv.add(new)
+	hand = new
+	inv.remove(old)
 
 
 func _select(id: String) -> void:
@@ -603,6 +612,10 @@ func _action_down() -> void:
 		rod.press()
 	elif use == "spear":
 		_stab()
+	elif use == "pickaxe":
+		trips.mine(spot_target)
+	elif use == "bucket":
+		actions.use_bucket()
 	elif use == "hammer" and builder.kind == "" and not builder.repair:
 		_open_build.call_deferred()
 	elif use == "hammer":
@@ -681,40 +694,6 @@ func _stab() -> void:
 		actions.use_tool(selected())
 	else:
 		Sfx.play("throw", -6.0, 0.2)
-
-
-func _on_shark_attack(_cell: Vector2i) -> void:
-	Sfx.play("warning", -2.0)
-	hud.toast("Акула грызёт плот!", "spear")
-	if inv.count("spear") == 0 and not stats.has("spear_hint"):
-		stats["spear_hint"] = 1
-		hud.toast("Сделай копьё в сумке, чтобы отбиться", "spear")
-
-
-func _on_shark_bite(cell: Vector2i, sank: bool) -> void:
-	Sfx.play("bite")
-	var p := raft.to_global(raft.cell_center(cell))
-	Fx.burst(self, p, Color("#8a6a48"), 14)
-	on_splash(p)
-	Input.vibrate_handheld(120)
-	if sank:
-		hud.toast("Акула утащила клетку плота!", "tile")
-		if not player.off_raft and not raft.on_raft(player.position):
-			player.place(raft.nearest_tile(player.position), player.yaw)
-	else:
-		hud.toast("Чини молотком: 1 доска", "hammer")
-
-
-## Enough spear hits: the shark swims off, leaving a torn-off piece behind.
-func _on_shark_driven() -> void:
-	stats["shark_driven"] = int(stats.get("shark_driven", 0)) + 1
-	hud.toast("Акула уплыла зализывать раны", "spear")
-	for id: String in Data.b["shark"]["reward"]:
-		var n := int(Data.b["shark"]["reward"][id])
-		inv.add(id, n)
-		hud.toast("+%d %s" % [n, Data.item_name(id)], id)
-	Sfx.play("goal", -4.0)
-	check_goals()
 
 
 ## Sleep in a hammock: the night passes in a fade, hunger and thirst drop a bit.
@@ -860,6 +839,8 @@ func goal_view() -> Dictionary:
 
 
 func use_view() -> Dictionary:
+	if spot_target and spot_target.kind == "rock" and spot_target.left > 0 and tool_use() == "pickaxe":
+		return {"icon": "pickaxe", "label": "Копать", "ok": true}
 	if spot_target and not demolish_target:
 		var sp: Dictionary = spot_target.prompt()
 		return {"icon": sp["icon"], "label": sp["text"], "ok": sp["ok"]}
@@ -893,6 +874,10 @@ func action_view() -> Dictionary:
 		"rod":
 			var labels := {Rod.State.IDLE: "Забросить", Rod.State.CHARGE: "Отпусти!", Rod.State.FLY: "…", Rod.State.WAIT: "Вытащить", Rod.State.BITE: "Подсечь!", Rod.State.FIGHT: "Держи"}
 			out["label"] = labels[rod.state]
+		"pickaxe":
+			out = {"icon": id, "label": "Копать", "ok": spot_target != null and spot_target.kind == "rock" and spot_target.left > 0}
+		"bucket":
+			out = {"icon": id, "label": "Набрать" if id == "bucket" else "Вылить", "ok": true}
 		"spear":
 			var foe := shark.alive_near() or trips.islands.crab_near(player.global_position, 4.0)
 			out = {"icon": id, "label": "Ударить", "ok": foe and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}

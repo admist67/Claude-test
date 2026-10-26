@@ -53,6 +53,25 @@
    "once": true
   },
   {
+   "id": "bucket",
+   "out": 1,
+   "cost": {
+    "plank": 3,
+    "rope": 1
+   },
+   "once": true
+  },
+  {
+   "id": "pickaxe",
+   "out": 1,
+   "cost": {
+    "plank": 3,
+    "rope": 2,
+    "scrap": 2
+   },
+   "once": true
+  },
+  {
    "id": "metal_hook",
    "out": 1,
    "cost": {

@@ -197,6 +197,11 @@ func _hotbar_done() -> void:
 
 
 func _slot(id: String, n: int, sel := false) -> Control:
+	return item_slot(id, n, sel, condition.call(id) if condition.is_valid() else -1.0)
+
+
+## A square item card: icon, count, and a wear bar for tools (wear 1 new .. 0, -1 none).
+static func item_slot(id: String, n: int, sel := false, wear := -1.0) -> Control:
 	var c := card(Vector2(92, 92), sel)
 	var box := Control.new()
 	c.add_child(box)
@@ -209,9 +214,8 @@ func _slot(id: String, n: int, sel := false) -> Control:
 	l.size = Vector2(32, 24)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(l)
-	var k: float = condition.call(id) if condition.is_valid() else -1.0
-	if k >= 0.0:
-		box.add_child(_wear_bar(k, Vector2(10, 62), 64.0))
+	if wear >= 0.0:
+		box.add_child(_wear_bar(wear, Vector2(10, 62), 64.0))
 	c.tooltip_text = Data.item_name(id)
 	return c
 
@@ -292,20 +296,7 @@ func _buildings() -> void:
 			order.append(d["group"])
 	for group: String in order:
 		_section(group)
-		var g := _grid(4)
+		var g := _grid(5)
 		for d: Dictionary in Data.build:
-			if d["group"] != group:
-				continue
-			var c := card(Vector2(246, 0))
-			var v := VBoxContainer.new()
-			c.add_child(v)
-			var head := HBoxContainer.new()
-			head.add_child(IconRect.new(d["id"], 54.0))
-			var nl := UiTheme.label(d["name"], 18, UiTheme.CREAM)
-			nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			nl.custom_minimum_size = Vector2(150, 0)
-			nl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			head.add_child(nl)
-			v.add_child(head)
-			v.add_child(_cost(d["cost"], true))
-			g.add_child(c)
+			if d["group"] == group:
+				g.add_child(BuildPanel.card_for(d, inv))

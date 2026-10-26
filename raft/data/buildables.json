@@ -180,6 +180,18 @@
    "group": "Хозяйство"
   },
   {
+   "id": "chest",
+   "name": "Сундук",
+   "on": "deck",
+   "cost": {
+    "plank": 8,
+    "rope": 2,
+    "scrap": 1
+   },
+   "slots": 20,
+   "group": "Хозяйство"
+  },
+  {
    "id": "net",
    "name": "Сеть для мусора",
    "on": "edge_out",
