@@ -270,6 +270,8 @@ static func mesh(id: String) -> ArrayMesh:
 		_:
 			if id in STRUCTURES:
 				_structure(st, id)
+			elif id in DecorLooks.IDS:
+				leaf = DecorLooks.build(st, id)
 			else:
 				Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
 	var m := Mk.st_commit(st, leaf)

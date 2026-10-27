@@ -19,6 +19,7 @@ var _tabs: Array[Button] = []
 var _body: VBoxContainer
 var _scroller: TouchScroll
 var _pick := ""                  # hotbar item picked to swap with the next one tapped
+var _tip: ItemTip
 
 
 func _ready() -> void:
@@ -58,6 +59,8 @@ func _ready() -> void:
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 8)
 	_scroller.add_child(_body)
+	_tip = ItemTip.new()
+	add_child(_tip)
 
 
 ## A dark rounded card (recipe rows, resource slots).
@@ -123,7 +126,9 @@ func _supplies() -> void:
 		_section(gr[0])
 		var g := _grid(10)
 		for id: String in ids:
-			g.add_child(_slot(id, inv.count(id)))
+			var s := _slot(id, inv.count(id))
+			g.add_child(s)
+			_scroller.on_tap(s, func() -> void: _tip.show_over(Data.item_name(id), s))
 	if not any:
 		_body.add_child(UiTheme.label("Пусто. Лови мусор крюком!", 24))
 

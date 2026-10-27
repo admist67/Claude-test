@@ -824,6 +824,80 @@ func _run() -> void:
 	actions.storage._take("rope")
 	actions._close_chest()
 	print("after taking rope: chest ", chest_st.items)
+	# v0.12: the chest with my things on the left and a name over what was moved.
+	_on_pressed("use")
+	await _wait(0.4)
+	actions.storage.one = false
+	actions.storage._put("stone")
+	await _wait(0.5)
+	await _shot("80_chest_tip")
+	actions._close_chest()
+	# The bag: a tap on a thing you carry shows its name.
+	_open_bag()
+	bag._show(0)
+	await _wait(0.3)
+	for tap: Array in bag._scroller._taps:
+		var r: Rect2 = (tap[0] as Control).get_global_rect()
+		if r.position.y > 480.0 and r.end.y < 690.0:
+			tap[1].call()
+			break
+	await _wait(0.6)
+	await _shot("81_bag_tip")
+	_close_bag()
+	# The build panel's two sections.
+	_open_build()
+	build_panel._show(0)
+	await _wait(0.4)
+	await _shot("77_build_tab_build")
+	build_panel._show(1)
+	await _wait(0.3)
+	await _shot("78_build_tab_home")
+	_close_build()
+	# Decor on a new corner of the raft.
+	for c: Vector2i in [Vector2i(2, 2), Vector2i(3, 2), Vector2i(2, 3), Vector2i(3, 3), Vector2i(1, 3), Vector2i(4, 2), Vector2i(4, 3)]:
+		raft.add_tile(c)
+	inv.add("plank", 40)
+	inv.add("rope", 10)
+	inv.add("scrap", 6)
+	inv.add("leaf", 10)
+	_select("hammer")
+	player.place(cc.call(2, 2) + Vector3(0, 0, -0.4), PI)
+	await _build_at("table", cc.call(3, 2))
+	await _build_at("bell", cc.call(2, 3))
+	var parts := raft.parts
+	for e: Array in [["stool", Vector3i(3, 3, 0), 3], ["plant_pot", Vector3i(1, 3, 0), 0], ["rug", Vector3i(2, 2, 0), 0],
+			["flag", Vector3i(4, 2, 0), 0], ["wheel", Vector3i(4, 3, 0), 3], ["crate", Vector3i(0, 1, 0), 0]]:
+		if parts.can_bed(e[1]):
+			parts.add(e[0], e[1], e[2])
+	for e: Array in [["railing", Vector4i(4, 2, 0, 0)], ["railing", Vector4i(4, 3, 0, 0)], ["railing", Vector4i(4, 3, 1, 0)],
+			["wall_bamboo", Vector4i(2, 3, 1, 0)], ["wall_woven", Vector4i(1, 3, 1, 0)], ["window_round", Vector4i(0, 3, 0, 0)]]:
+		if parts.can_edge(e[1], false, e[0]):
+			parts.add(e[0], e[1])
+	for k: Vector3i in [Vector3i(4, 3, 0), Vector3i(2, 1, 0)]:
+		if parts.can_corner(k, "torch"):
+			parts.add("torch", k)
+	print("decor ", parts.decor.keys(), " walls ", parts.count("wall_bamboo"), parts.count("wall_woven"), parts.count("window_round"))
+	print("railings ", parts.count("railing"), " torches ", parts.count("torch"))
+	_select("hook")
+	daynight.phase = 0.25
+	player.place(cc.call(1, 1) + Vector3(0.4, 0, 0.4), 0.0)
+	_aim_local(cc.call(3, 3) + Vector3(0, 0.6, 0))
+	player.pitch = -0.25
+	await _wait(0.6)
+	await _shot("79_decor")
+	daynight.phase = 0.6
+	await _wait(2.6)
+	await _shot("82_decor_night")
+	daynight.phase = 0.2
+	var bell: Part = parts.decor.get(Vector3i(2, 3, 0))
+	if bell:
+		hand = ""
+		_refresh_hotbar()
+		player.place(cc.call(2, 2) + Vector3(0, 0, -0.2), 0.0)
+		_aim_local(bell.position + Vector3(0.2, 1.5, 0))
+		await _wait(0.3)
+		print("bell prompt ", use_view()["label"])
+		_on_pressed("use")
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

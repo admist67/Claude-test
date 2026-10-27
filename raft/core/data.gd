@@ -8,6 +8,7 @@ var debris: Array = []
 var goals: Array = []
 var build: Array = []
 var build_by_id: Dictionary = {}
+var build_tabs: Array = []          # [{"name", "groups"}]: the build panel's sections
 ## Live multipliers from the pause-menu tuning sliders (playtest knobs).
 var tune := {"look": 1.0, "hunger": 1.0, "debris": 1.0, "hook": 1.0, "time": 1.0}
 
@@ -19,7 +20,9 @@ func _ready() -> void:
 	recipes = load_json("res://data/recipes.json")["recipes"]
 	debris = load_json("res://data/debris.json")["debris"]
 	goals = load_json("res://data/goals.json")["goals"]
-	build = load_json("res://data/buildables.json")["build"]
+	var bj := load_json("res://data/buildables.json")
+	build = bj["build"]
+	build_tabs = bj["tabs"]
 	for d: Dictionary in build:
 		build_by_id[d["id"]] = d
 

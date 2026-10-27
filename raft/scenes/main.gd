@@ -650,6 +650,9 @@ func _use() -> void:
 	if net_target and net_target.kind == "hammock":
 		_sleep()
 		return
+	if net_target and net_target.kind in ["bell", "wheel"]:
+		net_target.use_decor()
+		return
 	if net_target and net_target.kind == "trap":
 		actions.empty_trap(net_target)
 		return
@@ -922,7 +925,7 @@ func _process(delta: float) -> void:
 		var aimed := _aimed_body()
 		demolish_target = aimed if tool_use() == "hammer" and (aimed is Part or aimed is Station) else null
 		station_target = null if demolish_target else aimed as Station
-		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "net_strong", "trap", "door", "hammock"] else null
+		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "net_strong", "trap", "door", "hammock", "bell", "wheel"] else null
 		spot_target = aimed as IslandSpot
 		var busy := station_target or net_target or demolish_target or spot_target
 		grab_target = null if busy else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))

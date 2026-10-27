@@ -1,4 +1,21 @@
 {
+ "tabs": [
+  {
+   "name": "Строительство",
+   "groups": [
+    "Основа",
+    "Стены",
+    "Свет",
+    "Декор"
+   ]
+  },
+  {
+   "name": "Хозяйство",
+   "groups": [
+    "Хозяйство"
+   ]
+  }
+ ],
  "build": [
   {
    "id": "tile",
@@ -16,6 +33,29 @@
    "on": "stairs",
    "cost": {
     "plank": 6,
+    "rope": 2
+   },
+   "rotate": true,
+   "group": "Основа"
+  },
+  {
+   "id": "stairs_rope",
+   "name": "Верёвочный трап",
+   "on": "stairs",
+   "cost": {
+    "rope": 6,
+    "plank": 3
+   },
+   "rotate": true,
+   "group": "Основа"
+  },
+  {
+   "id": "stairs_bamboo",
+   "name": "Бамбуковая лестница",
+   "on": "stairs",
+   "cost": {
+    "plank": 4,
+    "leaf": 4,
     "rope": 2
    },
    "rotate": true,
@@ -74,6 +114,49 @@
    "rotate": true
   },
   {
+   "id": "wall_bamboo",
+   "name": "Бамбуковая стена",
+   "on": "edge",
+   "cost": {
+    "plank": 2,
+    "leaf": 3,
+    "rope": 2
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "wall_woven",
+   "name": "Плетёная стена",
+   "on": "edge",
+   "cost": {
+    "leaf": 6,
+    "rope": 2,
+    "plank": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "window_round",
+   "name": "Стена с иллюминатором",
+   "on": "edge",
+   "cost": {
+    "plank": 4,
+    "scrap": 1,
+    "plastic": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "railing",
+   "name": "Перила",
+   "on": "edge",
+   "cost": {
+    "plank": 2,
+    "rope": 1
+   },
+   "group": "Стены"
+  },
+  {
    "id": "lantern",
    "name": "Фонарь",
    "on": "corner",
@@ -108,6 +191,106 @@
     "leaf": 1
    },
    "group": "Свет"
+  },
+  {
+   "id": "torch",
+   "name": "Факел",
+   "on": "corner",
+   "cost": {
+    "plank": 1,
+    "leaf": 2,
+    "rope": 1
+   },
+   "group": "Свет"
+  },
+  {
+   "id": "table",
+   "name": "Стол",
+   "on": "cell",
+   "cost": {
+    "plank": 4
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "stool",
+   "name": "Табурет",
+   "on": "cell",
+   "cost": {
+    "plank": 2
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "crate",
+   "name": "Ящик",
+   "on": "cell",
+   "cost": {
+    "plank": 3,
+    "rope": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "plant_pot",
+   "name": "Горшок с пальмой",
+   "on": "cell",
+   "cost": {
+    "stone": 2,
+    "leaf": 2,
+    "plank": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "rug",
+   "name": "Ковёр",
+   "on": "cell",
+   "cost": {
+    "leaf": 6,
+    "rope": 2
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "wheel",
+   "name": "Штурвал",
+   "on": "cell",
+   "cost": {
+    "plank": 6,
+    "scrap": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "flag",
+   "name": "Флаг",
+   "on": "cell",
+   "cost": {
+    "plank": 2,
+    "plastic": 2,
+    "rope": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "bell",
+   "name": "Колокол",
+   "on": "cell",
+   "cost": {
+    "scrap": 3,
+    "plank": 2,
+    "rope": 1
+   },
+   "rotate": true,
+   "group": "Декор"
   },
   {
    "id": "purifier",

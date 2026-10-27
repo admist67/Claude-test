@@ -6,7 +6,8 @@ extends Node3D
 ## corners Vector3i(x, z, L) — the +X+Z corner of cell (x, z);
 ## roofs Vector3i(x, z, L) — a floor slab with its top at L·H over cell (x, z), L ≥ 1;
 ## stairs, beds Vector3i(x, z, L) — standing on level L (stairs climb to L + 1);
-## lamps Vector4i(x, z, side * 2 + face, L) — a lantern on one face of a wall.
+## lamps Vector4i(x, z, side * 2 + face, L) — a lantern on one face of a wall;
+## decor Vector3i(x, z, L) — a table, a stool, a bell… standing in a cell.
 ## A door's dir picks the cell its leaf swings into; nothing may stand in that sweep.
 
 const H := 2.4
@@ -14,6 +15,10 @@ const MAX_LEVEL := 3
 const DIRS: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
 const NETS := ["net", "net_strong"]
 const LOW := ["net", "net_strong", "trap"]        # low things on the outer rim, not walls
+const SHORT := ["net", "net_strong", "trap", "railing"]   # hold up no roof, lamp arms pass
+const WALLS := ["wall", "window", "wall_bamboo", "wall_woven", "window_round"]
+const STAIRS := ["stairs", "stairs_rope", "stairs_bamboo"]
+const ARMED := ["lantern", "lantern_tall"]       # corner lights with an arm sticking out
 
 var raft: Raft
 var daynight: DayNight
@@ -23,6 +28,7 @@ var roofs: Dictionary = {}      # Vector3i -> Part
 var stairs: Dictionary = {}     # Vector3i -> Part
 var beds: Dictionary = {}       # Vector3i -> Part (hammocks)
 var lamps: Dictionary = {}      # Vector4i -> Part (wall lanterns)
+var decor: Dictionary = {}      # Vector3i -> Part (tables, stools, bells…)
 
 
 # ---------------------------------------------------------------- geometry
@@ -145,17 +151,17 @@ func can_edge(k: Vector4i, outer: bool, kind := "", d := 0) -> bool:
 	var n := _floors_touching(edge_cells(k), k.w)
 	if not ((n == 1 and k.w == 0) if outer else n >= 1):
 		return false
-	if kind in LOW:
+	if kind in SHORT:
 		return true
 	# A lantern arm pointing along this edge would end up inside the wall.
 	var ends: Array[Vector3i] = [Vector3i(k.x, k.y, k.w), Vector3i(k.x, k.y - 1, k.w) if k.z == 0 else Vector3i(k.x - 1, k.y, k.w)]
 	for c in ends:
 		var lamp: Part = corners.get(c)
-		if lamp and lamp.kind != "pillar" and arm_edge(c, lamp.dir) == k:
+		if lamp and lamp.kind in ARMED and arm_edge(c, lamp.dir) == k:
 			return false
 	if kind == "door":
 		var sc := swing_cell(k, d)
-		if stairs.has(sc) or beds.has(sc) or raft.stations.has(sc):
+		if stairs.has(sc) or beds.has(sc) or decor.has(sc) or raft.stations.has(sc):
 			return false
 		for lk: Vector4i in lamps:
 			if lk.w == k.w and in_swing(k, d, lamp_head(lk)):
@@ -167,13 +173,13 @@ func can_corner(k: Vector3i, kind := "", d := 0) -> bool:
 	if corners.has(k) or _floors_touching(corner_cells(k), k.z) == 0:
 		return false
 	var wall: Part = edges.get(arm_edge(k, d))
-	return kind == "pillar" or wall == null or wall.kind in LOW
+	return not kind in ARMED or wall == null or wall.kind in SHORT
 
 
 ## On a wall or window (a door leaf moves), clear of any door's sweep.
 func can_lamp(k: Vector4i) -> bool:
 	var wall: Part = edges.get(lamp_edge(k))
-	if lamps.has(k) or wall == null or not wall.kind in ["wall", "window"]:
+	if lamps.has(k) or wall == null or not wall.kind in WALLS:
 		return false
 	for p: Part in doors():
 		if p.key.w == k.w and in_swing(p.key, p.dir, lamp_head(k)):
@@ -188,7 +194,7 @@ func supported(c: Vector2i, lvl: int) -> bool:
 		if roofs.has(Vector3i(c.x + d.x, c.y + d.y, lvl)):
 			return true
 		var e: Part = edges.get(edge_of(c, d, lvl - 1))
-		if e and not e.kind in LOW:
+		if e and not e.kind in SHORT:
 			return true
 	for k: Vector2i in [c, c - Vector2i(1, 0), c - Vector2i(0, 1), c - Vector2i(1, 1)]:
 		var p: Part = corners.get(Vector3i(k.x, k.y, lvl - 1))
@@ -207,7 +213,7 @@ func can_roof(c: Vector2i, lvl: int) -> bool:
 
 ## Something stands in the cell, or a door opens into it.
 func cell_busy(k: Vector3i) -> bool:
-	return stairs.has(k) or beds.has(k) or raft.stations.has(k) or _door_swings(k)
+	return stairs.has(k) or beds.has(k) or decor.has(k) or raft.stations.has(k) or _door_swings(k)
 
 
 func can_stairs(k: Vector3i) -> bool:
@@ -230,20 +236,21 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 	p.setup(kind, k, d)
 	if Data.build_by_id.get(kind, {}).has("capacity"):
 		p.capacity = int(Data.build_by_id[kind]["capacity"])
-	match kind:
-		"wall", "window", "door":
+	var on: String = Data.build_by_id.get(kind, {}).get("on", "")
+	match on:
+		"edge":
 			p.position = edge_center(k)
 			p.rotation.y = door_yaw(k, d) if kind == "door" else edge_yaw(k)
 			edges[k] = p
-		"net", "net_strong", "trap":
+		"edge_out":
 			p.rotation.y = outward_yaw(k)
 			p.position = edge_center(k) + Basis(Vector3.UP, p.rotation.y) * Vector3(0, 0, 0.18)
 			edges[k] = p
-		"pillar", "lantern", "lantern_tall":
+		"corner":
 			p.position = corner_center(k)
 			p.rotation.y = -d * PI / 2.0
 			corners[k] = p
-		"lantern_wall":
+		"wall":
 			var e := lamp_edge(k)
 			var face := 1.0 if k.z % 2 == 0 else -1.0
 			p.rotation.y = edge_yaw(e) + (0.0 if face > 0.0 else PI)
@@ -252,17 +259,17 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 		"roof":
 			p.position = cell_pos(k) - Vector3(0, H, 0)
 			roofs[k] = p
-		"stairs", "hammock":
+		"stairs", "cell":
 			var dv: Vector2i = DIRS[d]
 			p.position = cell_pos(k)
 			p.rotation.y = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
-			(stairs if kind == "stairs" else beds)[k] = p
+			(stairs if kind in STAIRS else (beds if kind == "hammock" else decor))[k] = p
 	add_child(p)
 	return p
 
 
 func _dicts() -> Array[Dictionary]:
-	return [edges, corners, roofs, stairs, beds, lamps]
+	return [edges, corners, roofs, stairs, beds, lamps, decor]
 
 
 func count(kind: String) -> int:
@@ -286,7 +293,7 @@ func remove_part(p: Part) -> void:
 
 ## A tile sank: the whole column above it goes, then whatever lost its footing.
 func on_tile_removed(c: Vector2i) -> void:
-	for dict: Dictionary in [roofs, stairs, beds]:
+	for dict: Dictionary in [roofs, stairs, beds, decor]:
 		for k: Vector3i in dict.keys():
 			if k.x == c.x and k.y == c.y:
 				dict[k].queue_free()
@@ -306,7 +313,7 @@ func prune() -> void:
 		for k: Vector3i in corners.keys():
 			if _floors_touching(corner_cells(k), k.z) == 0:
 				changed = _drop(corners, k) or changed
-		for dict: Dictionary in [stairs, beds]:
+		for dict: Dictionary in [stairs, beds, decor]:
 			for k: Vector3i in dict.keys():
 				if not has_floor(Vector2i(k.x, k.y), k.z):
 					changed = _drop(dict, k) or changed
@@ -350,8 +357,10 @@ func from_list(list: Array) -> void:
 		var a: Array = e["key"]
 		var kind: String = e["kind"]
 		var k: Variant
-		match kind:
-			"wall", "window", "door", "net", "net_strong", "trap", "lantern_wall":
+		if not Data.build_by_id.has(kind):
+			continue
+		match Data.build_by_id[kind]["on"]:
+			"edge", "edge_out", "wall":
 				if a.size() < 3:
 					continue
 				k = Vector4i(int(a[0]), int(a[1]), int(a[2]), int(a[3]) if a.size() > 3 else 0)
@@ -404,6 +413,6 @@ func _process(delta: float) -> void:
 	for p: Part in edges.values():
 		if p.kind in ["door", "trap"]:
 			p.tick(delta, night)
-	for dict: Dictionary in [corners, lamps]:
+	for dict: Dictionary in [corners, lamps, decor]:
 		for k: Variant in dict:
 			dict[k].tick(delta, night)

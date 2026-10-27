@@ -1,8 +1,9 @@
 class_name StoragePanel
 extends Control
-## An open chest: what is inside on the left, what you carry on the right. Tap an item to
-## move it across, the whole stack or one at a time (the toggle). An island chest only
-## gives: take its things before the island drifts away.
+## An open chest: what you carry on the left, what is inside on the right. Tap an item to
+## move it across, the whole stack or one at a time (the toggle); its name pops up over
+## it where it landed. An island chest only gives: take its things before the island
+## drifts away.
 
 signal closed
 signal moved(id: String, n: int, into_chest: bool)
@@ -14,12 +15,15 @@ var slots := 20                   # how many kinds fit
 var take_only := false
 var one := false                  # move one at a time instead of the whole stack
 var _title: Label
-var _left: GridContainer
-var _right: GridContainer
-var _ls: TouchScroll
-var _rs: TouchScroll
+var _mine: GridContainer
+var _box: GridContainer
+var _ms: TouchScroll
+var _bs: TouchScroll
 var _mode: Button
-var _right_title: Label
+var _mine_title: Label
+var _tip: ItemTip
+var _mine_slots := {}             # id -> its card on my side
+var _box_slots := {}              # id -> its card on the chest's side
 
 
 func _ready() -> void:
@@ -55,13 +59,15 @@ func _ready() -> void:
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 18)
 	root.add_child(body)
-	var lp := _pane(body, "В сундуке")
-	_ls = lp[0]
-	_left = lp[1]
-	var rp := _pane(body, "У тебя — нажми, чтобы положить")
-	_rs = rp[0]
-	_right = rp[1]
-	_right_title = rp[2]
+	var lp := _pane(body, "У тебя — нажми, чтобы положить")
+	_ms = lp[0]
+	_mine = lp[1]
+	_mine_title = lp[2]
+	var rp := _pane(body, "В сундуке — нажми, чтобы забрать")
+	_bs = rp[0]
+	_box = rp[1]
+	_tip = ItemTip.new()
+	add_child(_tip)
 
 
 func _pane(parent: Control, title: String) -> Array:
@@ -93,26 +99,30 @@ func open(title: String, items: Dictionary, n_slots: int, only_take: bool) -> vo
 
 func refresh() -> void:
 	_mode.text = "Брать: по одному" if one else "Брать: всё сразу"
-	for g: GridContainer in [_left, _right]:
+	for g: GridContainer in [_mine, _box]:
 		for c in g.get_children():
 			c.queue_free()
-	_ls.clear_taps()
-	_rs.clear_taps()
+	_ms.clear_taps()
+	_bs.clear_taps()
+	_mine_slots.clear()
+	_box_slots.clear()
 	for id: String in _sorted(store.keys()):
 		var s := CraftPanel.item_slot(id, int(store[id]), false, _wear(id))
-		_left.add_child(s)
-		_ls.on_tap(s, _take.bind(id))
+		_box.add_child(s)
+		_bs.on_tap(s, _take.bind(id))
+		_box_slots[id] = s
 	if store.is_empty():
-		_left.add_child(UiTheme.label("Пусто", 22, Color(1, 1, 1, 0.6)))
-	_right_title.text = "Забирай всё: остров скоро уплывёт" if take_only else "У тебя — нажми, чтобы положить (%d/%d мест)" % [store.size(), slots]
+		_box.add_child(UiTheme.label("Пусто", 22, Color(1, 1, 1, 0.6)))
+	_mine_title.text = "Забирай всё: остров скоро уплывёт" if take_only else "У тебя — нажми, чтобы положить (%d/%d мест)" % [store.size(), slots]
 	if not take_only:
 		var mine: Array = Data.items.keys().filter(func(id: String) -> bool: return inv.count(id) > 0)
 		for id: String in mine:
 			var s := CraftPanel.item_slot(id, inv.count(id), false, _wear(id))
-			_right.add_child(s)
-			_rs.on_tap(s, _put.bind(id))
-	_ls.settle(_left)
-	_rs.settle(_right)
+			_mine.add_child(s)
+			_ms.on_tap(s, _put.bind(id))
+			_mine_slots[id] = s
+	_ms.settle(_mine)
+	_bs.settle(_box)
 
 
 func _wear(id: String) -> float:
@@ -139,6 +149,8 @@ func _take(id: String) -> void:
 	inv.add(id, n)
 	moved.emit(id, n, false)
 	refresh()
+	if _mine_slots.has(id):
+		_tip.show_over(Data.item_name(id), _mine_slots[id])
 
 
 func _put(id: String) -> void:
@@ -151,6 +163,7 @@ func _put(id: String) -> void:
 	store[id] = int(store.get(id, 0)) + n
 	moved.emit(id, n, true)
 	refresh()
+	_tip.show_over(Data.item_name(id), _box_slots[id])
 
 
 func _take_all() -> void:

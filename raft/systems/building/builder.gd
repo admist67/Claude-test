@@ -1,7 +1,8 @@
 class_name Builder
 extends Node3D
 ## Hammer mode: `kind` is what gets built; where it goes depends on its "on" rule:
-## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), edge /
+## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), cell
+## (decor: tables, stools, a bell — turned with the rotate button), edge /
 ## edge_out (walls, windows, doors / nets on the rim), corner (pillars, lanterns), wall
 ## (lanterns on the wall you look at, on your side of it), roof (a floor slab above).
 ## Everything else is built on the floor of the player's level: the deck or a roof. `rot`
@@ -82,7 +83,7 @@ func _process(delta: float) -> void:
 		match def().get("on", ""):
 			"water":
 				_find_water_cell()
-			"deck", "stairs":
+			"deck", "stairs", "cell":
 				_find_deck_cell()
 			"edge", "edge_out":
 				_find_edge(def()["on"] == "edge_out")
@@ -113,7 +114,7 @@ func _process(delta: float) -> void:
 			var e := RaftParts.lamp_edge(key)
 			yaw = RaftParts.edge_yaw(e) + (0.0 if key.z % 2 == 0 else PI)
 			pos = raft.parts.edge_center(e) + Basis(Vector3.UP, yaw) * Vector3(0, 0, 0.07)
-		"stairs":
+		"stairs", "cell":
 			pos = raft.parts.cell_pos(Vector3i(cell.x, cell.y, level))
 			var dv: Vector2i = RaftParts.DIRS[dir]
 			yaw = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
@@ -211,9 +212,9 @@ func _find_deck_cell() -> void:
 	has_target = true
 	var k := Vector3i(c.x, c.y, level)
 	var standing := raft.cell_at(player.position) == c
-	if kind == "stairs" or kind == "hammock":
+	if def()["on"] in ["stairs", "cell"]:
 		dir = (RaftParts.DIRS.find(_look_dir()) + rot) % 4
-		valid = (raft.parts.can_stairs(k) if kind == "stairs" else raft.parts.can_bed(k)) and not standing
+		valid = (raft.parts.can_stairs(k) if kind in RaftParts.STAIRS else raft.parts.can_bed(k)) and (not standing or kind == "rug")
 	else:
 		valid = not raft.parts.cell_busy(k) and not standing
 
@@ -260,7 +261,7 @@ func _find_wall() -> void:
 	if hit.is_empty() or not hit["collider"] is Part:
 		return
 	var wall: Part = hit["collider"]
-	if not wall.kind in ["wall", "window", "door"]:
+	if not wall.kind in RaftParts.WALLS and wall.kind != "door":
 		return
 	var e: Vector4i = wall.key
 	var o := raft.to_local(from) - raft.parts.edge_center(e)
@@ -307,7 +308,7 @@ func place() -> bool:
 			raft.add_tile(cell)
 		"deck":
 			raft.add_station(kind, Vector3i(cell.x, cell.y, level), def())
-		"stairs":
+		"stairs", "cell":
 			raft.parts.add(kind, Vector3i(cell.x, cell.y, level), dir)
 		"corner", "edge":
 			raft.parts.add(kind, key, dir)
