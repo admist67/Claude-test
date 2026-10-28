@@ -116,7 +116,7 @@ func _grid(cols: int) -> GridContainer:
 
 func _supplies() -> void:
 	_hotbar_editor()
-	var groups := [["Материалы", "resource"], ["Еда, вода, лечение", "food"], ["Инструменты", "tool"]]
+	var groups := [["Материалы", "resource"], ["Еда, вода, лечение", "food"], ["Инструменты", "tool"], ["Снаряжение", "gear"]]
 	var any := false
 	for gr: Array in groups:
 		var ids: Array = Data.items.keys().filter(func(id: String) -> bool: return Data.item(id)["kind"] == gr[1] and inv.count(id) > 0)

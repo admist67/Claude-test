@@ -95,7 +95,7 @@ func _init() -> void:
 		for id: String in bal["islands"]["spots"][kind]["loot"]:
 			check("island %s gives %s" % [kind, id], items.has(id))
 	var stats := ["tiles", "minutes", "days", "barrels", "fish", "cooked", "shark_driven", "planted", "harvest", "slept", "storms", "bait_used", "upper_built"]
-	stats.append_array(["islands_seen", "anchored_island", "island_visits", "trap_fish", "chests", "crabs", "poured", "stored", "mined"])
+	stats.append_array(["islands_seen", "anchored_island", "island_visits", "trap_fish", "chests", "crabs", "poured", "stored", "mined", "sail_up", "gulls_scared"])
 	for g: Dictionary in _json("res://data/goals.json")["goals"]:
 		var st: String = g["stat"]
 		var known := st in stats or st.begins_with("built_") or st.begins_with("got_") or st.begins_with("made_")

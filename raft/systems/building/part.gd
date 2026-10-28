@@ -132,6 +132,9 @@ func _decor_shapes() -> void:
 			_box(Vector3(0.62, 0.62, 0.62), Vector3(0, 0.31, 0))
 		"plant_pot":
 			_box(Vector3(0.44, 0.9, 0.44), Vector3(0, 0.45, 0))
+		"scarecrow":
+			_box(Vector3(0.2, 1.9, 0.2), Vector3(0, 0.95, 0))
+			_box(Vector3(1.1, 0.6, 0.3), Vector3(0, 1.3, 0))
 		"wheel":
 			_box(Vector3(0.3, 1.0, 0.3), Vector3(0, 0.5, 0))
 			_use_box(Vector3(1.0, 1.0, 0.4), Vector3(0, 1.05, 0.15))

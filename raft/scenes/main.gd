@@ -609,7 +609,7 @@ func _action_down() -> void:
 	if use == "hook":
 		hook.press()
 	elif use == "rod":
-		rod.press()
+		rod.press(Data.item(id))
 	elif use == "spear":
 		_stab()
 	elif use == "pickaxe":
@@ -694,6 +694,8 @@ func _stab() -> void:
 	elif trips.islands.hit_crab(eye, fwd, power, 2.3 + extra):
 		Sfx.play("shark_hit", -4.0)
 		Fx.burst(self, eye + fwd * 1.6 + Vector3(0, -1.0, 0), Color("#d4572f"), 10)
+		actions.use_tool(selected())
+	elif actions.gulls.hit(eye, fwd, extra):
 		actions.use_tool(selected())
 	else:
 		Sfx.play("throw", -6.0, 0.2)
@@ -882,7 +884,7 @@ func action_view() -> Dictionary:
 		"bucket":
 			out = {"icon": id, "label": "Набрать" if id == "bucket" else "Вылить", "ok": true}
 		"spear":
-			var foe := shark.alive_near() or trips.islands.crab_near(player.global_position, 4.0)
+			var foe := shark.alive_near() or trips.islands.crab_near(player.global_position, 4.0) or actions.gulls.near(player.global_position, 4.5)
 			out = {"icon": id, "label": "Ударить", "ok": foe and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
 		"hammer":
 			if builder.repair:
@@ -901,6 +903,7 @@ func action_view() -> Dictionary:
 
 func _process(delta: float) -> void:
 	trips.islands.active = mode == Mode.PLAY or mode == Mode.BAG
+	actions.gulls.active = trips.islands.active
 	if mode == Mode.MENU:
 		_menu_t += delta
 		var c := raft.global_transform * raft.centroid()
@@ -919,7 +922,7 @@ func _process(delta: float) -> void:
 			check_goals()
 	_spear_cd = maxf(0.0, _spear_cd - delta)
 	shark.enabled = stats.has("made_spear") or stats.has("made_metal_spear") or stats.has("shark_driven")
-	field.extra_mult = storm.debris_mult()
+	field.extra_mult = storm.debris_mult() * trips.debris_pace()
 	Station.rain = storm.k
 	if mode == Mode.PLAY:
 		var aimed := _aimed_body()

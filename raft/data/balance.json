@@ -347,6 +347,14 @@
               4
             ],
             "chance": 0.4
+          },
+          {
+            "item": "nails",
+            "n": [
+              2,
+              5
+            ],
+            "chance": 0.5
           }
         ],
         "loot": {
@@ -378,5 +386,21 @@
     "on": 0.46,
     "off": 0.05,
     "fade": 2.0
+  },
+  "gulls": {
+    "first": 150.0,
+    "interval": [
+      110.0,
+      190.0
+    ],
+    "speed": 5.5,
+    "eat_time": 16.0,
+    "protect": 5.0,
+    "from": 28.0,
+    "reach": 3.2
+  },
+  "sail": {
+    "islands": 2.0,
+    "debris": 1.4
   }
 }

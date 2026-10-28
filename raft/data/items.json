@@ -21,6 +21,16 @@
    "durability": 25
   },
   {
+   "id": "metal_rod",
+   "name": "Прочная удочка",
+   "kind": "tool",
+   "use": "rod",
+   "durability": 70,
+   "bite_mult": 0.7,
+   "big_mult": 1.7,
+   "strain_mult": 0.8
+  },
+  {
    "id": "spear",
    "name": "Копьё",
    "kind": "tool",
@@ -61,6 +71,12 @@
    "use": "bucket"
   },
   {
+   "id": "flippers",
+   "name": "Ласты",
+   "kind": "gear",
+   "swim_mult": 1.8
+  },
+  {
    "id": "plank",
    "name": "Доска",
    "kind": "resource"
@@ -89,6 +105,11 @@
    "id": "stone",
    "kind": "resource",
    "name": "Камень"
+  },
+  {
+   "id": "nails",
+   "name": "Гвозди",
+   "kind": "resource"
   },
   {
    "id": "seeds",
@@ -197,11 +218,32 @@
    "water": 4
   },
   {
+   "id": "dried_fish",
+   "name": "Вяленая рыба",
+   "kind": "food",
+   "food": 34,
+   "water": -4
+  },
+  {
    "id": "fruit_salad",
    "kind": "food",
    "name": "Фруктовый салат",
    "food": 42,
    "water": 14
+  },
+  {
+   "id": "fish_soup",
+   "name": "Рыбный суп",
+   "kind": "food",
+   "food": 42,
+   "water": 30
+  },
+  {
+   "id": "kebab",
+   "name": "Шашлык из акулы",
+   "kind": "food",
+   "food": 80,
+   "water": 10
   },
   {
    "id": "bandage",
@@ -210,6 +252,14 @@
    "food": 0,
    "water": 0,
    "health": 25
+  },
+  {
+   "id": "medkit",
+   "name": "Аптечка",
+   "kind": "food",
+   "food": 0,
+   "water": 0,
+   "health": 60
   }
  ]
 }

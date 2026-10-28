@@ -5,7 +5,9 @@ extends StaticBody3D
 ## planks) burns only while something cooks; the result waits until the player takes it.
 ## The rain collector fills by itself (much faster in a storm) and holds a few cups.
 ## The anchor's winch drops and raises the anchor (stored = 1 while it holds the raft).
-## The purifier boils a bucket of seawater; a chest keeps items (`items`).
+## The purifier boils a bucket of seawater; a chest keeps items (`items`). The drying rack
+## turns raw fish into dried fish without fire. The sail is raised and lowered (stored = 1
+## while it is up).
 
 signal finished(station: Station)
 
@@ -28,6 +30,7 @@ var _crop: Node3D
 var _water: MeshInstance3D
 var _rope: MeshInstance3D
 var _lid: Node3D
+var _cloth: MeshInstance3D
 var _t := 0.0
 
 
@@ -116,6 +119,14 @@ func setup(k: String, c: Vector3i, d: Dictionary) -> void:
 		_food.position = Vector3(0, 0.3, 0)
 		_crop = Node3D.new()
 		add_child(_crop)
+	if kind == "rack":
+		_food.position = Vector3(0, 0.98, 0)
+	if kind == "sail":
+		_cloth = MeshInstance3D.new()
+		_cloth.mesh = Looks.mesh("sail_cloth")
+		_cloth.position = Vector3(0, GearLooks.YARD, 0)
+		_cloth.scale = Vector3(1.0, 0.06, 0.06)
+		add_child(_cloth)
 	_refresh()
 
 
@@ -157,8 +168,26 @@ func busy() -> bool:
 	return cooking != ""
 
 
+## A gull ate what grows here: the seedling or the ripe fruit is gone.
+func pecked() -> void:
+	cooking = ""
+	ready_item = ""
+	progress = 0.0
+	_refresh()
+
+
+## Something grows on this planter (a gull would like it).
+func has_crop() -> bool:
+	return kind == "planter" and (cooking != "" or ready_item != "")
+
+
 func _process(delta: float) -> void:
 	_t += delta
+	if kind == "sail":
+		# Unfurls down from the yard and fills with wind; furls back up.
+		var k := move_toward(_cloth.scale.y, 1.0 if stored == 1 else 0.06, delta * 1.4)
+		_cloth.scale = Vector3(1.0, k, k * (1.0 + 0.1 * sin(_t * 2.1) + 0.04 * sin(_t * 5.3)))
+		return
 	if kind in ["anchor", "chest"]:
 		return
 	if kind == "collector":
@@ -218,7 +247,7 @@ func _output(input: String) -> String:
 
 ## Grill and planter, idle: the player picks what goes in (see choices()).
 func wants_choice() -> bool:
-	return kind in ["grill", "planter"] and cooking == "" and ready_item == ""
+	return kind in ["grill", "planter", "rack"] and cooking == "" and ready_item == ""
 
 
 ## What can go in now: [{"id", "count", "out", "out_n"}] for the items the player has.
@@ -240,6 +269,8 @@ func _special_prompt(inv: Inventory) -> Dictionary:
 			return {"text": "Открыть сундук" + (" (%d)" % n if n > 0 else ""), "ok": true, "icon": "chest"}
 		"anchor":
 			return {"text": "Поднять якорь" if stored == 1 else "Бросить якорь", "ok": true, "icon": "anchor"}
+		"sail":
+			return {"text": "Спустить парус" if stored == 1 else "Поднять парус", "ok": true, "icon": "sail"}
 		"collector":
 			if stored > 0:
 				return {"text": "Набрать (%d)" % stored, "ok": true, "icon": "cup_water"}
@@ -279,7 +310,7 @@ func prompt(inv: Inventory) -> Dictionary:
 	if raw == "":
 		return {"text": "Нет семян" if kind == "planter" else "Нет рыбы", "ok": false, "icon": "seeds" if kind == "planter" else "fish"}
 	var ok := not needs_fuel() or fuel > 0.0 or _fuel_in(inv) != ""
-	var verbs := {"purifier": "Залить воду", "grill": "Жарить", "planter": "Посадить"}
+	var verbs := {"purifier": "Залить воду", "grill": "Жарить", "planter": "Посадить", "rack": "Сушить"}
 	return {"text": verbs[kind], "ok": ok, "icon": raw if kind == "planter" else ("bucket_water" if kind == "purifier" else kind)}
 
 
@@ -290,6 +321,10 @@ func interact(inv: Inventory) -> Array:
 		_refresh()
 		Sfx.play("splash" if stored == 1 else "reel", -4.0)
 		return ["Якорь брошен — плот стоит на месте" if stored == 1 else "Якорь поднят — плывём дальше", ""]
+	if kind == "sail":
+		stored = 1 - stored
+		Sfx.play("flap", -2.0)
+		return ["Парус поднят — острова будут попадаться чаще" if stored == 1 else "Парус спущен", ""]
 	if kind == "collector":
 		return _take_rain(inv)
 	if ready_item != "":
@@ -303,7 +338,8 @@ func interact(inv: Inventory) -> Array:
 		return [_feed_fire(inv), ""]
 	var raw := "seawater" if kind == "purifier" else _raw_in(inv)
 	if raw == "":
-		return ["Нужны семена — ищи в бочках" if kind == "planter" else "Нужна сырая рыба или мясо", ""]
+		var need := {"planter": "Нужны семена — ищи в бочках", "rack": "Нужна сырая рыба"}
+		return [need.get(kind, "Нужна сырая рыба или мясо"), ""]
 	return start(inv, raw)
 
 
@@ -326,6 +362,9 @@ func start(inv: Inventory, raw: String) -> Array:
 	if kind == "planter":
 		Sfx.play("craft", -6.0)
 		return ["Семена посажены", ""]
+	if kind == "rack":
+		Sfx.play("craft", -6.0)
+		return ["Сушится: " + Data.item_name(raw), ""]
 	Sfx.play("ignite", -6.0)
 	return ["Вода закипает…" if kind == "purifier" else "На гриле: " + Data.item_name(raw), ""]
 
@@ -366,7 +405,7 @@ func _refresh() -> void:
 	if kind == "anchor":
 		_rope.visible = stored == 1
 		return
-	if kind == "collector":
+	if kind in ["collector", "sail"]:
 		return
 	if kind == "planter":
 		_food.visible = cooking != "" or ready_item != ""
@@ -381,6 +420,12 @@ func _refresh() -> void:
 	if show != "":
 		_food.mesh = Looks.mesh(show)
 		_food.rotation.y = 0.3
+		# Fish lie on their side on the grate.
+		var flat := kind == "grill" and "fish" in show
+		_food.rotation.x = -PI / 2.0 if flat else 0.0
+		_food.rotation.z = -PI / 2.0 if kind == "rack" else 0.0     # hangs nose down
+		if kind == "grill":
+			_food.position.y = 0.95 if flat else 0.93
 
 
 func to_dict() -> Dictionary:

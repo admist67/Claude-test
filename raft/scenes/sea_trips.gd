@@ -29,16 +29,32 @@ func setup(g: Node) -> void:
 
 
 func anchored() -> bool:
+	return _raised("anchor")
+
+
+func _raised(kind: String) -> bool:
 	for st: Station in game.raft.stations.values():
-		if st.kind == "anchor" and st.stored == 1:
+		if st.kind == kind and st.stored == 1:
 			return true
 	return false
+
+
+## The sail is up and the raft not anchored: islands come sooner, more debris floats by.
+func sailing() -> bool:
+	return _raised("sail") and not anchored()
+
+
+## How much more debris comes while sailing.
+func debris_pace() -> float:
+	return float(Data.b["sail"]["debris"]) if sailing() else 1.0
 
 
 ## Every frame in play: what the use button could do here, and the sea's rules.
 func update() -> void:
 	var p: Player = game.player
 	islands.anchored = anchored()
+	islands.pace = float(Data.b["sail"]["islands"]) if sailing() else 1.0
+	p.swim_mult = float(Data.item("flippers").get("swim_mult", 1.0)) if game.inv.count("flippers") > 0 else 1.0
 	var goals: Array = Data.goals
 	islands.want_chest = game.goal_i < goals.size() and goals[game.goal_i]["stat"] == "chests"
 	game.shark.swimmer = p if p.swimming else null

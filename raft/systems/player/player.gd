@@ -14,6 +14,7 @@ var move_input := Vector2.ZERO
 var cfg: Dictionary
 var off_raft := false             # in the sea or ashore on an island
 var swimming := false             # off the raft with the feet deep in the water
+var swim_mult := 1.0              # flippers
 var _bob := 0.0
 var _last_ok := Vector3.ZERO
 var _held: Node3D
@@ -174,7 +175,7 @@ func _move_off(inp: Vector2, delta: float) -> void:
 	var surface := Ocean.height_at(_world.x, _world.z)
 	var depth := surface - _world.y
 	swimming = depth > float(cfg["swim_depth"])
-	var spd := float(cfg["speed"]) * (float(cfg["swim_speed"]) if swimming else (0.75 if depth > 0.35 else 1.0))
+	var spd := float(cfg["speed"]) * (float(cfg["swim_speed"]) * swim_mult if swimming else (0.75 if depth > 0.35 else 1.0))
 	var acc := float(cfg["accel"]) * delta
 	velocity.x = move_toward(velocity.x, dir.x * spd, acc)
 	velocity.z = move_toward(velocity.z, dir.z * spd, acc)

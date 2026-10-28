@@ -13,6 +13,7 @@ var player: Player
 var cfg: Dictionary
 var island: Island
 var anchored := false
+var pace := 1.0                     # the sail is up: the next island comes sooner
 var want_chest := false             # the chest goal is on: the next island has one for sure
 var active := false                 # only while playing: no islands go by in the menu
 var timer := 0.0
@@ -61,7 +62,7 @@ func _physics_process(delta: float) -> void:
 	if not active:
 		return
 	if island == null:
-		timer -= delta
+		timer -= delta * pace
 		if timer <= 0.0:
 			_spawn(rng.randi())
 		return

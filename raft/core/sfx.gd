@@ -4,6 +4,7 @@ extends Node
 const NAMES := [
 	"throw", "splash", "snag", "pop", "reel", "hammer", "eat", "drink", "craft", "click",
 	"hurt", "goal", "build_fail", "ready", "ignite", "bite", "shark_hit", "warning", "door", "thunder",
+	"gull", "flap",
 ]
 const POOL := 8
 

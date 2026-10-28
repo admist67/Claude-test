@@ -2,13 +2,15 @@ class_name RaftActions
 extends Node
 ## What the use button does with things on the raft: stations (the grill and the planter
 ## ask what goes in, a chest opens its storage), fish traps, the hammer taking things
-## down, the bucket scooping seawater; and tools wearing out with use until they break.
+## down, the bucket scooping seawater; tools wearing out with use until they break; and
+## the gulls after the crops.
 ## Glue between the game and those systems.
 
 var game: Node                     # main.gd
 var picker: PickPanel
 var storage: StoragePanel
 var wear := Durability.new()
+var gulls: Gulls
 var _picking: Station
 var _chest: Station
 
@@ -31,6 +33,16 @@ func setup(g: Node, layer: CanvasLayer) -> void:
 			game.stats["stored"] = int(game.stats.get("stored", 0)) + 1
 			game.check_goals()
 	)
+	gulls = Gulls.new()
+	gulls.raft = g.raft
+	g.add_child(gulls)
+	gulls.coming.connect(func(_st: Station) -> void: game.hud.toast("Чайка летит к грядке! Прогони её копьём", "planter"))
+	gulls.ate.connect(func(_st: Station) -> void: game.hud.toast("Чайка склевала урожай. Поставь рядом пугало", "scarecrow"))
+	gulls.scared.connect(func() -> void:
+		game.stats["gulls_scared"] = int(game.stats.get("gulls_scared", 0)) + 1
+		game.hud.toast("Чайка улетела!", "spear")
+		game.check_goals()
+	)
 
 
 ## The use button on a station. An idle grill or planter opens the list to choose from.
@@ -46,7 +58,8 @@ func use_station(st: Station) -> void:
 			return
 		_picking = st
 		game.open_modal()
-		picker.open("Что жарить?" if st.kind == "grill" else "Что посадить?", st.choices(game.inv))
+		var titles := {"grill": "Что жарить?", "planter": "Что посадить?", "rack": "Что сушить?"}
+		picker.open(titles[st.kind], st.choices(game.inv))
 		return
 	var was_busy := st.busy()
 	_finish(st, st.interact(game.inv), was_busy)
@@ -86,6 +99,10 @@ func _finish(st: Station, res: Array, was_busy: bool) -> void:
 	var got: String = res[1]
 	if st.kind == "anchor":
 		game.trips.on_anchor(st)
+	if st.kind == "sail" and st.stored == 1:
+		stats["sail_up"] = int(stats.get("sail_up", 0)) + 1
+		if game.trips.anchored():
+			res = ["Парус поднят, но якорь держит плот на месте", ""]
 	if st.kind == "planter" and not was_busy and st.busy():
 		stats["planted"] = int(stats.get("planted", 0)) + 1
 	if st.kind == "purifier" and not was_busy and st.busy():
@@ -100,7 +117,8 @@ func _finish(st: Station, res: Array, was_busy: bool) -> void:
 		Sfx.play("pop", -2.0)
 		game.hud.toast(res[0], got)
 	else:
-		Sfx.play("craft" if st.busy() else "build_fail", -6.0)
+		if not st.kind in ["anchor", "sail"]:          # those make their own sound
+			Sfx.play("craft" if st.busy() else "build_fail", -6.0)
 		game.hud.toast(res[0], st.kind)
 	game.check_goals()
 

@@ -8,6 +8,13 @@
    }
   },
   {
+   "id": "nails",
+   "out": 4,
+   "cost": {
+    "scrap": 1
+   }
+  },
+  {
    "id": "bait",
    "out": 3,
    "cost": {
@@ -92,6 +99,26 @@
    "once": true
   },
   {
+   "id": "metal_rod",
+   "out": 1,
+   "cost": {
+    "rod": 1,
+    "scrap": 2,
+    "nails": 3,
+    "rope": 2
+   },
+   "once": true
+  },
+  {
+   "id": "flippers",
+   "out": 1,
+   "cost": {
+    "plastic": 5,
+    "rope": 2
+   },
+   "once": true
+  },
+  {
    "id": "bandage",
    "out": 2,
    "cost": {
@@ -100,11 +127,37 @@
    }
   },
   {
+   "id": "medkit",
+   "out": 1,
+   "cost": {
+    "bandage": 2,
+    "plastic": 2,
+    "leaf": 2
+   }
+  },
+  {
    "id": "fruit_salad",
    "out": 1,
    "cost": {
     "banana": 2,
     "coconut": 1
+   }
+  },
+  {
+   "id": "fish_soup",
+   "out": 1,
+   "cost": {
+    "fish_cooked": 1,
+    "cup_water": 1,
+    "coconut": 1
+   }
+  },
+  {
+   "id": "kebab",
+   "out": 1,
+   "cost": {
+    "shark_steak": 1,
+    "pineapple": 1
    }
   }
  ]

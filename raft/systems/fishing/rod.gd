@@ -7,7 +7,8 @@ extends Node3D
 ## letting go eases the line while the fish swims off a little. Now and then it jerks —
 ## the bobber shivers a moment before (time to let go) — hold through a jerk and the line
 ## may snap; give it slack too long and it gets away.
-## Numbers in data/balance.json "fishing" ("fight").
+## Numbers in data/balance.json "fishing" ("fight"); a better rod (its item data) brings
+## bites sooner ("bite_mult"), big fish more often ("big_mult") and strains less.
 
 signal caught(id: String)
 signal missed(text: String)
@@ -29,6 +30,7 @@ var tension := 0.0                # 1 = the line snaps
 var jerking := false              # the fish fights right now
 var warning := false              # it is about to jerk
 var holding := false
+var gear: Dictionary = {}         # the rod item in hand
 var _bobber: MeshInstance3D
 var _line: MeshInstance3D
 var _im: ImmediateMesh
@@ -69,7 +71,9 @@ func busy() -> bool:
 	return state != State.IDLE
 
 
-func press() -> void:
+func press(rod_item: Dictionary = {}) -> void:
+	if not rod_item.is_empty():
+		gear = rod_item
 	match state:
 		State.IDLE:
 			state = State.CHARGE
@@ -153,7 +157,7 @@ func _fight_step(delta: float) -> void:
 			Input.vibrate_handheld(25)
 	if holding:
 		progress += float(_fight["reel"]) * (float(_fight["jerk_reel"]) if jerking else 1.0) * delta
-		tension += float(_fight["jerk_strain" if jerking else "strain"]) * delta
+		tension += float(_fight["jerk_strain" if jerking else "strain"]) * float(gear.get("strain_mult", 1.0)) * delta
 	else:
 		progress -= float(_fight["slip"]) * (1.7 if jerking else 1.0) * delta
 		tension -= float(_fight["ease"]) * delta
@@ -193,7 +197,7 @@ func _cast() -> void:
 
 func _roll() -> String:
 	var table: Array = cfg["catch"]
-	var big := float(cfg["bait"]["big_mult"]) if baited else 1.0
+	var big := (float(cfg["bait"]["big_mult"]) if baited else 1.0) * float(gear.get("big_mult", 1.0))
 	var total := 0.0
 	for e: Dictionary in table:
 		total += float(e["w"]) * (big if e["item"] == "big_fish" else 1.0)
@@ -209,6 +213,7 @@ func _new_wait() -> void:
 	_timer = rng.randf_range(float(cfg["bite"][0]), float(cfg["bite"][1]))
 	if baited:
 		_timer *= float(cfg["bait"]["wait_mult"])
+	_timer *= float(gear.get("bite_mult", 1.0))
 	state = State.WAIT
 
 

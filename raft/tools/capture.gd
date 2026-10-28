@@ -898,6 +898,7 @@ func _run() -> void:
 		await _wait(0.3)
 		print("bell prompt ", use_view()["label"])
 		_on_pressed("use")
+	await preload("res://tools/capture_more.gd").new().run(self)
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

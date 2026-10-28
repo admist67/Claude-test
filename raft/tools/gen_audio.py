@@ -164,8 +164,28 @@ def rain():
     os.remove(wav)
 
 
+def birds():
+    """A gull's cry (two harsh falling calls) and a sail flapping open."""
+    r = np.random.default_rng(23)
+    calls = []
+    for f0 in (1500, 1350):
+        t = t_axis(0.32)
+        f = f0 * (1 - 0.45 * (t / t[-1]) ** 0.7) * (1 + 0.03 * np.sin(2 * np.pi * 28 * t))
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        tone = np.sin(ph) + 0.6 * np.sin(2 * ph) + 0.35 * np.sin(3 * ph) + 0.2 * np.sin(5 * ph)
+        rasp = highpass(r.standard_normal(len(t)) * 0.3, 0.3)
+        calls.append((tone + rasp) * env(len(t), 0.015, 5) * np.sin(np.linspace(0, np.pi, len(t))) ** 0.4)
+    write_wav(os.path.join(OUT, "gull.wav"), norm(seq(*calls, gap=0.09), 0.6))
+    n = int(SR * 0.7)
+    flutter = (np.sin(np.linspace(0, 2 * np.pi * 18, n)) * 0.5 + 0.5) ** 2
+    body = lowpass(r.standard_normal(n), 0.15) * flutter * env(n, 0.02, 4)
+    snap = np.concatenate([np.zeros(int(SR * 0.45)), lowpass(r.standard_normal(int(SR * 0.25)), 0.3) * env(int(SR * 0.25), 0.002, 25)])
+    write_wav(os.path.join(OUT, "flap.wav"), norm(mix(body, snap * 1.2), 0.6))
+
+
 if __name__ == "__main__":
     sfx()
     ocean()
     rain()
+    birds()
     print("ok:", sorted(os.listdir(OUT)))

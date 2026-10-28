@@ -349,6 +349,35 @@
    "group": "Хозяйство"
   },
   {
+   "id": "rack",
+   "name": "Сушилка для рыбы",
+   "on": "deck",
+   "cost": {
+    "plank": 5,
+    "rope": 4,
+    "nails": 2
+   },
+   "time": 90.0,
+   "cook": {
+    "fish": "dried_fish",
+    "big_fish": "dried_fish"
+   },
+   "group": "Хозяйство"
+  },
+  {
+   "id": "scarecrow",
+   "name": "Пугало",
+   "on": "cell",
+   "cost": {
+    "plank": 3,
+    "leaf": 5,
+    "rope": 2,
+    "plastic": 1
+   },
+   "rotate": true,
+   "group": "Хозяйство"
+  },
+  {
    "id": "collector",
    "name": "Дождевая бочка",
    "on": "deck",
@@ -434,6 +463,18 @@
     "plank": 6,
     "rope": 4,
     "scrap": 3
+   },
+   "group": "Хозяйство"
+  },
+  {
+   "id": "sail",
+   "name": "Парус",
+   "on": "deck",
+   "cost": {
+    "plank": 8,
+    "rope": 6,
+    "leaf": 10,
+    "nails": 4
    },
    "group": "Хозяйство"
   }
