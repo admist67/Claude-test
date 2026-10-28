@@ -25,8 +25,8 @@ func _ready() -> void:
 
 ## Is this planter guarded by a scarecrow?
 func guarded(st: Station) -> bool:
-	for p: Part in raft.parts.decor.values():
-		if p.kind == "scarecrow" and p.global_position.distance_to(st.global_position) < float(cfg["protect"]):
+	for p: Part in raft.parts.free_of("scarecrow"):
+		if p.global_position.distance_to(st.global_position) < float(cfg["protect"]):
 			return true
 	return false
 
@@ -77,13 +77,13 @@ func _spawn(st: Station) -> void:
 	coming.emit(st)
 
 
-## A spear thrust from `eye` along `fwd` (a longer spear reaches `extra` further): hits
-## the gull if it is close and in front.
-func hit(eye: Vector3, fwd: Vector3, extra: float) -> bool:
+## A spear thrust (or a bolt) from `eye` along `fwd`, reaching `extra` further than a spear:
+## hits the gull if it is close enough and within `cone`.
+func hit(eye: Vector3, fwd: Vector3, extra: float, cone := 0.82) -> bool:
 	if gull == null or gull.state == Gull.State.FLEE:
 		return false
 	var v := gull.global_position + Vector3(0, 0.15, 0) - eye
-	if v.length() > float(cfg["reach"]) + extra or v.normalized().dot(fwd) < 0.82:
+	if v.length() > float(cfg["reach"]) + extra or v.normalized().dot(fwd) < cone:
 		return false
 	gull.flee()
 	Sfx.play("gull", -2.0, 0.25)

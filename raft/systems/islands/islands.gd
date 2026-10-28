@@ -93,14 +93,14 @@ func _wire(isl: Island) -> void:
 		c.died.connect(func(_c: Crab) -> void: crab_died.emit())
 
 
-## A spear thrust: hits a crab in front if there is one.
-func hit_crab(eye: Vector3, fwd: Vector3, power: int, reach: float) -> bool:
+## A spear thrust or a bolt: hits a crab in front if there is one (and returns it).
+func hit_crab(eye: Vector3, fwd: Vector3, power: int, reach: float, cone := 0.55) -> Crab:
 	if island == null:
-		return false
+		return null
 	for c in island.crabs:
-		if c.try_hit(eye, fwd, power, reach):
-			return true
-	return false
+		if c.try_hit(eye, fwd, power, reach, cone):
+			return c
+	return null
 
 
 ## A live crab within `d` meters of a world point.

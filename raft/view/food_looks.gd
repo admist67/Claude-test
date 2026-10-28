@@ -4,7 +4,7 @@ class_name FoodLooks
 ## surface on the shared atlas for wood or fruit bits.
 
 const IDS := ["fish", "big_fish", "fish_cooked", "big_fish_cooked", "shark_meat", "shark_steak", "plastic",
-		"dried_fish", "fish_soup", "kebab"]
+		"dried_fish", "fish_soup", "kebab", "trophy"]
 const GRID := 4
 const CELLS := {
 	"fish": Vector2i(0, 0), "fish_cooked": Vector2i(1, 0), "tuna": Vector2i(2, 0), "tuna_cooked": Vector2i(3, 0),
@@ -60,6 +60,15 @@ static func mesh(id: String) -> ArrayMesh:
 		"kebab":
 			atlas = true
 			_kebab(st, at)
+		"trophy":
+			# A tuna mounted on a dark wooden plaque with a brass plate, hung on a wall.
+			atlas = true
+			Mk.st_box(at, Vector3(0.66, 0.4, 0.03), Vector3(0, 1.55, 0.015), Color("#5a3a20"), "wood_dark")
+			Mk.st_box(at, Vector3(0.58, 0.32, 0.03), Vector3(0, 1.55, 0.035), Color(1, 0.95, 0.9), "wood_dark")
+			Mk.st_box(at, Vector3(0.16, 0.045, 0.008), Vector3(0, 1.425, 0.054), Color("#e0ad4a"), "metal")
+			var f := Mk.st_begin()
+			fish(f, 0.52, "tuna", false)
+			st.append_from(f.commit(), 0, Transform3D(Basis(Vector3.FORWARD, 0.12), Vector3(0.02, 1.58, 0.1)))
 	var m := st.commit()
 	m.surface_set_material(0, mat())
 	if atlas:

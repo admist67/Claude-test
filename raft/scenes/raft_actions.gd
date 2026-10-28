@@ -58,7 +58,7 @@ func use_station(st: Station) -> void:
 			return
 		_picking = st
 		game.open_modal()
-		var titles := {"grill": "Что жарить?", "planter": "Что посадить?", "rack": "Что сушить?"}
+		var titles := {"grill": "Что жарить?", "big_grill": "Что жарить? (до 3 сразу)", "planter": "Что посадить?", "rack": "Что сушить?"}
 		picker.open(titles[st.kind], st.choices(game.inv))
 		return
 	var was_busy := st.busy()
@@ -110,7 +110,7 @@ func _finish(st: Station, res: Array, was_busy: bool) -> void:
 	game.player.swing()
 	if got != "":
 		stats["got_" + got] = int(stats.get("got_" + got, 0)) + 1
-		if st.kind == "grill":
+		if st.is_grill():
 			stats["cooked"] = int(stats.get("cooked", 0)) + 1
 		if st.kind == "planter":
 			stats["harvest"] = int(stats.get("harvest", 0)) + 1

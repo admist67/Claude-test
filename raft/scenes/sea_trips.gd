@@ -58,6 +58,8 @@ func update() -> void:
 	var goals: Array = Data.goals
 	islands.want_chest = game.goal_i < goals.size() and goals[game.goal_i]["stat"] == "chests"
 	game.shark.swimmer = p if p.swimming else null
+	var isl := islands.island
+	game.shark.avoid = [isl.global_position, isl.outer_radius()] if isl else []
 	jump_at = null
 	climb_at = null
 	if p.off_raft:

@@ -325,7 +325,7 @@ func _run() -> void:
 	player.place(cc.call(1, 1), 0.0)
 	await _build_at("door", cc.call(0, 2) + Vector3(0, 0, 0.6))
 	await _build_at("pillar", cc.call(1, 2) + Vector3(0.55, 0, 0.55))
-	await _build_at("lantern", cc.call(2, 1) + Vector3(0.55, 0, 0.55))
+	await _build_at("lantern", cc.call(2, 1) + Vector3(0.62, 0, 0.62))
 	player.place(cc.call(0, 0), 0.0)
 	await _build_at("roof", cc.call(-1, 0))
 	await _build_at("roof", cc.call(-1, 1))
@@ -667,7 +667,7 @@ func _run() -> void:
 		player.global_position = player._world
 		await _wait(0.15)
 		_aim_local(raft.to_local(cr.global_position + Vector3(0, 0.2, 0)))
-		_spear_cd = 0.0
+		combat.spear_cd = 0.0
 		_on_pressed("action")
 		await _wait(0.3)
 		t6 += 0.45
@@ -865,18 +865,17 @@ func _run() -> void:
 	await _build_at("table", cc.call(3, 2))
 	await _build_at("bell", cc.call(2, 3))
 	var parts := raft.parts
-	for e: Array in [["stool", Vector3i(3, 3, 0), 3], ["plant_pot", Vector3i(1, 3, 0), 0], ["rug", Vector3i(2, 2, 0), 0],
-			["flag", Vector3i(4, 2, 0), 0], ["wheel", Vector3i(4, 3, 0), 3], ["crate", Vector3i(0, 1, 0), 0]]:
-		if parts.can_bed(e[1]):
-			parts.add(e[0], e[1], e[2])
+	for e: Array in [["stool", cc.call(3, 3), PI * 1.5], ["plant_pot", cc.call(1, 3), 0.0], ["rug", cc.call(2, 2), 0.0],
+			["flag", cc.call(4, 2), 0.0], ["wheel", cc.call(4, 3), PI * 1.5], ["crate", cc.call(0, 1), 0.0]]:
+		parts.put_free(e[0], Vector2(e[1].x, e[1].z), e[2], 0)
 	for e: Array in [["railing", Vector4i(4, 2, 0, 0)], ["railing", Vector4i(4, 3, 0, 0)], ["railing", Vector4i(4, 3, 1, 0)],
 			["wall_bamboo", Vector4i(2, 3, 1, 0)], ["wall_woven", Vector4i(1, 3, 1, 0)], ["window_round", Vector4i(0, 3, 0, 0)]]:
 		if parts.can_edge(e[1], false, e[0]):
 			parts.add(e[0], e[1])
 	for k: Vector3i in [Vector3i(4, 3, 0), Vector3i(2, 1, 0)]:
-		if parts.can_corner(k, "torch"):
-			parts.add("torch", k)
-	print("decor ", parts.decor.keys(), " walls ", parts.count("wall_bamboo"), parts.count("wall_woven"), parts.count("window_round"))
+		var at := parts.corner_center(k)
+		parts.put_free("torch", Vector2(at.x, at.z) - Vector2(0.25, 0.25), 0.0, 0)
+	print("free parts ", parts.free.size(), " walls ", parts.count("wall_bamboo"), parts.count("wall_woven"), parts.count("window_round"))
 	print("railings ", parts.count("railing"), " torches ", parts.count("torch"))
 	_select("hook")
 	daynight.phase = 0.25
@@ -889,7 +888,8 @@ func _run() -> void:
 	await _wait(2.6)
 	await _shot("82_decor_night")
 	daynight.phase = 0.2
-	var bell: Part = parts.decor.get(Vector3i(2, 3, 0))
+	var bells := parts.free_of("bell")
+	var bell: Part = bells[0] if not bells.is_empty() else null
 	if bell:
 		hand = ""
 		_refresh_hotbar()
@@ -899,6 +899,7 @@ func _run() -> void:
 		print("bell prompt ", use_view()["label"])
 		_on_pressed("use")
 	await preload("res://tools/capture_more.gd").new().run(self)
+	await preload("res://tools/capture_v14.gd").new().run(self)
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0

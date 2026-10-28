@@ -13,7 +13,8 @@
     "swim_speed": 0.62,
     "swim_depth": 1.1,
     "swim_float": 1.3,
-    "max_swim": 75.0
+    "max_swim": 75.0,
+    "crab_reach": 1.9
   },
   "vitals": {
     "start": 100,
@@ -172,7 +173,7 @@
     "bite_every": 3.2,
     "flee_time": 28.0,
     "respawn": 200.0,
-    "hit_reach": 3.2,
+    "hit_reach": 2.4,
     "hits": [
       3,
       6
@@ -385,7 +386,9 @@
     "range_tall": 11.0,
     "on": 0.46,
     "off": 0.05,
-    "fade": 2.0
+    "fade": 2.0,
+    "range_candle": 4.0,
+    "range_fire": 7.5
   },
   "gulls": {
     "first": 150.0,
@@ -397,10 +400,17 @@
     "eat_time": 16.0,
     "protect": 5.0,
     "from": 28.0,
-    "reach": 3.2
+    "reach": 2.6
   },
   "sail": {
     "islands": 2.0,
     "debris": 1.4
+  },
+  "crossbow": {
+    "range": 16.0,
+    "reload": 1.1,
+    "power": 1,
+    "cone": 0.95,
+    "speed": 45.0
   }
 }

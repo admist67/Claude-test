@@ -88,7 +88,7 @@ func run(g: Variant) -> void:
 		print("gull state ", gulls.gull.state, " spear ok ", g.action_view()["ok"])
 		await g._shot("90_gull")
 		g._aim_local(raft.to_local(gulls.gull.global_position) + Vector3(0, 0.15, 0))
-		g._stab()
+		g.combat.stab()
 		await g._wait(0.4)
 		print("gulls scared ", g.stats.get("gulls_scared", 0))
 		await g._shot("91_gull_flee")
@@ -102,10 +102,9 @@ func run(g: Variant) -> void:
 		planter.cooking = "seeds"
 		planter._refresh()
 		for d: Vector2i in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, 1)]:
-			var k := Vector3i(planter.cell.x + d.x, planter.cell.y + d.y, 0)
-			if raft.tiles.has(Vector2i(k.x, k.y)) and raft.parts.can_bed(k):
-				raft.parts.add("scarecrow", k, 0)
-				g._aim_local(raft.cell_center(Vector2i(k.x, k.y)) + Vector3(0, 1.0, 0))
+			var at := raft.cell_center(Vector2i(planter.cell.x + d.x, planter.cell.y + d.y))
+			if raft.parts.put_free("scarecrow", Vector2(at.x, at.z), 0.0, 0):
+				g._aim_local(at + Vector3(0, 1.0, 0))
 				break
 		print("guarded ", gulls.guarded(planter), " scarecrows ", raft.parts.count("scarecrow"))
 		await g._wait(0.4)

@@ -23,7 +23,7 @@ VERIFIED: yes
 RUN: пользователь играет на телефоне — BUILD, затем отправка build/plot.apk в чат
 TEST: godot --headless --path . -s res://tests/test_logic.gd
 BUILD: godot --headless --path . --export-debug "Android" build/plot.apk
-CAPTURE: xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --resolution 1280x720 res://tools/capture.tscn -- --out .studioigor/captures/v13
+CAPTURE: xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --resolution 1280x720 res://tools/capture.tscn -- --out .studioigor/captures/v14
 EDITOR: нет (облако без экрана)
 
 ## Pitfalls

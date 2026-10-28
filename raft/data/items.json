@@ -52,6 +52,13 @@
    "durability": 70
   },
   {
+   "id": "crossbow",
+   "name": "Арбалет",
+   "kind": "tool",
+   "use": "crossbow",
+   "durability": 60
+  },
+  {
    "id": "pickaxe",
    "kind": "tool",
    "name": "Кирка",
@@ -109,6 +116,11 @@
   {
    "id": "nails",
    "name": "Гвозди",
+   "kind": "resource"
+  },
+  {
+   "id": "bolt",
+   "name": "Стрела",
    "kind": "resource"
   },
   {

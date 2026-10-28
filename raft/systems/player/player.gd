@@ -19,6 +19,7 @@ var _bob := 0.0
 var _last_ok := Vector3.ZERO
 var _held: Node3D
 var _held_id := ""
+var _bolt: Node3D                 # the bolt on a held crossbow
 var _world := Vector3.ZERO        # global position kept while off the raft
 
 
@@ -108,9 +109,23 @@ func hold(id: String) -> void:
 	if id == "":
 		return
 	_held = Looks.held(id)
+	_bolt = _held.find_child("Bolt", true, false) as Node3D
 	hand.add_child(_held)
 	hand.position.y = -0.5
 	create_tween().tween_property(hand, "position:y", -0.26, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## A crossbow: the bolt shows while it is loaded.
+func show_bolt(on: bool) -> void:
+	if is_instance_valid(_bolt):
+		_bolt.visible = on
+
+
+## Cocking a crossbow: the hand dips and comes back up over `t` seconds.
+func reload_motion(t: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(hand, "rotation:x", 0.6, t * 0.35)
+	tw.tween_property(hand, "rotation:x", 0.0, t * 0.65).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func swing() -> void:

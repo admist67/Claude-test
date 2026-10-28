@@ -59,11 +59,11 @@ func _pick_target() -> void:
 
 
 ## A spear thrust from `eye` along `fwd` (world). True on a hit.
-func try_hit(eye: Vector3, fwd: Vector3, power: int, reach: float) -> bool:
+func try_hit(eye: Vector3, fwd: Vector3, power: int, reach: float, cone := 0.55) -> bool:
 	if dead:
 		return false
 	var to := global_position + Vector3(0, 0.2, 0) - eye
-	if to.length() > reach or to.normalized().dot(fwd) < 0.55:
+	if to.length() > reach or to.normalized().dot(fwd) < cone:
 		return false
 	hp -= power
 	_stun = 0.7

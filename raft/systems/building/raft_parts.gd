@@ -6,8 +6,10 @@ extends Node3D
 ## corners Vector3i(x, z, L) — the +X+Z corner of cell (x, z);
 ## roofs Vector3i(x, z, L) — a floor slab with its top at L·H over cell (x, z), L ≥ 1;
 ## stairs, beds Vector3i(x, z, L) — standing on level L (stairs climb to L + 1);
-## lamps Vector4i(x, z, side * 2 + face, L) — a lantern on one face of a wall;
-## decor Vector3i(x, z, L) — a table, a stool, a bell… standing in a cell.
+## lamps Vector4i(x, z, side * 2 + face, L) — a lantern (or a picture) on one face of a wall;
+## free Vector4(x, z, yaw, L) — decor and lights set down anywhere on a floor (raft-local
+## x, z), several to a cell: their footprints (data "foot") may not overlap each other,
+## walls, pillars or whole-cell things; rugs lie flat and only clash with other rugs.
 ## A door's dir picks the cell its leaf swings into; nothing may stand in that sweep.
 
 const H := 2.4
@@ -15,10 +17,11 @@ const MAX_LEVEL := 3
 const DIRS: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
 const NETS := ["net", "net_strong"]
 const LOW := ["net", "net_strong", "trap"]        # low things on the outer rim, not walls
-const SHORT := ["net", "net_strong", "trap", "railing"]   # hold up no roof, lamp arms pass
-const WALLS := ["wall", "window", "wall_bamboo", "wall_woven", "window_round"]
+const SHORT := ["net", "net_strong", "trap", "railing", "half_wall"]   # hold up no roof
+const WALLS := ["wall", "window", "wall_bamboo", "wall_woven", "window_round", "wall_stone", "window_shutters"]
 const STAIRS := ["stairs", "stairs_rope", "stairs_bamboo"]
-const ARMED := ["lantern", "lantern_tall"]       # corner lights with an arm sticking out
+const FLAT := ["rug", "mat"]                     # lie flat: things may stand on them
+const OLD_CORNER := ["lantern", "lantern_tall", "torch"]   # stood on cell corners before v0.14
 
 var raft: Raft
 var daynight: DayNight
@@ -28,7 +31,7 @@ var roofs: Dictionary = {}      # Vector3i -> Part
 var stairs: Dictionary = {}     # Vector3i -> Part
 var beds: Dictionary = {}       # Vector3i -> Part (hammocks)
 var lamps: Dictionary = {}      # Vector4i -> Part (wall lanterns)
-var decor: Dictionary = {}      # Vector3i -> Part (tables, stools, bells…)
+var free: Dictionary = {}       # Vector4 -> Part (tables, stools, bells, lanterns…)
 
 
 # ---------------------------------------------------------------- geometry
@@ -119,18 +122,6 @@ func _door_swings(c: Vector3i) -> bool:
 	return false
 
 
-## The edge a corner lantern's arm points along (dir 0..3 = +X, +Z, -X, -Z).
-static func arm_edge(k: Vector3i, d: int) -> Vector4i:
-	match d % 4:
-		0:
-			return Vector4i(k.x + 1, k.y, 1, k.z)
-		1:
-			return Vector4i(k.x, k.y + 1, 0, k.z)
-		2:
-			return Vector4i(k.x, k.y, 1, k.z)
-	return Vector4i(k.x, k.y, 0, k.z)
-
-
 # ---------------------------------------------------------------- floors and rules
 
 func has_floor(c: Vector2i, lvl: int) -> bool:
@@ -151,29 +142,27 @@ func can_edge(k: Vector4i, outer: bool, kind := "", d := 0) -> bool:
 	var n := _floors_touching(edge_cells(k), k.w)
 	if not ((n == 1 and k.w == 0) if outer else n >= 1):
 		return false
-	if kind in SHORT:
-		return true
-	# A lantern arm pointing along this edge would end up inside the wall.
-	var ends: Array[Vector3i] = [Vector3i(k.x, k.y, k.w), Vector3i(k.x, k.y - 1, k.w) if k.z == 0 else Vector3i(k.x - 1, k.y, k.w)]
-	for c in ends:
-		var lamp: Part = corners.get(c)
-		if lamp and lamp.kind in ARMED and arm_edge(c, lamp.dir) == k:
-			return false
+	if _free_hits(Footprint.rect(edge_center(k), edge_yaw(k), Vector2(raft.tile_size - 0.02, 0.16)), k.w):
+		return false
 	if kind == "door":
 		var sc := swing_cell(k, d)
-		if stairs.has(sc) or beds.has(sc) or decor.has(sc) or raft.stations.has(sc):
+		if stairs.has(sc) or beds.has(sc) or raft.stations.has(sc):
 			return false
 		for lk: Vector4i in lamps:
 			if lk.w == k.w and in_swing(k, d, lamp_head(lk)):
 				return false
+		for fk: Vector4 in free:
+			if int(fk.w) == k.w and not free[fk].kind in FLAT:
+				for q in Footprint.of(free[fk].kind, Vector2(fk.x, fk.y), fk.z):
+					if in_swing(k, d, Vector3(q.x, 0, q.y)):
+						return false
 	return true
 
 
-func can_corner(k: Vector3i, kind := "", d := 0) -> bool:
+func can_corner(k: Vector3i) -> bool:
 	if corners.has(k) or _floors_touching(corner_cells(k), k.z) == 0:
 		return false
-	var wall: Part = edges.get(arm_edge(k, d))
-	return not kind in ARMED or wall == null or wall.kind in SHORT
+	return not _free_hits(Footprint.rect(corner_center(k), 0.0, Vector2(0.22, 0.22)), k.z)
 
 
 ## On a wall or window (a door leaf moves), clear of any door's sweep.
@@ -211,9 +200,88 @@ func can_roof(c: Vector2i, lvl: int) -> bool:
 	return supported(c, lvl)
 
 
-## Something stands in the cell, or a door opens into it.
-func cell_busy(k: Vector3i) -> bool:
-	return stairs.has(k) or beds.has(k) or decor.has(k) or raft.stations.has(k) or _door_swings(k)
+## Something stands in the cell, or a door opens into it. For a station only its own
+## footprint has to be clear (a lantern may stand beside the grill).
+func cell_busy(k: Vector3i, station := "") -> bool:
+	if stairs.has(k) or beds.has(k) or raft.stations.has(k) or _door_swings(k):
+		return true
+	var c := Vector2i(k.x, k.y)
+	return _free_hits(_station_rect(station, c) if station != "" else _cell_rect(c), k.z, true)
+
+
+# ---------------------------------------------------------------- free placement
+
+func _cell_rect(c: Vector2i) -> PackedVector2Array:
+	return Footprint.rect(raft.cell_center(c), 0.0, Vector2(raft.tile_size - 0.06, raft.tile_size - 0.06))
+
+
+## Where a station of `kind` in cell `c` stands (data "foot", [width, depth]).
+func _station_rect(kind: String, c: Vector2i) -> PackedVector2Array:
+	var f: Array = Data.build_by_id.get(kind, {}).get("foot", [1.1, 1.1])
+	return Footprint.rect(raft.cell_center(c), 0.0, Vector2(f[0], f[1]))
+
+
+## A free part on level `lvl` (rugs only when `with_flat`) whose footprint overlaps `r`.
+func _free_hits(r: PackedVector2Array, lvl: int, with_flat := false) -> bool:
+	for k: Vector4 in free:
+		var p: Part = free[k]
+		if int(k.w) == lvl and (with_flat or not p.kind in FLAT) and Footprint.overlap(r, Footprint.of(p.kind, Vector2(k.x, k.y), k.z)):
+			return true
+	return false
+
+
+## Can `kind` be set down at raft-local (x, z) `at`, turned by `yaw`, on level `lvl`?
+func can_free(kind: String, at: Vector2, yaw: float, lvl: int) -> bool:
+	var r := Footprint.of(kind, at, yaw)
+	for q in Footprint.of(kind, at, yaw, true):
+		if not has_floor(raft.cell_at(Vector3(q.x, 0, q.y)), lvl):
+			return false
+	var flat := kind in FLAT
+	for k: Vector4 in free:
+		var p: Part = free[k]
+		if int(k.w) == lvl and (p.kind in FLAT) == flat and Footprint.overlap(r, Footprint.of(p.kind, Vector2(k.x, k.y), k.z)):
+			return false
+	return not _cells_taken(r, lvl) and (flat or not _walls_in_way(r, lvl))
+
+
+## Stairs, hammocks or stations stand where `r` would go.
+func _cells_taken(r: PackedVector2Array, lvl: int) -> bool:
+	for dict: Dictionary in [stairs, beds]:
+		for k: Vector3i in dict:
+			if k.z == lvl and Footprint.overlap(r, _cell_rect(Vector2i(k.x, k.y))):
+				return true
+	for k: Vector3i in raft.stations:
+		if k.z == lvl and Footprint.overlap(r, _station_rect(raft.stations[k].kind, Vector2i(k.x, k.y))):
+			return true
+	return false
+
+
+## A wall, a net, a pillar or a door's sweep is where `r` would go.
+func _walls_in_way(r: PackedVector2Array, lvl: int) -> bool:
+	for k: Vector4i in edges:
+		if k.w == lvl and Footprint.overlap(r, Footprint.rect(edge_center(k), edge_yaw(k), Vector2(raft.tile_size - 0.02, 0.16))):
+			return true
+	for k: Vector3i in corners:
+		if k.z == lvl and Footprint.overlap(r, Footprint.rect(corner_center(k), 0.0, Vector2(0.22, 0.22))):
+			return true
+	for p: Part in doors():
+		if p.key.w == lvl:
+			for q in r:
+				if in_swing(p.key, p.dir, Vector3(q.x, 0, q.y)):
+					return true
+	return false
+
+
+## Sets `kind` down at raft-local (x, z) `at` if it fits there. Returns the part or null.
+func put_free(kind: String, at: Vector2, yaw: float, lvl: int) -> Part:
+	if not can_free(kind, at, yaw, lvl):
+		return null
+	return add(kind, Vector4(at.x, at.y, yaw, lvl))
+
+
+## Every part of a kind standing freely (scarecrows for the gulls).
+func free_of(kind: String) -> Array:
+	return free.values().filter(func(p: Part) -> bool: return p.kind == kind)
 
 
 func can_stairs(k: Vector3i) -> bool:
@@ -263,13 +331,17 @@ func add(kind: String, k: Variant, d := 0) -> Part:
 			var dv: Vector2i = DIRS[d]
 			p.position = cell_pos(k)
 			p.rotation.y = atan2(float(dv.x), float(dv.y)) + (PI / 2.0 if kind == "hammock" else 0.0)
-			(stairs if kind in STAIRS else (beds if kind == "hammock" else decor))[k] = p
+			(stairs if kind in STAIRS else beds)[k] = p
+		"free":
+			p.position = Vector3(k.x, k.w * H, k.y)
+			p.rotation.y = k.z
+			free[k] = p
 	add_child(p)
 	return p
 
 
 func _dicts() -> Array[Dictionary]:
-	return [edges, corners, roofs, stairs, beds, lamps, decor]
+	return [edges, corners, roofs, stairs, beds, lamps, free]
 
 
 func count(kind: String) -> int:
@@ -293,11 +365,15 @@ func remove_part(p: Part) -> void:
 
 ## A tile sank: the whole column above it goes, then whatever lost its footing.
 func on_tile_removed(c: Vector2i) -> void:
-	for dict: Dictionary in [roofs, stairs, beds, decor]:
+	for dict: Dictionary in [roofs, stairs, beds]:
 		for k: Vector3i in dict.keys():
 			if k.x == c.x and k.y == c.y:
 				dict[k].queue_free()
 				dict.erase(k)
+	for k: Vector4 in free.keys():
+		if raft.cell_at(Vector3(k.x, 0, k.y)) == c:
+			free[k].queue_free()
+			free.erase(k)
 	prune()
 
 
@@ -313,10 +389,13 @@ func prune() -> void:
 		for k: Vector3i in corners.keys():
 			if _floors_touching(corner_cells(k), k.z) == 0:
 				changed = _drop(corners, k) or changed
-		for dict: Dictionary in [stairs, beds, decor]:
+		for dict: Dictionary in [stairs, beds]:
 			for k: Vector3i in dict.keys():
 				if not has_floor(Vector2i(k.x, k.y), k.z):
 					changed = _drop(dict, k) or changed
+		for k: Vector4 in free.keys():
+			if not has_floor(raft.cell_at(Vector3(k.x, 0, k.y)), int(k.w)):
+				changed = _drop(free, k) or changed
 		for k: Vector4i in lamps.keys():
 			if not edges.has(lamp_edge(k)):
 				changed = _drop(lamps, k) or changed
@@ -360,6 +439,8 @@ func from_list(list: Array) -> void:
 		if not Data.build_by_id.has(kind):
 			continue
 		match Data.build_by_id[kind]["on"]:
+			"free":
+				k = _free_key(kind, a, int(e.get("dir", 0)))
 			"edge", "edge_out", "wall":
 				if a.size() < 3:
 					continue
@@ -372,6 +453,20 @@ func from_list(list: Array) -> void:
 		p.fish = int(e.get("fish", 0))
 		if e.get("open", false):
 			p.toggle()
+
+
+## A free part's key from a save: [x, z, yaw, L]; before v0.14 decor stood in a cell and
+## lanterns and torches on a cell corner ([x, z, L] and a dir).
+func _free_key(kind: String, a: Array, d: int) -> Vector4:
+	if a.size() > 3:
+		return Vector4(float(a[0]), float(a[1]), float(a[2]), float(a[3]))
+	var k := Vector3i(int(a[0]), int(a[1]), int(a[2]) if a.size() > 2 else 0)
+	if kind in OLD_CORNER:
+		var cc := corner_center(k)
+		return Vector4(cc.x, cc.z, -d * PI / 2.0, k.z)
+	var dv: Vector2i = DIRS[d % 4]
+	var cp := cell_pos(k)
+	return Vector4(cp.x, cp.z, atan2(float(dv.x), float(dv.y)), k.z)
 
 
 # ---------------------------------------------------------------- nets
@@ -413,6 +508,6 @@ func _process(delta: float) -> void:
 	for p: Part in edges.values():
 		if p.kind in ["door", "trap"]:
 			p.tick(delta, night)
-	for dict: Dictionary in [corners, lamps, decor]:
+	for dict: Dictionary in [corners, lamps, free]:
 		for k: Variant in dict:
 			dict[k].tick(delta, night)

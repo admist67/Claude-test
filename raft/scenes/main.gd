@@ -16,6 +16,7 @@ var played := 0.0
 var hotbar: Array[String] = []
 var trips: SeaTrips                # swimming, islands, the anchor
 var actions: RaftActions           # stations, traps, demolishing, tool wear
+var combat: Combat                 # the spear and the crossbow
 var layout := HotbarLayout.new()   # the player's hotbar order and hidden items
 var world := -1                    # the save slot being played
 var sel := -1                      # hotbar index of what is in hand, -1 for empty hands
@@ -49,7 +50,6 @@ var menu_cam: Camera3D
 var _save_t := 0.0
 var _menu_t := 0.0
 var _reel_t := 0.0
-var _spear_cd := 0.0
 
 
 func _ready() -> void:
@@ -207,6 +207,9 @@ func _build_ui() -> void:
 	actions = RaftActions.new()
 	add_child(actions)
 	actions.setup(self, layer)
+	combat = Combat.new()
+	add_child(combat)
+	combat.setup(self)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -611,7 +614,9 @@ func _action_down() -> void:
 	elif use == "rod":
 		rod.press(Data.item(id))
 	elif use == "spear":
-		_stab()
+		combat.stab()
+	elif use == "crossbow":
+		combat.crossbow()
 	elif use == "pickaxe":
 		trips.mine(spot_target)
 	elif use == "bucket":
@@ -620,7 +625,7 @@ func _action_down() -> void:
 		_open_build.call_deferred()
 	elif use == "hammer":
 		var fixing := builder.repair
-		var upper := builder.level >= 1 and builder.kind != "roof"
+		var upper: bool = builder.level >= 1 and builder.def()["on"] != "roof"
 		if builder.place():
 			if upper:
 				stats["upper_built"] = int(stats.get("upper_built", 0)) + 1
@@ -674,31 +679,6 @@ func _use() -> void:
 		_collect(grab_target)
 	else:
 		trips.use()
-
-
-func _stab() -> void:
-	if _spear_cd > 0.0:
-		return
-	_spear_cd = float(Data.b["player"]["spear_cooldown"])
-	player.swing()
-	var metal := selected() == "metal_spear"
-	var ms: Dictionary = Data.b["shark"]["metal_spear"]
-	var power := int(ms["power"]) if metal else 1
-	var extra := float(ms["reach"]) if metal else 0.0
-	var eye := player.cam.global_position
-	var fwd := -player.cam.global_basis.z
-	if shark.try_hit(eye, fwd, power, extra):
-		if shark.hits_left() > 0:
-			hud.toast("Попал!", "spear")
-		actions.use_tool(selected())
-	elif trips.islands.hit_crab(eye, fwd, power, 2.3 + extra):
-		Sfx.play("shark_hit", -4.0)
-		Fx.burst(self, eye + fwd * 1.6 + Vector3(0, -1.0, 0), Color("#d4572f"), 10)
-		actions.use_tool(selected())
-	elif actions.gulls.hit(eye, fwd, extra):
-		actions.use_tool(selected())
-	else:
-		Sfx.play("throw", -6.0, 0.2)
 
 
 ## Sleep in a hammock: the night passes in a fade, hunger and thirst drop a bit.
@@ -883,9 +863,8 @@ func action_view() -> Dictionary:
 			out = {"icon": id, "label": "Копать", "ok": spot_target != null and spot_target.kind == "rock" and spot_target.left > 0}
 		"bucket":
 			out = {"icon": id, "label": "Набрать" if id == "bucket" else "Вылить", "ok": true}
-		"spear":
-			var foe := shark.alive_near() or trips.islands.crab_near(player.global_position, 4.0) or actions.gulls.near(player.global_position, 4.5)
-			out = {"icon": id, "label": "Ударить", "ok": foe and _spear_cd <= 0.0, "cooldown": _spear_cd / float(Data.b["player"]["spear_cooldown"])}
+		"spear", "crossbow":
+			out = combat.view(id)
 		"hammer":
 			if builder.repair:
 				out = {"icon": "hammer", "label": "Чинить", "ok": builder.affordable(), "cost": builder.cost()}
@@ -920,7 +899,7 @@ func _process(delta: float) -> void:
 		var prev_min := int((played - delta) / 60.0)
 		if int(played / 60.0) != prev_min:
 			check_goals()
-	_spear_cd = maxf(0.0, _spear_cd - delta)
+	combat.tick(delta)
 	shark.enabled = stats.has("made_spear") or stats.has("made_metal_spear") or stats.has("shark_driven")
 	field.extra_mult = storm.debris_mult() * trips.debris_pace()
 	Station.rain = storm.k

@@ -1,13 +1,14 @@
 class_name Builder
 extends Node3D
 ## Hammer mode: `kind` is what gets built; where it goes depends on its "on" rule:
-## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), cell
-## (decor: tables, stools, a bell — turned with the rotate button), edge /
-## edge_out (walls, windows, doors / nets on the rim), corner (pillars, lanterns), wall
-## (lanterns on the wall you look at, on your side of it), roof (a floor slab above).
-## Everything else is built on the floor of the player's level: the deck or a roof. `rot`
-## (the rotate button) turns lanterns, stairs and hammocks by 90° clockwise and flips the
-## way a door opens. Looking at a bitten tile offers a repair.
+## water (floor tiles next to the raft), deck (stations), stairs (stairs, hammock), free
+## (decor and lights: anywhere on the floor you look at, several to a cell, as long as
+## nothing is in the way), edge / edge_out (walls, windows, doors / nets on the rim),
+## corner (pillars), wall (lanterns and pictures on the wall you look at, on your side of
+## it), roof (a floor slab above). Everything else is built on the floor of the player's
+## level: the deck or a roof. `rot` (the rotate button) turns free things by 45°, stairs
+## and hammocks by 90°, and flips the way a door opens. Looking at a bitten tile offers a
+## repair.
 
 const H := RaftParts.H
 
@@ -68,7 +69,7 @@ func affordable() -> bool:
 
 
 func turn() -> void:
-	rot = (rot + 1) % 4
+	rot = (rot + 1) % (8 if def().get("on", "") == "free" else 4)
 
 
 func _process(delta: float) -> void:
@@ -89,6 +90,8 @@ func _process(delta: float) -> void:
 				_find_edge(def()["on"] == "edge_out")
 			"corner":
 				_find_corner()
+			"free":
+				_find_free()
 			"wall":
 				_find_wall()
 			"roof":
@@ -109,7 +112,9 @@ func _process(delta: float) -> void:
 			pos = raft.parts.edge_center(key) + Basis(Vector3.UP, yaw) * Vector3(0, 0, 0.18)
 		"corner":
 			pos = raft.parts.corner_center(key)
-			yaw = -rot * PI / 2.0
+		"free":
+			pos = Vector3(key.x, key.w * H, key.y)
+			yaw = key.z
 		"wall":
 			var e := RaftParts.lamp_edge(key)
 			yaw = RaftParts.edge_yaw(e) + (0.0 if key.z % 2 == 0 else PI)
@@ -123,7 +128,7 @@ func _process(delta: float) -> void:
 		_:
 			# Stations stand on the floor you are on; new tiles always float on the sea.
 			pos = raft.cell_center(cell) + Vector3(0, level * H if not repair and def()["on"] == "deck" else 0.0, 0)
-			yaw = PI if gk in ["purifier", "grill", "planter", "collector"] else 0.0
+			yaw = PI if gk in ["purifier", "grill", "big_grill", "planter", "collector"] else 0.0
 	_ghost.position = pos + Vector3(0, 0.02 + sin(_t * 5.0) * 0.015, 0)
 	_ghost.rotation.y = yaw
 	_ghost.material_override = _ok_mat if valid and affordable() else _bad_mat
@@ -216,7 +221,7 @@ func _find_deck_cell() -> void:
 		dir = (RaftParts.DIRS.find(_look_dir()) + rot) % 4
 		valid = (raft.parts.can_stairs(k) if kind in RaftParts.STAIRS else raft.parts.can_bed(k)) and (not standing or kind == "rug")
 	else:
-		valid = not raft.parts.cell_busy(k) and not standing
+		valid = not raft.parts.cell_busy(k, kind) and not standing
 
 
 func _edge_dir(hit: Vector3, c: Vector2i) -> Vector2i:
@@ -247,9 +252,24 @@ func _find_corner() -> void:
 		return
 	var off: Vector3 = hit - raft.cell_center(c)
 	key = Vector3i(c.x if off.x > 0.0 else c.x - 1, c.y if off.z > 0.0 else c.y - 1, level)
-	dir = rot
 	has_target = true
-	valid = raft.parts.can_corner(key, kind, dir)
+	valid = raft.parts.can_corner(key)
+
+
+## Decor and lights: where the view meets the floor, facing away from you, turned in 45°
+## steps by the rotate button; never on top of you or of anything else.
+func _find_free() -> void:
+	var hit: Variant = _floor_hit()
+	if hit == null or not raft.parts.has_floor(raft.cell_at(hit), level):
+		return
+	var at := Vector2(snappedf(hit.x, 0.05), snappedf(hit.z, 0.05))
+	var look := _look_dir()
+	var yaw := wrapf(atan2(float(look.x), float(look.y)) + rot * PI / 4.0, -PI, PI)
+	key = Vector4(at.x, at.y, yaw, level)
+	has_target = true
+	var me := Footprint.rect(Vector3(player.position.x, 0, player.position.z), 0.0, Vector2(0.5, 0.5))
+	var on_me := not kind in RaftParts.FLAT and Footprint.overlap(me, Footprint.of(kind, at, yaw))
+	valid = raft.parts.can_free(kind, at, yaw, level) and not on_me
 
 
 ## Wall lanterns: on the wall or window the view ray hits, on the face you look from.
@@ -312,6 +332,8 @@ func place() -> bool:
 			raft.parts.add(kind, Vector3i(cell.x, cell.y, level), dir)
 		"corner", "edge":
 			raft.parts.add(kind, key, dir)
+		"free":
+			raft.parts.add(kind, key)
 		_:
 			raft.parts.add(kind, key)
 	return true
@@ -328,8 +350,10 @@ static func hint(on: String) -> String:
 			return "Посмотри на пол у внешнего края плота"
 		"corner":
 			return "Посмотри на пол у угла клетки"
+		"free":
+			return "Посмотри на свободное место на полу: вещи не должны задевать друг друга и стены"
 		"roof":
 			return "Крыше нужна опора: стена, столб или соседняя крыша. Смотри вверх или на пол"
 		"wall":
-			return "Посмотри на стену или окно: фонарь повиснет с твоей стороны"
+			return "Посмотри на стену или окно: вещь повиснет с твоей стороны"
 	return "Посмотри на свободную клетку плота"

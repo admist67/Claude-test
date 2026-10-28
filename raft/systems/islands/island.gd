@@ -65,6 +65,11 @@ func height_at(p: Vector2) -> float:
 	return IslandLooks.height(p, radius, wob)
 
 
+## The farthest the shore reaches from the center.
+func outer_radius() -> float:
+	return radius * (1.0 + absf(wob[0]) + absf(wob[2]) + absf(wob[4]))
+
+
 func _free_spot(rng: RandomNumberGenerator, kind: String, taken: Array[Vector2]) -> Vector2:
 	var band: Array = BANDS[kind]
 	for t in 30:

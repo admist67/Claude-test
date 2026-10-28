@@ -1,8 +1,10 @@
 class_name GearLooks
 ## The sail (mast and yards; the cloth is its own mesh hanging from the top yard so it can
-## unfurl), the fish drying rack, the scarecrow, flippers, nails and a first-aid kit.
+## unfurl), the fish drying rack, the scarecrow, flippers, nails, a first-aid kit, the
+## crossbow (pointing along -Z) and its bolt (along +Y).
 
-const IDS := ["sail", "sail_cloth", "sail_icon", "rack", "scarecrow", "flippers", "nails", "medkit"]
+const IDS := ["sail", "sail_cloth", "sail_icon", "rack", "scarecrow", "flippers", "nails", "medkit", "crossbow", "crossbow_icon", "bolt",
+		"big_grill"]
 const YARD := 3.25                # height of the top yard the cloth hangs from
 const DROP := 2.15                # how far the unfurled cloth hangs
 const WOOD := Color(1, 0.93, 0.84)
@@ -23,6 +25,15 @@ static func build(st: SurfaceTool, id: String) -> bool:
 			_cloth(st, Vector3(0, YARD, 0))
 		"rack":
 			_rack(st)
+		"big_grill":
+			_big_grill(st)
+		"crossbow":
+			_crossbow(st)
+		"crossbow_icon":
+			_crossbow(st)
+			_bolt(st, Vector3(0, 0.045, -0.12), Vector3(-PI / 2.0, 0, 0))
+		"bolt":
+			_bolt(st, Vector3.ZERO, Vector3.ZERO)
 		"scarecrow":
 			_scarecrow(st)
 		"flippers":
@@ -171,3 +182,85 @@ static func _flipper(st: SurfaceTool, at: Vector3, yaw: float) -> void:
 	Mk.st_box(st, Vector3(0.17, 0.012, 0.12), at + b * Vector3(0, 0.03, 0.21), blade.lightened(0.08), "plastic", Vector3(-0.3, yaw, 0))
 	for x: float in [-0.065, 0.065]:
 		Mk.st_box(st, Vector3(0.016, 0.022, 0.3), at + b * Vector3(x, 0.022, 0.1), pocket, "plastic", rot)
+
+
+## A wooden stock with a dark butt and grip, a bow of two bent limbs at the front, its
+## string drawn back to the nut, a metal stirrup and bands.
+static func _crossbow(st: SurfaceTool) -> void:
+	var iron := Color(0.62, 0.63, 0.67)
+	Mk.st_box(st, Vector3(0.05, 0.06, 0.55), Vector3(0, 0, 0.02), WOOD, "wood_warm")
+	Mk.st_box(st, Vector3(0.07, 0.13, 0.17), Vector3(0, -0.035, 0.3), DARK, "wood_dark", Vector3(-0.15, 0, 0))
+	Mk.st_box(st, Vector3(0.012, 0.006, 0.42), Vector3(0, 0.032, -0.05), Color(0.25, 0.18, 0.12), "wood_dark")
+	Mk.st_box(st, Vector3(0.035, 0.1, 0.045), Vector3(0, -0.075, 0.13), DARK, "wood_dark", Vector3(0.25, 0, 0))
+	Mk.st_box(st, Vector3(0.008, 0.045, 0.012), Vector3(0, -0.05, 0.06), iron, "metal", Vector3(0.3, 0, 0))
+	Mk.st_box(st, Vector3(0.03, 0.02, 0.03), Vector3(0, 0.04, 0.06), iron, "metal")
+	for sx: float in [-1.0, 1.0]:
+		Mk.st_box(st, Vector3(0.31, 0.026, 0.038), Vector3(sx * 0.15, 0.022, -0.19), WOOD.darkened(0.1), "wood_warm", Vector3(0, sx * 0.28, 0))
+		Mk.st_box(st, Vector3(0.03, 0.03, 0.03), Vector3(sx * 0.29, 0.022, -0.13), iron, "metal")
+		_bar(st, Vector3(sx * 0.29, 0.03, -0.12), Vector3(0, 0.04, 0.06), 0.004, Color(1, 0.97, 0.9), "rope", 4)
+	Mk.st_box(st, Vector3(0.07, 0.07, 0.05), Vector3(0, 0.01, -0.25), iron, "metal")
+	Mk.st_box(st, Vector3(0.09, 0.012, 0.012), Vector3(0, -0.03, -0.37), iron, "metal")
+	for sx: float in [-0.045, 0.045]:
+		Mk.st_box(st, Vector3(0.012, 0.012, 0.11), Vector3(sx, -0.02, -0.32), iron, "metal")
+	for z: float in [-0.12, 0.2]:
+		Mk.st_box(st, Vector3(0.056, 0.066, 0.02), Vector3(0, 0, z), iron, "metal")
+
+
+## A bolt along +Y: a wooden shaft, an iron head, red and white fletching at the back.
+static func _bolt(st: SurfaceTool, at: Vector3, rot: Vector3) -> void:
+	var b := Basis.from_euler(rot)
+	Mk.st_cyl(st, 0.007, 0.34, at, WOOD, "wood_warm", rot, 6)
+	Mk.st_box(st, Vector3(0.022, 0.05, 0.008), at + b * Vector3(0, 0.19, 0), Color(0.7, 0.71, 0.75), "metal", rot)
+	Mk.st_box(st, Vector3(0.008, 0.05, 0.022), at + b * Vector3(0, 0.185, 0), Color(0.7, 0.71, 0.75), "metal", rot)
+	Mk.st_box(st, Vector3(0.04, 0.065, 0.002), at + b * Vector3(0, -0.14, 0), Color("#d8352a"), "canvas", rot, 0.5)
+	Mk.st_box(st, Vector3(0.002, 0.065, 0.04), at + b * Vector3(0, -0.14, 0), Color("#f4f1ea"), "canvas", rot, 0.5)
+
+
+## The big grill: a stone base with a brick top and a firebox opening, a wide iron grate
+## for three, an open domed lid at the back, a chimney, side shelves with tongs and a
+## spatula, firewood stacked below.
+static func _big_grill(st: SurfaceTool) -> void:
+	var iron := Color(0.4, 0.41, 0.45)
+	var stone := Color(0.92, 0.9, 0.86)
+	var brick := Color(1, 0.9, 0.82)
+	Mk.st_box(st, Vector3(1.3, 0.62, 0.72), Vector3(0, 0.31, 0), stone, "rock", Vector3.ZERO, 1.2)
+	Mk.st_box(st, Vector3(1.34, 0.22, 0.76), Vector3(0, 0.73, 0), brick, "bricks", Vector3.ZERO, 1.0)
+	Mk.st_box(st, Vector3(1.38, 0.05, 0.8), Vector3(0, 0.86, 0), brick.darkened(0.12), "bricks", Vector3.ZERO, 1.0)
+	# The firebox mouth and an ash drawer with a handle.
+	Mk.st_box(st, Vector3(0.9, 0.24, 0.04), Vector3(0, 0.5, 0.35), Color(0.12, 0.1, 0.09), "ash")
+	Mk.st_box(st, Vector3(0.94, 0.03, 0.05), Vector3(0, 0.635, 0.36), iron, "metal")
+	Mk.st_box(st, Vector3(0.6, 0.14, 0.03), Vector3(0, 0.2, 0.365), iron.darkened(0.15), "metal")
+	Mk.st_box(st, Vector3(0.16, 0.025, 0.04), Vector3(0, 0.2, 0.39), Color(0.75, 0.6, 0.35), "metal")
+	for x: float in [-0.66, 0.66]:
+		for z: float in [-0.37, 0.37]:
+			Mk.st_box(st, Vector3(0.05, 0.86, 0.05), Vector3(x, 0.43, z), iron, "metal")
+	# The grate: a frame and fifteen bars.
+	Mk.st_box(st, Vector3(1.2, 0.03, 0.62), Vector3(0, 0.89, 0), Color(0.16, 0.14, 0.13), "ash")
+	for k in 15:
+		Mk.st_box(st, Vector3(0.016, 0.016, 0.6), Vector3(-0.56 + k * 0.08, 0.93, 0), iron, "metal")
+	for z: float in [-0.28, 0.0, 0.28]:
+		Mk.st_box(st, Vector3(1.16, 0.018, 0.018), Vector3(0, 0.93, z), iron, "metal")
+	# The lid, tipped open against the back, and the chimney out of it.
+	var lid_rot := Vector3(-1.25, 0, 0)
+	var b := Basis.from_euler(lid_rot)
+	var hinge := Vector3(0, 0.92, -0.34)
+	for i in 6:
+		var a := PI * (i + 0.5) / 6.0
+		var p := hinge + b * Vector3(0, sin(a) * 0.22, -0.3 + cos(a) * 0.3)
+		Mk.st_box(st, Vector3(1.16, 0.03, 0.13), p, Color(0.6, 0.61, 0.66) if i % 2 == 0 else Color(0.52, 0.53, 0.58), "metal", Vector3(lid_rot.x - (a - PI / 2.0), 0, 0))
+	Mk.st_box(st, Vector3(0.2, 0.05, 0.05), hinge + b * Vector3(0, 0.25, -0.3), Color(0.55, 0.4, 0.25), "wood_dark", lid_rot)
+	Mk.st_cyl(st, 0.06, 0.6, Vector3(0.45, 1.25, -0.4), iron.darkened(0.15), "metal", Vector3.ZERO, 10)
+	Mk.st_cyl(st, 0.09, 0.05, Vector3(0.45, 1.57, -0.4), iron.darkened(0.25), "metal", Vector3.ZERO, 10)
+	# Side shelves with tools and a salt pot.
+	for sx: float in [-1.0, 1.0]:
+		Mk.st_box(st, Vector3(0.3, 0.04, 0.5), Vector3(sx * 0.82, 0.84, 0), WOOD, "wood")
+		Mk.st_box(st, Vector3(0.03, 0.22, 0.03), Vector3(sx * 0.86, 0.72, 0.2), iron, "metal", Vector3(0, 0, sx * 0.5))
+	Mk.st_box(st, Vector3(0.05, 0.012, 0.3), Vector3(-0.82, 0.87, 0.02), Color(0.7, 0.71, 0.75), "metal", Vector3(0, 0.15, 0))
+	Mk.st_box(st, Vector3(0.09, 0.008, 0.08), Vector3(-0.83, 0.87, -0.16), Color(0.7, 0.71, 0.75), "metal", Vector3(0, 0.15, 0))
+	for dx: float in [-0.012, 0.012]:
+		Mk.st_box(st, Vector3(0.014, 0.012, 0.32), Vector3(0.8 + dx, 0.87, 0.0), Color(0.7, 0.71, 0.75), "metal", Vector3(0, dx * 6.0, 0))
+	Mk.st_cyl(st, 0.05, 0.08, Vector3(0.84, 0.9, -0.17), Color("#7a5532"), "clay", Vector3.ZERO, 10, 0.5)
+	Mk.st_cyl(st, 0.045, 0.01, Vector3(0.84, 0.945, -0.17), Color("#f4f2ec"), "white", Vector3.ZERO, 10)
+	# Firewood stacked at the side.
+	for i in 4:
+		Mk.st_cyl(st, 0.05, 0.42, Vector3(-0.82 + (i % 2) * 0.1, 0.06 + (i / 2) * 0.09, -0.05 + (i % 2) * 0.05), Color(0.85, 0.7, 0.55), "wood", Vector3(PI / 2.0, 0.1 * i, 0), 8)

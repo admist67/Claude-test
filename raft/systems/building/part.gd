@@ -49,8 +49,18 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 	add_child(mi)
 	_decor_shapes()
 	match kind:
-		"wall", "window", "wall_bamboo", "wall_woven", "window_round":
+		"wall", "window", "wall_bamboo", "wall_woven", "window_round", "window_shutters":
 			_box(Vector3(Looks.T, H, 0.12), Vector3(0, H / 2.0, 0))
+		"wall_stone":
+			_box(Vector3(Looks.T, H, 0.2), Vector3(0, H / 2.0, 0))
+		"half_wall":
+			_box(Vector3(Looks.T, 1.07, 0.14), Vector3(0, 0.53, 0))
+		"arch":
+			for x: float in [-0.66, 0.66]:
+				_box(Vector3(0.2, H, 0.18), Vector3(x, H / 2.0, 0))
+			_box(Vector3(Looks.T, 0.3, 0.2), Vector3(0, H - 0.15, 0))
+		"lifebuoy", "trophy", "map", "shelf":
+			_use_box(Vector3(0.7, 0.6, 0.3), Vector3(0, 1.5, 0.12))
 		"door":
 			for x: float in [-0.66, 0.66]:
 				_box(Vector3(0.18, H, 0.14), Vector3(x, H / 2.0, 0))
@@ -67,11 +77,16 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			_use_box(Vector3(1.14, 2.05, 0.3), Vector3(0.56, 1.03, 0), _leaf)
 		"pillar":
 			_box(Vector3(0.18, H, 0.18), Vector3(0, H / 2.0, 0))
-		"lantern", "lantern_tall", "lantern_wall", "torch":
-			var spots := {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, Looks.TALL_LAMP - 0.23, 0), "lantern_wall": Vector3(0, 1.69, 0.26), "torch": Vector3(0, 1.74, 0)}
+		"lantern", "lantern_tall", "lantern_wall", "torch", "candle", "fire_pit":
+			var spots := {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, Looks.TALL_LAMP - 0.23, 0), "lantern_wall": Vector3(0, 1.69, 0.26),
+					"torch": Vector3(0, 1.74, 0), "candle": Vector3(0, 0.25, 0), "fire_pit": Vector3(0, 0.22, 0)}
 			var at: Vector3 = spots[kind]
 			if kind == "torch":
 				_box(Vector3(0.1, 1.6, 0.1), Vector3(0, 0.8, 0))
+			elif kind == "candle":
+				_box(Vector3(0.16, 0.24, 0.16), Vector3(0, 0.12, 0))
+			elif kind == "fire_pit":
+				_box(Vector3(0.8, 0.22, 0.8), Vector3(0, 0.11, 0))
 			elif kind == "lantern_wall":
 				_use_box(Vector3(0.3, 0.5, 0.35), Vector3(0, 1.75, 0.15))
 			else:
@@ -79,11 +94,13 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 				_box(Vector3(0.12, ph, 0.12), Vector3(0, ph / 2.0, 0))
 			_glow = MeshInstance3D.new()
 			var gm := BoxMesh.new()
-			gm.size = Vector3(0.1, 0.22, 0.1) if kind == "torch" else Vector3(0.12, 0.2, 0.12)
+			var sizes := {"torch": Vector3(0.1, 0.22, 0.1), "candle": Vector3(0.025, 0.05, 0.025), "fire_pit": Vector3(0.32, 0.26, 0.32)}
+			gm.size = sizes.get(kind, Vector3(0.12, 0.2, 0.12))
+			var fire := kind in ["torch", "candle", "fire_pit"]
 			var m := StandardMaterial3D.new()
-			m.albedo_color = Color("#ffb04a") if kind == "torch" else Color("#ffd27a")
+			m.albedo_color = Color("#ffb04a") if fire else Color("#ffd27a")
 			m.emission_enabled = true
-			m.emission = Color("#ff8a2a") if kind == "torch" else Color("#ffb347")
+			m.emission = Color("#ff8a2a") if fire else Color("#ffb347")
 			m.emission_energy_multiplier = 2.2
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			gm.material = m
@@ -95,9 +112,10 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			_light.light_color = Color("#ffc070")
 			_light.light_energy = 0.0
 			_light.position = at
-			_light.omni_range = float(lc["range_tall"] if kind == "lantern_tall" else lc["range"])
+			var ranges := {"lantern_tall": "range_tall", "candle": "range_candle", "fire_pit": "range_fire"}
+			_light.omni_range = float(lc[ranges.get(kind, "range")])
 			add_child(_light)
-		"roof":
+		"roof", "roof_thatch":
 			_box(Vector3(Looks.T, 0.14, Looks.T), Vector3(0, H - 0.07, 0))
 		"stairs", "stairs_rope", "stairs_bamboo":
 			var cs := CollisionShape3D.new()
@@ -132,6 +150,14 @@ func _decor_shapes() -> void:
 			_box(Vector3(0.62, 0.62, 0.62), Vector3(0, 0.31, 0))
 		"plant_pot":
 			_box(Vector3(0.44, 0.9, 0.44), Vector3(0, 0.45, 0))
+		"bench":
+			_box(Vector3(1.2, 0.48, 0.42), Vector3(0, 0.24, 0))
+		"deck_chair":
+			_box(Vector3(0.6, 0.5, 1.15), Vector3(0, 0.25, 0))
+		"keg":
+			_box(Vector3(0.52, 0.72, 0.52), Vector3(0, 0.36, 0))
+		"flower_box":
+			_box(Vector3(0.82, 0.3, 0.32), Vector3(0, 0.15, 0))
 		"scarecrow":
 			_box(Vector3(0.2, 1.9, 0.2), Vector3(0, 0.95, 0))
 			_box(Vector3(1.1, 0.6, 0.3), Vector3(0, 1.3, 0))
@@ -217,7 +243,9 @@ func tick(delta: float, lamps_on: bool) -> void:
 		var lc: Dictionary = Data.b["lamps"]
 		_lit = move_toward(_lit, 1.0 if lamps_on else 0.0, delta / float(lc["fade"]))
 		_light.visible = _lit > 0.01
-		var flicker := (0.85 + 0.15 * sin(_t * 17.0) + 0.08 * sin(_t * 31.0)) if kind == "torch" else 1.0
+		var flicker := (0.85 + 0.15 * sin(_t * 17.0) + 0.08 * sin(_t * 31.0)) if kind in ["torch", "candle", "fire_pit"] else 1.0
+		if kind == "fire_pit":
+			_glow.scale = Vector3(1.0, flicker, 1.0)
 		_light.light_energy = float(lc["energy"]) * _lit * flicker
 		_glow.visible = _lit > 0.25
 
@@ -233,7 +261,7 @@ func take_fish() -> Array[String]:
 
 
 func to_dict() -> Dictionary:
-	var k: Array = [key.x, key.y, key.z, key.w] if key is Vector4i else [key.x, key.y, key.z]
+	var k: Array = [key.x, key.y, key.z, key.w] if key is Vector4i or key is Vector4 else [key.x, key.y, key.z]
 	return {"kind": kind, "key": k, "dir": dir, "open": is_open, "fish": fish}
 
 

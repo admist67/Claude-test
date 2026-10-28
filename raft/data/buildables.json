@@ -73,6 +73,17 @@
    "group": "Основа"
   },
   {
+   "id": "roof_thatch",
+   "name": "Соломенная крыша",
+   "on": "roof",
+   "cost": {
+    "leaf": 8,
+    "plank": 2,
+    "rope": 1
+   },
+   "group": "Основа"
+  },
+  {
    "id": "pillar",
    "name": "Столб",
    "on": "corner",
@@ -157,21 +168,73 @@
    "group": "Стены"
   },
   {
+   "id": "half_wall",
+   "name": "Низкая стенка",
+   "on": "edge",
+   "cost": {
+    "plank": 2,
+    "rope": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "wall_stone",
+   "name": "Каменная стена",
+   "on": "edge",
+   "cost": {
+    "stone": 8,
+    "plank": 2,
+    "rope": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "window_shutters",
+   "name": "Окно со ставнями",
+   "on": "edge",
+   "cost": {
+    "plank": 5,
+    "rope": 1,
+    "nails": 1
+   },
+   "group": "Стены"
+  },
+  {
+   "id": "arch",
+   "name": "Арка",
+   "on": "edge",
+   "cost": {
+    "plank": 5,
+    "rope": 2
+   },
+   "group": "Стены"
+  },
+  {
    "id": "lantern",
    "name": "Фонарь",
-   "on": "corner",
+   "on": "free",
    "cost": {
     "plank": 1,
     "plastic": 2,
     "leaf": 1
    },
    "rotate": true,
-   "group": "Свет"
+   "group": "Свет",
+   "foot": [
+    0.45,
+    0.2,
+    0.1,
+    0
+   ],
+   "base": [
+    0.2,
+    0.2
+   ]
   },
   {
    "id": "lantern_tall",
    "name": "Высокий фонарь",
-   "on": "corner",
+   "on": "free",
    "cost": {
     "plank": 3,
     "plastic": 2,
@@ -179,7 +242,17 @@
     "scrap": 1
    },
    "rotate": true,
-   "group": "Свет"
+   "group": "Свет",
+   "foot": [
+    0.45,
+    0.2,
+    0.1,
+    0
+   ],
+   "base": [
+    0.2,
+    0.2
+   ]
   },
   {
    "id": "lantern_wall",
@@ -195,101 +268,287 @@
   {
    "id": "torch",
    "name": "Факел",
-   "on": "corner",
+   "on": "free",
    "cost": {
     "plank": 1,
     "leaf": 2,
     "rope": 1
    },
+   "group": "Свет",
+   "foot": [
+    0.25,
+    0.25
+   ],
+   "rotate": true
+  },
+  {
+   "id": "candle",
+   "name": "Свеча",
+   "on": "free",
+   "foot": [
+    0.18,
+    0.18
+   ],
+   "cost": {
+    "plastic": 1,
+    "rope": 1
+   },
+   "rotate": true,
+   "group": "Свет"
+  },
+  {
+   "id": "fire_pit",
+   "name": "Костровая чаша",
+   "on": "free",
+   "foot": [
+    0.8,
+    0.8
+   ],
+   "cost": {
+    "stone": 5,
+    "plank": 2,
+    "scrap": 1
+   },
+   "rotate": true,
    "group": "Свет"
   },
   {
    "id": "table",
    "name": "Стол",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 4
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    1.0,
+    0.7
+   ]
   },
   {
    "id": "stool",
    "name": "Табурет",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 2
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    0.42,
+    0.42
+   ]
   },
   {
    "id": "crate",
    "name": "Ящик",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 3,
     "rope": 1
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    0.62,
+    0.62
+   ]
   },
   {
    "id": "plant_pot",
    "name": "Горшок с пальмой",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "stone": 2,
     "leaf": 2,
     "plank": 1
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    0.5,
+    0.5
+   ]
   },
   {
    "id": "rug",
    "name": "Ковёр",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "leaf": 6,
     "rope": 2
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    1.3,
+    1.0
+   ]
   },
   {
    "id": "wheel",
    "name": "Штурвал",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 6,
     "scrap": 1
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    1.0,
+    0.4,
+    0,
+    0.1
+   ]
   },
   {
    "id": "flag",
    "name": "Флаг",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 2,
     "plastic": 2,
     "rope": 1
    },
    "rotate": true,
-   "group": "Декор"
+   "group": "Декор",
+   "foot": [
+    0.3,
+    0.3
+   ]
   },
   {
    "id": "bell",
    "name": "Колокол",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "scrap": 3,
     "plank": 2,
     "rope": 1
    },
    "rotate": true,
+   "group": "Декор",
+   "foot": [
+    0.7,
+    0.4
+   ]
+  },
+  {
+   "id": "bench",
+   "name": "Скамейка",
+   "on": "free",
+   "foot": [
+    1.2,
+    0.45
+   ],
+   "cost": {
+    "plank": 4,
+    "nails": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "deck_chair",
+   "name": "Шезлонг",
+   "on": "free",
+   "foot": [
+    0.62,
+    1.2
+   ],
+   "cost": {
+    "plank": 3,
+    "leaf": 4,
+    "rope": 2
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "keg",
+   "name": "Бочонок",
+   "on": "free",
+   "foot": [
+    0.56,
+    0.56
+   ],
+   "cost": {
+    "plank": 4,
+    "scrap": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "flower_box",
+   "name": "Ящик с цветами",
+   "on": "free",
+   "foot": [
+    0.84,
+    0.34
+   ],
+   "cost": {
+    "plank": 2,
+    "leaf": 4
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "mat",
+   "name": "Циновка",
+   "on": "free",
+   "foot": [
+    1.0,
+    0.7
+   ],
+   "cost": {
+    "leaf": 5,
+    "rope": 1
+   },
+   "rotate": true,
+   "group": "Декор"
+  },
+  {
+   "id": "lifebuoy",
+   "name": "Спасательный круг",
+   "on": "wall",
+   "cost": {
+    "plastic": 3,
+    "rope": 2
+   },
+   "group": "Декор"
+  },
+  {
+   "id": "trophy",
+   "name": "Рыба-трофей",
+   "on": "wall",
+   "cost": {
+    "big_fish": 1,
+    "plank": 2
+   },
+   "group": "Декор"
+  },
+  {
+   "id": "map",
+   "name": "Карта на стене",
+   "on": "wall",
+   "cost": {
+    "leaf": 3,
+    "plank": 1
+   },
+   "group": "Декор"
+  },
+  {
+   "id": "shelf",
+   "name": "Полка с посудой",
+   "on": "wall",
+   "cost": {
+    "plank": 3,
+    "nails": 1
+   },
    "group": "Декор"
   },
   {
@@ -307,7 +566,11 @@
     "leaf": 20.0,
     "plank": 40.0
    },
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.15,
+    0.72
+   ]
   },
   {
    "id": "grill",
@@ -329,7 +592,39 @@
     "leaf": 20.0,
     "plank": 40.0
    },
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.45,
+    0.65
+   ]
+  },
+  {
+   "id": "big_grill",
+   "name": "Большой гриль",
+   "on": "deck",
+   "cost": {
+    "plank": 6,
+    "stone": 6,
+    "scrap": 3,
+    "nails": 2
+   },
+   "time": 14.0,
+   "cook": {
+    "shark_meat": "shark_steak",
+    "big_fish": "big_fish_cooked",
+    "fish": "fish_cooked",
+    "crab_meat": "crab_cooked"
+   },
+   "fuel": {
+    "leaf": 20.0,
+    "plank": 40.0
+   },
+   "batch": 3,
+   "group": "Хозяйство",
+   "foot": [
+    1.95,
+    0.85
+   ]
   },
   {
    "id": "planter",
@@ -346,7 +641,11 @@
     "banana_shoot": "banana"
    },
    "count": 2,
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.22,
+    1.22
+   ]
   },
   {
    "id": "rack",
@@ -362,12 +661,16 @@
     "fish": "dried_fish",
     "big_fish": "dried_fish"
    },
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.12,
+    0.72
+   ]
   },
   {
    "id": "scarecrow",
    "name": "Пугало",
-   "on": "cell",
+   "on": "free",
    "cost": {
     "plank": 3,
     "leaf": 5,
@@ -375,7 +678,11 @@
     "plastic": 1
    },
    "rotate": true,
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.1,
+    0.35
+   ]
   },
   {
    "id": "collector",
@@ -389,7 +696,11 @@
    "time": 110.0,
    "capacity": 3,
    "storm_rate": 6.0,
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    1.0,
+    1.0
+   ]
   },
   {
    "id": "chest",
@@ -401,7 +712,11 @@
     "scrap": 1
    },
    "slots": 20,
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    0.95,
+    0.68
+   ]
   },
   {
    "id": "net",
@@ -464,7 +779,11 @@
     "rope": 4,
     "scrap": 3
    },
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    0.95,
+    0.7
+   ]
   },
   {
    "id": "sail",
@@ -476,7 +795,11 @@
     "leaf": 10,
     "nails": 4
    },
-   "group": "Хозяйство"
+   "group": "Хозяйство",
+   "foot": [
+    0.6,
+    0.6
+   ]
   }
  ]
 }

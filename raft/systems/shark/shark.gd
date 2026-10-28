@@ -5,6 +5,7 @@ extends Node3D
 ## killed: each visit it takes 3–6 spear hits (rolled anew) before it swims away.
 ## Anyone swimming is easier prey: it comes sooner and goes for them instead of the raft.
 ## It does not come at all before the player has made a first spear (`enabled`).
+## An island nearby (`avoid`) is swum around, never through, and it bites only from open water.
 ## Numbers in data/balance.json "shark".
 
 signal attacked(cell: Vector2i)
@@ -24,6 +25,8 @@ var need := 4                 # hits that drive it off this visit
 var target := Vector2i.ZERO
 var swimmer: Node3D               # the player while swimming, else null
 var enabled := true               # false until the first spear: the sea stays calm
+var avoid: Array = []             # [center, shore radius] of an island nearby, or []
+var _side := 0.0                  # which way round the island it is going (0: not going round)
 var _hunt_cd := 0.0
 var _timer := 0.0
 var _angle := 0.0
@@ -103,9 +106,10 @@ func _next_attack() -> float:
 	return t * (float(cfg["night_mult"]) if daynight and daynight.is_night() else 1.0)
 
 
-## A spear thrust from `eye` along `fwd`. Returns true on a hit.
-## `power` hits at once (metal spear: 2), `reach` added to the spear's range.
-func try_hit(eye: Vector3, fwd: Vector3, power := 1, reach := 0.0) -> bool:
+## A spear thrust (or a bolt) from `eye` along `fwd`. Returns true on a hit.
+## `power` hits at once (metal spear: 2), `reach` added to the spear's range, `cone` how
+## straight at it the strike has to go.
+func try_hit(eye: Vector3, fwd: Vector3, power := 1, reach := 0.0, cone := 0.6) -> bool:
 	if not alive_near() or state == State.FLEE:
 		return false
 	var to := global_position - eye
@@ -113,7 +117,7 @@ func try_hit(eye: Vector3, fwd: Vector3, power := 1, reach := 0.0) -> bool:
 	if flat.length() > float(cfg["hit_reach"]) + 1.0 + reach:
 		return false
 	var f2 := Vector2(fwd.x, fwd.z).normalized()
-	if flat.normalized().dot(f2) < 0.5:
+	if flat.normalized().dot(f2) < cone:
 		return false
 	_hits += power
 	_hurt_t = 0.4
@@ -162,10 +166,10 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0:
 				_pick_target()
 		State.APPROACH:
-			if not raft.has_tile(target):
+			_update_goal()
+			if not raft.has_tile(target) or not _open_water(_goal):
 				_pick_target()
 				return
-			_update_goal()
 			if _swim_to(_goal, float(cfg["approach_speed"]), delta) < 0.4:
 				state = State.BITE
 				_bite_t = float(cfg["first_bite"])
@@ -209,7 +213,7 @@ func _process(delta: float) -> void:
 
 
 func _pick_target() -> void:
-	var edges := raft.edge_cells()
+	var edges := raft.edge_cells().filter(func(c: Vector2i) -> bool: return _open_water(_goal_for(c)))
 	if edges.is_empty():
 		state = State.CIRCLE
 		_timer = _next_attack()
@@ -227,31 +231,80 @@ func _pick_target() -> void:
 	attacked.emit(target)
 
 
-## A point in the water just outside the target tile's free side.
 func _update_goal() -> void:
-	var c := raft.cell_center(target)
-	var dir := Vector3.ZERO
+	_goal = _goal_for(target)
+
+
+## A point in the water just outside a tile's free side (one away from an island).
+func _goal_for(cell: Vector2i) -> Vector3:
+	var c := raft.cell_center(cell)
+	var sides: Array[Vector3] = []
+	var sum := Vector3.ZERO
 	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		if not raft.has_tile(target + d):
-			dir += Vector3(d.x, 0, d.y)
-	if dir == Vector3.ZERO:
-		dir = (c - raft.centroid()).normalized()
-	var local := c + dir.normalized() * (raft.tile_size * 0.5 + 1.0)
-	_goal = raft.to_global(Vector3(local.x, 0, local.z))
+		if not raft.has_tile(cell + d):
+			sides.append(Vector3(d.x, 0, d.y))
+			sum += Vector3(d.x, 0, d.y)
+	if sum != Vector3.ZERO:
+		sides.push_front(sum)
+	if sides.is_empty():
+		sides.append((c - raft.centroid()).normalized())
+	var best := Vector3.ZERO
+	for i in sides.size():
+		var local := c + sides[i].normalized() * (raft.tile_size * 0.5 + 1.0)
+		var g := raft.to_global(Vector3(local.x, 0, local.z))
+		if i == 0:
+			best = g
+		if _open_water(g):
+			return g
+	return best
 
 
-## Moves toward `p` on the water plane; returns the remaining distance.
+## Far enough from the island to get to: outside the circle it swims round (see _around).
+func _open_water(p: Vector3) -> bool:
+	return avoid.is_empty() or Vector2(p.x - avoid[0].x, p.z - avoid[0].z).length() > float(avoid[1]) + 2.4
+
+
+## Moves toward `p` on the water plane, round an island in the way; returns the remaining
+## distance.
 func _swim_to(p: Vector3, speed: float, delta: float) -> float:
 	var pos := global_position
 	var to := Vector3(p.x - pos.x, 0, p.z - pos.z)
 	var d := to.length()
 	if d > 0.01:
-		var step := to / d * minf(d, speed * delta)
+		var step := _around(pos, to / d, d) * minf(d, speed * delta)
 		pos += step
+		if not avoid.is_empty():
+			# Never inside the island: slide along its shore.
+			var c: Vector3 = avoid[0]
+			var out := Vector3(pos.x - c.x, 0, pos.z - c.z)
+			var r := float(avoid[1]) + 0.8
+			if out.length() < r:
+				var q := c + out.normalized() * r
+				pos = Vector3(q.x, pos.y, q.z)
 		if state != State.BITE:
 			_face(pos + step * 10.0)
 	global_position = pos
 	return d
+
+
+## The way to swim: straight at the goal, or along the shore while the island is between.
+func _around(pos: Vector3, dir: Vector3, dist: float) -> Vector3:
+	if avoid.is_empty():
+		_side = 0.0
+		return dir
+	var c: Vector3 = avoid[0]
+	var r := float(avoid[1]) + 1.6
+	var to_c := Vector3(c.x - pos.x, 0, c.z - pos.z)
+	var along := to_c.dot(dir)
+	var miss := (to_c - dir * along).length()
+	if along <= 0.0 or miss >= r or along - sqrt(maxf(0.0, r * r - miss * miss)) > dist:
+		_side = 0.0
+		return dir
+	var radial := -to_c.normalized()
+	var tangent := Vector3(-radial.z, 0, radial.x)
+	if _side == 0.0:
+		_side = 1.0 if tangent.dot(dir) >= 0.0 else -1.0
+	return tangent * _side
 
 
 func _face(at: Vector3) -> void:

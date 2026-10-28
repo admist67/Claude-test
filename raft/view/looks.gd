@@ -49,6 +49,16 @@ static func held(id: String) -> Node3D:
 				mi.scale = Vector3.ONE * 0.8
 				mi.rotation = Vector3(-1.35, 0.05, -0.15)
 				mi.position = Vector3(0.0, -0.05, 0.25)
+			"crossbow":
+				mi.scale = Vector3.ONE * 0.62
+				mi.rotation = Vector3(0.08, 0.1, 0.0)
+				mi.position = Vector3(0.0, -0.02, 0.02)
+				var bolt := MeshInstance3D.new()
+				bolt.name = "Bolt"
+				bolt.mesh = mesh("bolt")
+				bolt.position = Vector3(0, 0.045, -0.12)
+				bolt.rotation.x = -PI / 2.0
+				mi.add_child(bolt)
 			"rod", "metal_rod":
 				mi.scale = Vector3.ONE * 0.75
 				mi.rotation = Vector3(-0.55, 0.0, -0.5)
@@ -263,6 +273,8 @@ static func mesh(id: String) -> ArrayMesh:
 				leaf = DecorLooks.build(st, id)
 			elif id in GearLooks.IDS:
 				leaf = GearLooks.build(st, id)
+			elif id in BuildLooks.IDS:
+				leaf = BuildLooks.build(st, id)
 			else:
 				Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
 	var m := Mk.st_commit(st, leaf)

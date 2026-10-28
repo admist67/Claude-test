@@ -15,6 +15,15 @@
    }
   },
   {
+   "id": "bolt",
+   "out": 4,
+   "cost": {
+    "plank": 1,
+    "nails": 1,
+    "leaf": 1
+   }
+  },
+  {
    "id": "bait",
    "out": 3,
    "cost": {
@@ -95,6 +104,17 @@
     "spear": 1,
     "scrap": 3,
     "rope": 1
+   },
+   "once": true
+  },
+  {
+   "id": "crossbow",
+   "out": 1,
+   "cost": {
+    "plank": 4,
+    "rope": 3,
+    "scrap": 2,
+    "nails": 2
    },
    "once": true
   },
