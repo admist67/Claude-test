@@ -14,6 +14,7 @@ func _ready() -> void:
 	var ids: Array = Data.items.keys()
 	for d: Dictionary in Data.build:
 		ids.append(d["id"])
+	ids.append("parrot")
 	var args := OS.get_cmdline_user_args()
 	for i in args.size() - 1:
 		match args[i]:
@@ -54,7 +55,13 @@ func _render(id: String) -> void:
 	var root := Node3D.new()
 	vp.add_child(root)
 	var model: Node3D
-	if Looks.MODELS.has(id):
+	if id == "parrot":
+		var bird := Parrot.new()
+		bird.rotation.y = -0.5
+		root.add_child(bird)
+		model = bird
+		await get_tree().create_timer(0.1).timeout
+	elif Looks.MODELS.has(id):
 		model = Mk.model(root, Looks.MODELS[id][0])
 	else:
 		var mi := MeshInstance3D.new()

@@ -685,6 +685,22 @@
    ]
   },
   {
+   "id": "perch",
+   "name": "Жёрдочка для попугая",
+   "on": "free",
+   "foot": [
+    0.7,
+    0.45
+   ],
+   "cost": {
+    "plank": 4,
+    "rope": 2,
+    "coconut": 1
+   },
+   "rotate": true,
+   "group": "Хозяйство"
+  },
+  {
    "id": "collector",
    "name": "Дождевая бочка",
    "on": "deck",

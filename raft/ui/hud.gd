@@ -14,6 +14,7 @@ var _item_t := 9.0
 var _shake := 0.0
 var _tex: Dictionary = {}
 var _frame := 0
+var _say := {}                    # a speech bubble: {"text", "node", "t"}
 
 
 func _ready() -> void:
@@ -35,6 +36,11 @@ func flash_goal() -> void:
 	_goal_flash = 1.8
 
 
+## A speech bubble over a 3D thing (the parrot) for a few seconds.
+func say(text: String, node: Node3D) -> void:
+	_say = {"text": text, "node": node, "t": 3.0}
+
+
 ## The name of a picked hotbar item fades in above its slot and fades out after 2 s.
 func show_item(id: String) -> void:
 	_item = id
@@ -49,6 +55,10 @@ func _process(delta: float) -> void:
 	_goal_flash = maxf(0.0, _goal_flash - delta)
 	_item_t += delta
 	_frame += 1
+	if not _say.is_empty():
+		_say["t"] -= delta
+		if _say["t"] <= 0.0 or not is_instance_valid(_say["node"]):
+			_say = {}
 	# Half the frames are enough for a still HUD; anything moving gets every frame.
 	if _frame % 2 == 0 or _moving():
 		queue_redraw()
@@ -59,7 +69,7 @@ func _moving() -> bool:
 	if game == null or not game.playing():
 		return false
 	var rod: Rod = game.rod
-	return not _toasts.is_empty() or _goal_flash > 0.0 or _item_t < 3.0 or game.shark.attacking() or game.shark.hunting() \
+	return not _toasts.is_empty() or not _say.is_empty() or _goal_flash > 0.0 or _item_t < 3.0 or game.shark.attacking() or game.shark.hunting() \
 		or game.player.off_raft or game.hook.state == Hook.State.CHARGE or rod.state in [Rod.State.CHARGE, Rod.State.FIGHT, Rod.State.BITE] \
 		or game.combat.reloading > 0.0 or game.combat.spear_cd > 0.0 or game.vitals.health < 30.0
 
@@ -98,6 +108,7 @@ func _draw() -> void:
 	_draw_builds()
 	_draw_buttons()
 	_draw_toasts(vs)
+	_draw_say(vs)
 
 
 func _draw_hurt(vs: Vector2) -> void:
@@ -456,3 +467,25 @@ func _draw_toasts(_vs: Vector2) -> void:
 			tx += 40
 		_text(t["text"], Vector2(tx, r.position.y + 29), 21, Color(UiTheme.CREAM, a), HORIZONTAL_ALIGNMENT_LEFT, -1, font, 0)
 		y += 50.0
+
+
+## The speech bubble: white, rounded, a little tail pointing at the speaker.
+func _draw_say(vs: Vector2) -> void:
+	if _say.is_empty():
+		return
+	var node: Node3D = _say["node"]
+	var cam: Camera3D = game.player.cam
+	var p := node.global_position + Vector3(0, 0.72, 0)
+	if cam.is_position_behind(p) or cam.global_position.distance_to(p) > 24.0:
+		return
+	var sp := cam.unproject_position(p)
+	if not Rect2(Vector2.ZERO, vs).grow(-40.0).has_point(sp):
+		return
+	var t: float = _say["t"]
+	var a := clampf(t / 0.4, 0.0, 1.0) * clampf((3.0 - t) / 0.2, 0.0, 1.0)
+	var text: String = _say["text"]
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 36.0
+	var r := Rect2(sp - Vector2(w / 2.0, 62.0), Vector2(w, 46.0))
+	draw_colored_polygon(PackedVector2Array([sp + Vector2(-12, -18), sp + Vector2(10, -18), sp + Vector2(-2, -2)]), Color(1, 1, 1, 0.95 * a))
+	_round_rect_border(r, Color(1, 1, 1, 0.95 * a), Color(0.3, 0.22, 0.14, 0.8 * a), 18.0, 2)
+	_text(text, Vector2(r.position.x + 18.0, r.position.y + 31.0), 22, Color(0.12, 0.1, 0.08, a), HORIZONTAL_ALIGNMENT_LEFT, -1, font, 0)

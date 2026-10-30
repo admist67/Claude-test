@@ -5,7 +5,8 @@ extends AnimatableBody3D
 ## Built from a seed, so a save brings back the same island with what was already taken.
 
 ## Where each kind of spot grows: [min, max] fraction of the radius from the center.
-const BANDS := {"palm": [0.1, 0.62], "banana": [0.15, 0.55], "pineapple": [0.12, 0.5], "rock": [0.35, 0.78], "log": [0.8, 0.9], "chest": [0.25, 0.6]}
+const BANDS := {"palm": [0.1, 0.62], "banana": [0.15, 0.55], "pineapple": [0.12, 0.5], "rock": [0.35, 0.78], "log": [0.8, 0.9], "chest": [0.25, 0.6],
+		"parrot": [0.3, 0.7]}
 
 var seed_v := 0
 var radius := 9.0
@@ -16,7 +17,8 @@ var visited := false
 
 
 ## `force_chest`: a chest even when its chance roll fails (the chest goal is on).
-func build(s: int, cfg: Dictionary, force_chest := false) -> void:
+## `with_parrot`: a wild parrot sits on a dead branch here.
+func build(s: int, cfg: Dictionary, force_chest := false, with_parrot := false) -> void:
 	seed_v = s
 	sync_to_physics = false           # moved by code; a placed or loaded island stays put
 	collision_layer = 1
@@ -49,6 +51,11 @@ func build(s: int, cfg: Dictionary, force_chest := false) -> void:
 				continue
 			taken.append(at)
 			_add_spot(kind, d, at, rng)
+	if with_parrot:
+		var pat := _free_spot(rng, "parrot", taken)
+		if pat.x < 1e6:
+			taken.append(pat)
+			_add_spot("parrot", sd["parrot"], pat, rng)
 	var cc: Dictionary = cfg["crabs"]
 	for i in rng.randi_range(int(cc["count"][0]), int(cc["count"][1])):
 		var crab := Crab.new()
@@ -125,6 +132,14 @@ func _add_spot(kind: String, d: Dictionary, at: Vector2, rng: RandomNumberGenera
 			spot.look = _mi(IslandLooks.log_mesh())
 			root.add_child(spot.look)
 			spot.setup(kind, d, Vector3(2.4, 0.8, 0.8), Vector3(0, 0.3, 0))
+		"parrot":
+			root.add_child(_mi(ParrotLooks.mesh("branch")))
+			var bird := Parrot.new()
+			bird.position = Vector3(0.05, ParrotLooks.BRANCH_TOP, 0)
+			root.add_child(bird)
+			spot.fruit = bird
+			spot.setup(kind, d, Vector3(1.3, 2.2, 1.3), Vector3(0, 1.1, 0))
+			_block(CylinderShape3D.new(), pos + Vector3(0, 0.6, 0), 0.1, 1.2)
 		"chest":
 			var c := IslandLooks.chest()
 			root.add_child(_mi(c[0]))
@@ -186,7 +201,7 @@ func to_dict() -> Dictionary:
 	var left := spots.map(func(s: IslandSpot) -> int: return s.left)
 	var c := chest()
 	return {"seed": seed_v, "x": position.x, "z": position.z, "left": left, "visited": visited, "crabs": crabs.size(),
-		"chest": c != null, "chest_items": c.items if c else {}}
+		"chest": c != null, "chest_items": c.items if c else {}, "parrot": spots.any(func(sp: IslandSpot) -> bool: return sp.kind == "parrot")}
 
 
 ## After build(seed): puts back where it was and what was taken.

@@ -57,6 +57,8 @@ func update() -> void:
 	p.swim_mult = float(Data.item("flippers").get("swim_mult", 1.0)) if game.inv.count("flippers") > 0 else 1.0
 	var goals: Array = Data.goals
 	islands.want_chest = game.goal_i < goals.size() and goals[game.goal_i]["stat"] == "chests"
+	islands.want_parrot = game.goal_i < goals.size() and goals[game.goal_i]["stat"] in ["parrot_fed", "parrot_tamed"]
+	islands.allow_parrot = not game.pets.tamed
 	game.shark.swimmer = p if p.swimming else null
 	var isl := islands.island
 	game.shark.avoid = [isl.global_position, isl.outer_radius()] if isl else []
@@ -137,6 +139,9 @@ func view() -> Dictionary:
 
 
 func gather(spot: IslandSpot) -> void:
+	if spot.kind == "parrot":
+		game.pets.tame(spot)
+		return
 	if spot.kind == "chest":
 		if spot.left > 0:
 			spot.open_chest()

@@ -15,6 +15,8 @@ var island: Island
 var anchored := false
 var pace := 1.0                     # the sail is up: the next island comes sooner
 var want_chest := false             # the chest goal is on: the next island has one for sure
+var want_parrot := false            # the parrot goal is on: the next island has one for sure
+var allow_parrot := true            # no parrot yet (there is only ever one)
 var active := false                 # only while playing: no islands go by in the menu
 var timer := 0.0
 var rng := RandomNumberGenerator.new()
@@ -76,7 +78,8 @@ func _physics_process(delta: float) -> void:
 func _spawn(s: int) -> void:
 	var c := _center()
 	var isl := Island.new()
-	isl.build(s, cfg, want_chest)
+	var parrot := allow_parrot and (want_parrot or rng.randf() < float(cfg["spots"]["parrot"]["chance"]))
+	isl.build(s, cfg, want_chest, parrot)
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
 	isl.position = Vector3(c.x + side * (_half_width() + isl.radius * 1.15 + float(cfg["side_gap"])), 0.0, c.z - float(cfg["ahead"]))
 	add_child(isl)
@@ -122,7 +125,7 @@ func from_dict(d: Dictionary) -> void:
 	var id: Dictionary = d.get("island", {})
 	if id.has("seed"):
 		var isl := Island.new()
-		isl.build(int(id["seed"]), cfg, bool(id.get("chest", false)))
+		isl.build(int(id["seed"]), cfg, bool(id.get("chest", false)), bool(id.get("parrot", false)))
 		add_child(isl)
 		isl.load_state(id)
 		island = isl

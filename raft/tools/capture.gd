@@ -674,6 +674,8 @@ func _run() -> void:
 	print("crabs beaten ", stats.get("crabs", 0), " crab meat ", inv.count("crab_meat"), " health ", snappedf(vitals.health, 0.1))
 	vitals.health = 100.0
 	for spot: IslandSpot in isl.spots:
+		if spot.kind == "parrot":
+			continue                    # the parrot has its own scene (capture_v17)
 		var at := isl.to_global(spot.position)
 		var away := (at - isl.global_position)
 		away.y = 0.0
@@ -900,6 +902,7 @@ func _run() -> void:
 		_on_pressed("use")
 	await preload("res://tools/capture_more.gd").new().run(self)
 	await preload("res://tools/capture_v14.gd").new().run(self)
+	await preload("res://tools/capture_v17.gd").new().run(self)
 	# Survival pressure.
 	vitals.thirst = 0.0
 	vitals.hunger = 18.0
@@ -965,6 +968,7 @@ func _run() -> void:
 	print("world back ", _world_name(), " tiles ", raft.cells().size(), " was ", tiles_first)
 	print("parts ", raft.parts.to_list().size(), " was ", parts_first, " stations ", raft.stations.size(), " was ", stations_first)
 	print("island after load ", trips.islands.island != null)
+	print("pet after load ", pets.tamed, " ", pets.pet != null, " ", pets.pet_name)
 	print("world names ", SaveGame.worlds().map(func(w: Dictionary) -> String: return w["name"]))
 	print("CAPTURE DONE")
 	get_tree().quit()

@@ -1,9 +1,12 @@
 class_name FixtureLooks
-## Lanterns (on a post, a tall post, on a wall), the hammock and the rain barrel. A lantern
+## Lanterns (on a post, a tall post, on a wall), the hammock, the rain barrel and the
+## parrot's perch (with its bowl, and the food in it as its own mesh). A lantern
 ## head is centered where its light is (Part puts the glow there): an iron frame with
 ## amber glass, a brass base, a stepped roof and a ring to hang it by.
 
-const IDS := ["lantern", "lantern_tall", "lantern_wall", "hammock", "collector"]
+const IDS := ["lantern", "lantern_tall", "lantern_wall", "hammock", "collector", "perch", "perch_food"]
+const PERCH_BAR := 1.24           # height of the perch's top bar
+const BOWL := Vector3(-0.27, 0.93, 0.0)   # where the bowl sits on the perch
 const TALL := Looks.TALL_LAMP
 const WOOD := Color(1, 0.93, 0.84)
 const DARK := Color(1, 0.95, 0.9)
@@ -24,6 +27,14 @@ static func build(st: SurfaceTool, id: String) -> bool:
 			_hammock(st)
 		"collector":
 			_rain_barrel(st)
+		"perch":
+			_perch(st)
+		"perch_food":
+			var cols := [Color("#f2d24a"), Color("#f4a030"), Color("#e8452c"), Color("#9ac04a"), Color("#f6e7a8")]
+			for i in 7:
+				var a := i * 2.1
+				Mk.st_box(st, Vector3(0.04, 0.03, 0.035), BOWL + Vector3(cos(a) * 0.045, 0.045 + (i % 2) * 0.012, sin(a) * 0.045), cols[i % cols.size()],
+						"white", Vector3(0.3, a, 0.2))
 	return false
 
 
@@ -176,3 +187,31 @@ static func _rain_barrel(st: SurfaceTool) -> void:
 		_bar(st, d * 0.36 + Vector3(0, 0.02, 0), d * 0.68 + Vector3(0, 1.22, 0), 0.025, DARK, "wood_dark", 6)
 		Mk.st_cyl(st, 0.035, 0.06, d * 0.66 + Vector3(0, 1.16, 0), ROPE, "rope", Vector3.ZERO, 8, 0.6)
 		Mk.st_cyl(st, 0.03, 0.05, d * 0.4 + Vector3(0, 0.16, 0), ROPE, "rope", Vector3.ZERO, 8, 0.6)
+
+
+## The parrot's perch: a post on crossed feet, a sanded top bar, a little ladder up to it,
+## a toy of coloured beads on a rope, a coconut-shell bowl on a side arm.
+static func _perch(st: SurfaceTool) -> void:
+	for yaw: float in [0.0, PI / 2.0]:
+		Mk.st_box(st, Vector3(0.56, 0.06, 0.08), Vector3(0, 0.03, 0), DARK, "wood_dark", Vector3(0, yaw, 0))
+	Mk.st_box(st, Vector3(0.07, PERCH_BAR, 0.07), Vector3(0, PERCH_BAR / 2.0, 0), DARK, "wood_dark")
+	for y: float in [0.25, 0.7]:
+		Mk.st_cyl(st, 0.05, 0.06, Vector3(0, y, 0), ROPE, "rope", Vector3.ZERO, 10, 0.6)
+	Mk.st_cyl(st, 0.024, 0.66, Vector3(0, PERCH_BAR, 0), WOOD, "wood_warm", Vector3(0, 0, PI / 2.0), 10)
+	for x: float in [-0.33, 0.33]:
+		Mk.st_cyl(st, 0.03, 0.03, Vector3(x, PERCH_BAR, 0), DARK, "wood_dark", Vector3(0, 0, PI / 2.0), 10)
+	# A ladder from the deck to the bar's end.
+	for z: float in [-0.06, 0.06]:
+		_bar(st, Vector3(0.48, 0.0, z), Vector3(0.3, PERCH_BAR - 0.02, z), 0.012, WOOD, "wood_warm")
+	for k in 5:
+		var u := (k + 0.6) / 6.0
+		Mk.st_cyl(st, 0.008, 0.13, Vector3(lerpf(0.48, 0.3, u), u * (PERCH_BAR - 0.02), 0), WOOD.darkened(0.1), "wood_warm", Vector3(PI / 2.0, 0, 0), 6)
+	# A toy: rope and beads from the bar's other end.
+	Mk.st_cyl(st, 0.005, 0.28, Vector3(-0.24, PERCH_BAR - 0.14, 0), ROPE, "rope", Vector3.ZERO, 5, 0.5)
+	var beads := [Color("#e8452c"), Color("#f2c230"), Color("#2a6fc4"), Color("#3f9a48")]
+	for i in beads.size():
+		Mk.st_box(st, Vector3(0.035, 0.035, 0.035), Vector3(-0.24, PERCH_BAR - 0.08 - i * 0.055, 0), beads[i], "white", Vector3(0, i * 0.5, 0))
+	# The bowl on its arm.
+	Mk.st_box(st, Vector3(0.24, 0.035, 0.04), Vector3(-0.13, BOWL.y - 0.035, 0), DARK, "wood_dark")
+	Mk.st_cyl(st, 0.085, 0.06, BOWL + Vector3(0, 0.02, 0), Color("#7a5532"), "clay", Vector3.ZERO, 14, 1.0, 0.3)
+	Mk.st_cyl(st, 0.088, 0.012, BOWL + Vector3(0, 0.052, 0), Color("#f0e6d0"), "white", Vector3.ZERO, 14)

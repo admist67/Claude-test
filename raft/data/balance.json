@@ -362,6 +362,12 @@
           "scrap": 1
         },
         "verb": "Открыть сундук"
+      },
+      "parrot": {
+        "chance": 0.45,
+        "charges": 3,
+        "loot": {},
+        "verb": "Покормить попугая"
       }
     },
     "crabs": {
@@ -412,5 +418,62 @@
     "power": 1,
     "cone": 0.95,
     "speed": 45.0
+  },
+  "pet": {
+    "hunger_per_min": 2.2,
+    "hungry": 30.0,
+    "bowl_at": 55.0,
+    "foods": {
+      "seeds": 20,
+      "coconut": 30,
+      "banana": 35,
+      "pineapple": 50,
+      "fruit_salad": 80
+    },
+    "bowl": 5,
+    "portion": 35,
+    "fetch": [
+      140.0,
+      220.0
+    ],
+    "away": 4.0,
+    "move": [
+      10.0,
+      26.0
+    ],
+    "talk": [
+      45.0,
+      90.0
+    ],
+    "gifts": [
+      [
+        "plastic",
+        30
+      ],
+      [
+        "leaf",
+        25
+      ],
+      [
+        "rope",
+        15
+      ],
+      [
+        "scrap",
+        12
+      ],
+      [
+        "seeds",
+        8
+      ],
+      [
+        "nails",
+        5
+      ],
+      [
+        "bait",
+        5
+      ]
+    ]
   }
 }

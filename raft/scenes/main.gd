@@ -17,6 +17,7 @@ var hotbar: Array[String] = []
 var trips: SeaTrips                # swimming, islands, the anchor
 var actions: RaftActions           # stations, traps, demolishing, tool wear
 var combat: Combat                 # the spear and the crossbow
+var pets: PetCare                  # the parrot
 var layout := HotbarLayout.new()   # the player's hotbar order and hidden items
 var world := -1                    # the save slot being played
 var sel := -1                      # hotbar index of what is in hand, -1 for empty hands
@@ -218,6 +219,9 @@ func _build_ui() -> void:
 	combat = Combat.new()
 	add_child(combat)
 	combat.setup(self)
+	pets = PetCare.new()
+	add_child(pets)
+	pets.setup(self)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -278,6 +282,7 @@ func _new_state() -> void:
 	storm.restore(float(Data.b["storm"]["first"]))
 	trips.islands.reset(float(Data.b["islands"]["first"]))
 	actions.wear = Durability.new()
+	pets.reset()
 	player.place(raft.centroid())
 	_reset_sea()
 
@@ -313,6 +318,7 @@ func _state() -> Dictionary:
 		"goal_hidden": goal_hidden,
 		"islands": trips.to_dict(),
 		"wear": actions.wear.to_dict(),
+		"pet": pets.to_dict(),
 	}
 
 
@@ -341,6 +347,7 @@ func _apply_save(d: Dictionary) -> void:
 	daynight.day = int(d.get("day", 1))
 	trips.from_dict(d.get("islands", {}))
 	actions.wear.from_dict(d.get("wear", {}))
+	pets.from_dict(d.get("pet", {}))
 	layout = HotbarLayout.new()
 	layout.from_dict(d.get("hotbar", {}))
 	bag.hotbar = layout
@@ -666,6 +673,12 @@ func _use() -> void:
 	if net_target and net_target.kind in ["bell", "wheel"]:
 		net_target.use_decor()
 		return
+	if pets.target:
+		pets.use()
+		return
+	if net_target and net_target.kind == "perch":
+		pets.fill_bowl(net_target)
+		return
 	if net_target and net_target.kind == "trap":
 		actions.empty_trap(net_target)
 		return
@@ -834,6 +847,8 @@ func goal_view() -> Dictionary:
 func use_view() -> Dictionary:
 	if spot_target and spot_target.kind == "rock" and spot_target.left > 0 and tool_use() == "pickaxe":
 		return {"icon": "pickaxe", "label": "Копать", "ok": true}
+	if pets.target:
+		return pets.view()
 	if spot_target and not demolish_target:
 		var sp: Dictionary = spot_target.prompt()
 		return {"icon": sp["icon"], "label": sp["text"], "ok": sp["ok"]}
@@ -915,14 +930,15 @@ func _process(delta: float) -> void:
 		var aimed := _aimed_body()
 		demolish_target = aimed if tool_use() == "hammer" and (aimed is Part or aimed is Station) else null
 		station_target = null if demolish_target else aimed as Station
-		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "net_strong", "trap", "door", "hammock", "bell", "wheel"] else null
+		net_target = aimed if not demolish_target and aimed is Part and aimed.kind in ["net", "net_strong", "trap", "door", "hammock", "bell", "wheel", "perch"] else null
+		pets.target = aimed as Parrot
 		spot_target = aimed as IslandSpot
-		var busy := station_target or net_target or demolish_target or spot_target
+		var busy := station_target or net_target or demolish_target or spot_target or pets.target
 		grab_target = null if busy else field.nearest(player.global_position, player.flat_forward(), float(Data.b["player"]["reach"]))
 		trips.update()
 		for d in field.items:
 			d.highlight = d == grab_target
-		touch.buttons["use"]["on"] = grab_target != null or station_target != null or net_target != null or demolish_target != null or spot_target != null or not trips.view().is_empty()
+		touch.buttons["use"]["on"] = busy or grab_target != null or not trips.view().is_empty()
 		touch.buttons["rotate"]["on"] = tool_use() == "hammer" and builder.rotatable()
 		if hook.reeling and hook.state == Hook.State.WATER:
 			_reel_t -= delta
@@ -940,6 +956,8 @@ func _process(delta: float) -> void:
 func _aimed_body() -> Node:
 	var from := player.cam.global_position
 	var fwd := -player.cam.global_basis.z
+	if pets.looked_at(from, fwd):
+		return pets.pet
 	var to := from + fwd * (float(Data.b["player"]["use_reach"]) + 0.6)
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | Part.USE_LAYER, [player.get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
@@ -948,7 +966,7 @@ func _aimed_body() -> Node:
 		body = hit["collider"]
 		if body.has_meta("part"):
 			body = body.get_meta("part")
-		if body is Part or body is Station or body is IslandSpot:
+		if body is Part or body is Station or body is IslandSpot or body is Parrot:
 			return body
 	for d: Part in raft.parts.doors():
 		for at: Vector3 in [d.global_position + Vector3(0, 1.0, 0), d.leaf_center()]:

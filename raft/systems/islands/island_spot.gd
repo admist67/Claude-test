@@ -1,7 +1,8 @@
 class_name IslandSpot
 extends StaticBody3D
 ## Something to gather on an island: a palm, a banana or pineapple plant, a rock, a
-## driftwood log or a sea chest. The use button takes its loot a few times; the fruit
+## driftwood log, a sea chest or a wild parrot on a dead branch (`fruit` is the parrot; fed
+## `charges` times it is tamed, see PetCare). The use button takes its loot a few times; the fruit
 ## disappears, a log is carried off. A rock is dug with a pickaxe, a few blows for each
 ## chunk, and shrinks. A chest is opened and emptied by hand (`items`), then stays open.
 
@@ -31,6 +32,11 @@ func setup(k: String, d: Dictionary, use_size: Vector3, use_pos: Vector3) -> voi
 
 
 func prompt() -> Dictionary:
+	if kind == "parrot":
+		var n := int(def["charges"])
+		if left <= 0:
+			return {"text": "Улетел к тебе на плот", "ok": false, "icon": "parrot"}
+		return {"text": "Покормить попугая (%d/%d)" % [n - left, n], "ok": true, "icon": "parrot"}
 	var first: String = def["loot"].keys()[0]
 	if kind == "chest":
 		return {"text": "Открыть сундук" if not items.is_empty() else "Пусто", "ok": not items.is_empty(), "icon": "chest"}

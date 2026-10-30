@@ -47,6 +47,12 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 	else:
 		mi.mesh = Looks.mesh(kind)
 	add_child(mi)
+	if kind == "perch":
+		# The food in its bowl (`fish` counts the portions).
+		var food := MeshInstance3D.new()
+		food.mesh = Looks.mesh("perch_food")
+		_moving = food
+		add_child(food)
 	_decor_shapes()
 	match kind:
 		"wall", "window", "wall_bamboo", "wall_woven", "window_round", "window_shutters":
@@ -158,6 +164,9 @@ func _decor_shapes() -> void:
 			_box(Vector3(0.52, 0.72, 0.52), Vector3(0, 0.36, 0))
 		"flower_box":
 			_box(Vector3(0.82, 0.3, 0.32), Vector3(0, 0.15, 0))
+		"perch":
+			_box(Vector3(0.1, 1.25, 0.1), Vector3(0, 0.62, 0))
+			_use_box(Vector3(0.8, 0.5, 0.4), Vector3(-0.1, 1.0, 0))
 		"scarecrow":
 			_box(Vector3(0.2, 1.9, 0.2), Vector3(0, 0.95, 0))
 			_box(Vector3(1.1, 0.6, 0.3), Vector3(0, 1.3, 0))
@@ -226,6 +235,8 @@ func toggle() -> void:
 ## Door swing; lantern light fading on/off; a trap's next fish; the flag in the wind.
 func tick(delta: float, lamps_on: bool) -> void:
 	_t += delta
+	if kind == "perch":
+		_moving.visible = fish > 0
 	if kind == "flag":
 		_moving.rotation.y = sin(_t * 1.7) * 0.25 + sin(_t * 4.3) * 0.06
 		_moving.scale.x = 0.94 + 0.06 * sin(_t * 3.1)
@@ -275,6 +286,9 @@ func prompt(_inv: Inventory) -> Dictionary:
 		return {"text": "Позвонить", "ok": true, "icon": "bell"}
 	if kind == "wheel":
 		return {"text": "Покрутить", "ok": true, "icon": "wheel"}
+	if kind == "perch":
+		var cap := int(Data.b["pet"]["bowl"])
+		return {"text": "Насыпать корм (%d/%d)" % [fish, cap], "ok": fish < cap, "icon": "banana"}
 	if kind == "hammock":
 		var dn: DayNight = get_parent().daynight
 		return {"text": "Спать", "ok": dn != null and dn.is_night(), "icon": "hammock"}

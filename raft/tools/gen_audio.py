@@ -181,6 +181,16 @@ def birds():
     body = lowpass(r.standard_normal(n), 0.15) * flutter * env(n, 0.02, 4)
     snap = np.concatenate([np.zeros(int(SR * 0.45)), lowpass(r.standard_normal(int(SR * 0.25)), 0.3) * env(int(SR * 0.25), 0.002, 25)])
     write_wav(os.path.join(OUT, "flap.wav"), norm(mix(body, snap * 1.2), 0.6))
+    # A parrot: two raspy rising-falling syllables, higher and shorter than the gull.
+    syl = []
+    for f0, f1, d in ((900, 1900, 0.13), (1700, 1100, 0.16)):
+        t = t_axis(d)
+        f = np.linspace(f0, f1, len(t)) * (1 + 0.05 * np.sin(2 * np.pi * 45 * t))
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        tone = np.sin(ph) + 0.7 * np.sin(2 * ph) + 0.5 * np.sin(3 * ph) + 0.3 * np.sin(4 * ph)
+        rasp = highpass(r.standard_normal(len(t)) * 0.45, 0.4)
+        syl.append((tone + rasp) * np.sin(np.linspace(0, np.pi, len(t))) ** 0.6)
+    write_wav(os.path.join(OUT, "parrot.wav"), norm(seq(*syl, gap=0.05), 0.6))
 
 
 if __name__ == "__main__":
