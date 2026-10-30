@@ -53,6 +53,9 @@ func _ready() -> void:
 	_tail.mesh = parts[1]
 	_tail.position = Vector3(0, 0, _joint_z())
 	_body.add_child(_tail)
+	# Under water: its shadow would fall on nothing.
+	_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	reset(float(cfg["first_delay"]))
 
 

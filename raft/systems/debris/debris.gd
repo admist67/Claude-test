@@ -29,6 +29,9 @@ func setup(d: Dictionary, r: Raft, cfg: Dictionary, rng: RandomNumberGenerator) 
 	var look := Looks.debris(id)
 	look.scale = Vector3.ONE * 1.35
 	add_child(look)
+	# Floating things would cast shadows only on the sea, which takes no sun shadows.
+	for n in look.find_children("*", "GeometryInstance3D", true, false):
+		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## Rolls the loot table: [[item, n], ...].

@@ -2,6 +2,8 @@ shader_type spatial;
 render_mode specular_schlick_ggx, cull_back, blend_mix, depth_draw_always;
 // Smooth ocean: geometric waves (must match Ocean.height_at in ocean.gd), per-pixel analytic
 // normals, two scrolling ripple normal maps, sky reflection by fresnel, crest foam.
+// The sun is lit here (sun_dir, sun_light), not by the sun light itself: a light with
+// shadows draws everything it touches a second time, and the sea is the whole screen.
 
 uniform vec4 waves[4];          // dir.x, dir.z, amplitude, wavelength
 uniform float t;
@@ -16,6 +18,8 @@ uniform vec3 foam_color = vec3(0.9, 0.95, 0.95);
 uniform float light_level = 1.0;    // 1 day, ~0.15 night (scales scattering and foam)
 uniform float ripple_strength = 0.2;
 uniform float foam_from = 0.17;
+uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);   // toward the sun, world space
+uniform vec3 sun_light = vec3(0.0);          // the sun's color times its energy; 0 at night
 
 varying vec3 wpos;
 varying float hgt;
@@ -65,11 +69,30 @@ void fragment() {
 	float lace = texture(noise_tex, wpos.xz * 0.35 - t * 0.02).r;
 	float foam = smoothstep(foam_from, foam_from + 0.1, hgt + (nz - 0.5) * 0.2) * smoothstep(0.55, 0.78, lace * 0.6 + nz * 0.4);
 	vec3 col = mix(body, foam_color * light_level, foam * 0.6);
-	ALBEDO = col * (1.0 - fres);
+	vec3 albedo = col * (1.0 - fres);
+	ALBEDO = albedo;
 	// Slightly see-through: the shark, floats and debris show as shapes below the surface.
 	ALPHA = clamp(0.8 + fres * 0.5 + foam * 0.3, 0.0, 1.0);
-	EMISSION = sky * fres * (1.0 - foam * 0.8);
+	// Sunlight: Lambert diffuse and a Schlick-GGX highlight (the glitter path at sunset).
+	float rough = mix(0.2, 0.5, foam);
+	vec3 l = normalize(sun_dir);
+	vec3 hv = normalize(l + v);
+	float ndl = clamp(dot(n, l), 0.0, 1.0);
+	float ndh = clamp(dot(n, hv), 0.0, 1.0);
+	float a = rough * rough;
+	float a2 = a * a;
+	float dd = ndh * ndh * (a2 - 1.0) + 1.0;
+	float ggx = a2 / (3.14159265 * dd * dd);
+	float vis = 0.5 / (ndl * sqrt(ndv * ndv * (1.0 - a2) + a2) + ndv * sqrt(ndl * ndl * (1.0 - a2) + a2) + 1e-5);
+	float f0 = 0.16 * 0.22 * 0.22;
+	float fr = f0 + (1.0 - f0) * pow(1.0 - clamp(dot(l, hv), 0.0, 1.0), 5.0);
+	float ldh = clamp(dot(l, hv), 0.0, 1.0);
+	float fd90 = 0.5 + 2.0 * rough * ldh * ldh;
+	float burley = (1.0 + (fd90 - 1.0) * pow(1.0 - ndl, 5.0)) * (1.0 + (fd90 - 1.0) * pow(1.0 - ndv, 5.0));
+	// Gains matched against frames lit by the engine's own sun light.
+	vec3 sun = sun_light * ndl * (albedo * burley * 1.75 + vec3(ggx * vis * fr) * 0.8);
+	EMISSION = sky * fres * (1.0 - foam * 0.8) + sun;
 	NORMAL = (VIEW_MATRIX * vec4(n, 0.0)).xyz;
-	ROUGHNESS = mix(0.2, 0.5, foam);
+	ROUGHNESS = rough;
 	SPECULAR = 0.22;
 }

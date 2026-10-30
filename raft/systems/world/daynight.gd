@@ -99,6 +99,7 @@ func apply() -> void:
 	sky_mat.set_shader_parameter("flash", fl)
 	sky_mat.set_shader_parameter("cloud_cover", 0.48 + 0.45 * sk)
 	ocean.set_sky(k["top"], k["horizon"], k["light"])
+	ocean.set_sun(sun)
 
 
 func _v(c: Color) -> Vector3:

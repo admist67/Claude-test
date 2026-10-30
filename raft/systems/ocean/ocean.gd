@@ -2,7 +2,10 @@ class_name Ocean
 extends MeshInstance3D
 ## The water plane follows the camera; height_at() is the same wave sum as the shader,
 ## so the raft, debris and hook float exactly on the waves you see. set_sky() feeds the
-## day/night colors into the reflection.
+## day/night colors into the reflection, set_sun() the sunlight (the sun light itself
+## leaves the sea out: see the shader). The sea is on its own render layer for that.
+
+const LAYER := 2                    # render layer bit the sun light leaves out
 
 static var waves: Array[Vector4] = []
 static var time := 0.0
@@ -41,12 +44,21 @@ func _ready() -> void:
 	material_override = _mat
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	extra_cull_margin = 4.0
+	layers = LAYER
 
 
 func set_sky(top: Color, horizon: Color, light: float) -> void:
 	_mat.set_shader_parameter("sky_top", Vector3(top.r, top.g, top.b))
 	_mat.set_shader_parameter("sky_horizon", Vector3(horizon.r, horizon.g, horizon.b))
 	_mat.set_shader_parameter("light_level", light)
+
+
+## The sun as the sea sees it: `light` is the sun light (direction from its basis, color
+## times energy, nothing while it is down).
+func set_sun(light: DirectionalLight3D) -> void:
+	_mat.set_shader_parameter("sun_dir", light.global_basis.z)
+	var c := light.light_color * light.light_energy if light.visible else Color.BLACK
+	_mat.set_shader_parameter("sun_light", Vector3(c.r, c.g, c.b))
 
 
 func _process(delta: float) -> void:

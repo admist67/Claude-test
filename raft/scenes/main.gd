@@ -65,6 +65,10 @@ func _ready() -> void:
 # ---------------------------------------------------------------- world and UI
 
 func _build_world() -> void:
+	# Very sharp phone screens draw the 3D a little below full resolution (the interface
+	# stays sharp): the same picture for much less work, and a cooler phone.
+	var win := DisplayServer.window_get_size()
+	get_viewport().scaling_3d_scale = clampf(960.0 / float(mini(win.x, win.y)), 0.7, 1.0)
 	var env := Environment.new()
 	var sky_mat := ShaderMaterial.new()
 	sky_mat.shader = load("res://systems/world/sky.gdshader")
@@ -94,6 +98,10 @@ func _build_world() -> void:
 	sun.light_energy = 0.62
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 28.0
+	# Two shadow splits instead of four: the raft is drawn into the shadow map half as often.
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_split_1 = 0.25
+	sun.light_cull_mask = 0xFFFFF & ~Ocean.LAYER
 	add_child(sun)
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color("#9fb4ff")

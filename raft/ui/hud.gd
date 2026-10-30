@@ -13,6 +13,7 @@ var _item := ""           # the hotbar item just picked: its name floats above i
 var _item_t := 9.0
 var _shake := 0.0
 var _tex: Dictionary = {}
+var _frame := 0
 
 
 func _ready() -> void:
@@ -47,7 +48,20 @@ func _process(delta: float) -> void:
 	_toasts = _toasts.filter(func(t: Dictionary) -> bool: return t["t"] > 0.0)
 	_goal_flash = maxf(0.0, _goal_flash - delta)
 	_item_t += delta
-	queue_redraw()
+	_frame += 1
+	# Half the frames are enough for a still HUD; anything moving gets every frame.
+	if _frame % 2 == 0 or _moving():
+		queue_redraw()
+
+
+## Something on the HUD moves or follows the 3D view right now.
+func _moving() -> bool:
+	if game == null or not game.playing():
+		return false
+	var rod: Rod = game.rod
+	return not _toasts.is_empty() or _goal_flash > 0.0 or _item_t < 3.0 or game.shark.attacking() or game.shark.hunting() \
+		or game.player.off_raft or game.hook.state == Hook.State.CHARGE or rod.state in [Rod.State.CHARGE, Rod.State.FIGHT, Rod.State.BITE] \
+		or game.combat.reloading > 0.0 or game.combat.spear_cd > 0.0 or game.vitals.health < 30.0
 
 
 func _text(s: String, pos: Vector2, size: int, col := UiTheme.CREAM, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, f: Font = null, outline := 6) -> void:
