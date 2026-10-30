@@ -10,8 +10,8 @@ const MODELS := {
 const T := 1.5     # tile size, as in data/balance.json raft.tile
 const H := 2.4     # wall height = upper floor level
 const TALL_LAMP := 2.3   # tall lantern post, a little under the wall top
-const STRUCTURES := ["wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar", "lantern", "lantern_tall", "lantern_wall",
-		"roof", "stairs", "net", "net_strong", "trap", "hammock", "collector"]
+const STRUCTURES := ["wall", "window", "door", "door_ajar", "door_frame", "door_leaf", "pillar",
+		"roof", "stairs", "net", "net_strong", "trap"]
 const PLASTIC := Color("#bfe0f2")
 const CAP := Color("#2a6fb0")
 
@@ -275,6 +275,8 @@ static func mesh(id: String) -> ArrayMesh:
 				leaf = GearLooks.build(st, id)
 			elif id in BuildLooks.IDS:
 				leaf = BuildLooks.build(st, id)
+			elif id in FixtureLooks.IDS:
+				leaf = FixtureLooks.build(st, id)
 			else:
 				Mk.st_box(st, Vector3(0.25, 0.25, 0.25), Vector3.ZERO, Color("#ff00ff"))
 	var m := Mk.st_commit(st, leaf)
@@ -507,15 +509,6 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 			Mk.st_box(st, Vector3(0.17, H, 0.17), Vector3(0, H / 2.0, 0), dark, "wood_dark")
 			for y: float in [0.25, H - 0.3]:
 				Mk.st_cyl(st, 0.11, 0.12, Vector3(0, y, 0), Color(1, 0.96, 0.9), "rope", Vector3.ZERO, 10, 0.6)
-		"lantern", "lantern_tall":
-			var ph := 1.35 if id == "lantern" else TALL_LAMP
-			Mk.st_box(st, Vector3(0.08 if id == "lantern" else 0.11, ph, 0.08 if id == "lantern" else 0.11), Vector3(0, ph / 2.0, 0), dark, "wood_dark")
-			Mk.st_box(st, Vector3(0.3, 0.04, 0.06), Vector3(0.1, ph - 0.02, 0), dark, "wood_dark")
-			_lamp_head(st, Vector3(0.22, ph - 0.23, 0))
-		"lantern_wall":
-			Mk.st_box(st, Vector3(0.12, 0.2, 0.03), Vector3(0, 1.85, 0.015), dark, "wood_dark")
-			Mk.st_box(st, Vector3(0.04, 0.04, 0.3), Vector3(0, 1.92, 0.15), dark, "wood_dark")
-			_lamp_head(st, Vector3(0, 1.69, 0.26))
 		"roof":
 			for i in 5:
 				var z := -T / 2.0 + T / 5.0 * (i + 0.5)
@@ -536,32 +529,6 @@ static func _structure(st: SurfaceTool, id: String) -> void:
 				Mk.st_box(st, Vector3(0.08, 0.16, slen), Vector3(x, H / 2.0 - 0.05, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
 				Mk.st_box(st, Vector3(0.05, 0.05, slen), Vector3(x, H / 2.0 + 0.85, 0), dark, "wood_dark", Vector3(-slope, 0, 0))
 				Mk.st_box(st, Vector3(0.05, 0.9, 0.05), Vector3(x, 0.45, -T / 2.0 + 0.05), dark, "wood_dark")
-		"collector":
-			Mk.st_cyl(st, 0.32, 0.75, Vector3(0, 0.375, 0), Color(1, 0.9, 0.8), "wood_warm", Vector3.ZERO, 14, 1.2, 0.08)
-			_funnel(st, 0.3, 0.8, 0.66, 1.18, Color("#e8d8b0"))
-			for y: float in [0.12, 0.62]:
-				Mk.st_cyl(st, 0.345, 0.05, Vector3(0, y, 0), Color(0.6, 0.62, 0.66), "metal", Vector3.ZERO, 14)
-			for a in 4:
-				var yaw := a * PI / 2.0 + PI / 4.0
-				var dv := Vector3(sin(yaw), 0, cos(yaw))
-				Mk.st_box(st, Vector3(0.05, 0.6, 0.05), dv * 0.52 + Vector3(0, 0.95, 0), dark, "wood_dark", Vector3(0, yaw, 0))
-		"hammock":
-			for x: float in [-0.66, 0.66]:
-				Mk.st_box(st, Vector3(0.1, 1.15, 0.1), Vector3(x, 0.575, 0), dark, "wood_dark")
-				Mk.st_cyl(st, 0.07, 0.08, Vector3(x, 1.0, 0), Color(1, 0.96, 0.9), "rope", Vector3.ZERO, 8, 0.6)
-			var segs := 8
-			for i in segs:
-				var u0 := float(i) / segs
-				var u1 := float(i + 1) / segs
-				var x0 := lerpf(-0.6, 0.6, u0)
-				var x1 := lerpf(-0.6, 0.6, u1)
-				var y0 := 0.95 - sin(PI * u0) * 0.45
-				var y1 := 0.95 - sin(PI * u1) * 0.45
-				var mid := Vector3((x0 + x1) / 2.0, (y0 + y1) / 2.0, 0)
-				var ang := atan2(y1 - y0, x1 - x0)
-				Mk.st_box(st, Vector3(Vector2(x1 - x0, y1 - y0).length() + 0.01, 0.025, 0.62), mid, Color("#e8d8b0"), "canvas", Vector3(0, 0, ang), 1.0)
-			for z: float in [-0.31, 0.31]:
-				Mk.st_box(st, Vector3(0.02, 0.02, 0.02), Vector3(0, 0.5, z), Color("#b03a2a"), "white")
 		"net", "net_strong":
 			# The strong net: thicker posts with iron caps, a tarred denser mesh.
 			var strong := id == "net_strong"
@@ -618,15 +585,6 @@ static func _funnel(st: SurfaceTool, r0: float, y0: float, r1: float, y1: float,
 		var uv := Rect2(cell.position + Vector2(cell.size.x * i / seg, 0), Vector2(cell.size.x / seg, cell.size.y))
 		Mk.st_quad(st, p, uv, c)
 		Mk.st_quad(st, [p[0], p[3], p[2], p[1]], uv, c.darkened(0.15))
-
-
-## A small metal-framed lamp whose center is at `at`.
-static func _lamp_head(st: SurfaceTool, at: Vector3) -> void:
-	var iron := Color(0.55, 0.56, 0.6)
-	Mk.st_box(st, Vector3(0.16, 0.03, 0.16), at + Vector3(0, 0.12, 0), iron, "metal")
-	Mk.st_box(st, Vector3(0.16, 0.03, 0.16), at + Vector3(0, -0.12, 0), iron, "metal")
-	for c: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
-		Mk.st_box(st, Vector3(0.015, 0.24, 0.015), at + Vector3(c.x * 0.07, 0, c.y * 0.07), Color(0.5, 0.5, 0.55), "metal")
 
 
 ## A plank door 1.12 wide, hinged at its left edge (local x = 0 → at `at`).

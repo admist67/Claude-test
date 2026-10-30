@@ -1,16 +1,29 @@
 extends Node
 ## Renders a 192 px icon of every item and buildable into assets/icons/<id>.png.
 ## Run with a window (xvfb):  godot --path . res://tools/render_icons.tscn
+## A close look at a few:  ... -- --only lantern,crossbow --size 512 --out <dir under res://>
 
-const SIZE := 192
 const VIEW_DIR := Vector3(1.0, 0.95, 1.35)
+const STAIRS_VIEW := Vector3(1.25, 0.7, -1.3)
+
+var size := 192
+var out_dir := "assets/icons"
 
 
 func _ready() -> void:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://assets/icons"))
 	var ids: Array = Data.items.keys()
 	for d: Dictionary in Data.build:
 		ids.append(d["id"])
+	var args := OS.get_cmdline_user_args()
+	for i in args.size() - 1:
+		match args[i]:
+			"--only":
+				ids = Array(args[i + 1].split(","))
+			"--size":
+				size = int(args[i + 1])
+			"--out":
+				out_dir = args[i + 1]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://" + out_dir))
 	for id: String in ids:
 		await _render(id)
 	print("icons: ", ids.size())
@@ -19,7 +32,7 @@ func _ready() -> void:
 
 func _render(id: String) -> void:
 	var vp := SubViewport.new()
-	vp.size = Vector2i(SIZE, SIZE)
+	vp.size = Vector2i(size, size)
 	vp.transparent_bg = true
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
@@ -61,13 +74,15 @@ func _render(id: String) -> void:
 	cam.fov = 28.0
 	vp.add_child(cam)
 	var dist := radius / sin(deg_to_rad(cam.fov * 0.5)) * 1.02
-	cam.look_at_from_position(center + VIEW_DIR.normalized() * dist, center, Vector3.UP)
+	# Stairs climb toward +Z: look at them from the foot, where the steps show.
+	var view := STAIRS_VIEW if id in RaftParts.STAIRS else VIEW_DIR
+	cam.look_at_from_position(center + view.normalized() * dist, center, Vector3.UP)
 	cam.current = true
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image()
-	img.save_png(ProjectSettings.globalize_path("res://assets/icons/%s.png" % id))
+	img.save_png(ProjectSettings.globalize_path("res://%s/%s.png" % [out_dir, id]))
 	vp.queue_free()
 
 

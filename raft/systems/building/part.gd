@@ -78,7 +78,7 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 		"pillar":
 			_box(Vector3(0.18, H, 0.18), Vector3(0, H / 2.0, 0))
 		"lantern", "lantern_tall", "lantern_wall", "torch", "candle", "fire_pit":
-			var spots := {"lantern": Vector3(0.22, 1.12, 0), "lantern_tall": Vector3(0.22, Looks.TALL_LAMP - 0.23, 0), "lantern_wall": Vector3(0, 1.69, 0.26),
+			var spots := {"lantern": Vector3(0.22, 1.02, 0), "lantern_tall": Vector3(0.22, Looks.TALL_LAMP - 0.33, 0), "lantern_wall": Vector3(0, 1.69, 0.26),
 					"torch": Vector3(0, 1.74, 0), "candle": Vector3(0, 0.25, 0), "fire_pit": Vector3(0, 0.22, 0)}
 			var at: Vector3 = spots[kind]
 			if kind == "torch":
@@ -95,7 +95,7 @@ func setup(k: String, at_key: Variant, d: int) -> void:
 			_glow = MeshInstance3D.new()
 			var gm := BoxMesh.new()
 			var sizes := {"torch": Vector3(0.1, 0.22, 0.1), "candle": Vector3(0.025, 0.05, 0.025), "fire_pit": Vector3(0.32, 0.26, 0.32)}
-			gm.size = sizes.get(kind, Vector3(0.12, 0.2, 0.12))
+			gm.size = sizes.get(kind, Vector3(0.136, 0.18, 0.136))      # a lantern: over its glass
 			var fire := kind in ["torch", "candle", "fire_pit"]
 			var m := StandardMaterial3D.new()
 			m.albedo_color = Color("#ffb04a") if fire else Color("#ffd27a")

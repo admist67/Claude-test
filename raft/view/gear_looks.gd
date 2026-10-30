@@ -11,6 +11,7 @@ const WOOD := Color(1, 0.93, 0.84)
 const DARK := Color(1, 0.95, 0.9)
 const CLOTH := Color("#efe2c2")
 const STRAW := Color("#e2c46a")
+const ROPE := Color(1, 0.97, 0.9)
 
 
 ## Builds `id` into `st`. Returns true when it needs the leaf (cut-out) material.
@@ -184,26 +185,50 @@ static func _flipper(st: SurfaceTool, at: Vector3, yaw: float) -> void:
 		Mk.st_box(st, Vector3(0.016, 0.022, 0.3), at + b * Vector3(x, 0.022, 0.1), pocket, "plastic", rot)
 
 
-## A wooden stock with a dark butt and grip, a bow of two bent limbs at the front, its
-## string drawn back to the nut, a metal stirrup and bands.
+## A crossbow pointing along -Z: a stock with a dropped butt and a pistol grip, a rail
+## with a brass nut and a sight, a trigger and its guard, rope wraps on the fore-end, a bow
+## of curved two-tone limbs with brass tips held by a steel band, the string drawn back to
+## the nut and a steel stirrup at the front.
 static func _crossbow(st: SurfaceTool) -> void:
-	var iron := Color(0.62, 0.63, 0.67)
-	Mk.st_box(st, Vector3(0.05, 0.06, 0.55), Vector3(0, 0, 0.02), WOOD, "wood_warm")
-	Mk.st_box(st, Vector3(0.07, 0.13, 0.17), Vector3(0, -0.035, 0.3), DARK, "wood_dark", Vector3(-0.15, 0, 0))
-	Mk.st_box(st, Vector3(0.012, 0.006, 0.42), Vector3(0, 0.032, -0.05), Color(0.25, 0.18, 0.12), "wood_dark")
-	Mk.st_box(st, Vector3(0.035, 0.1, 0.045), Vector3(0, -0.075, 0.13), DARK, "wood_dark", Vector3(0.25, 0, 0))
-	Mk.st_box(st, Vector3(0.008, 0.045, 0.012), Vector3(0, -0.05, 0.06), iron, "metal", Vector3(0.3, 0, 0))
-	Mk.st_box(st, Vector3(0.03, 0.02, 0.03), Vector3(0, 0.04, 0.06), iron, "metal")
+	var walnut := Color(0.8, 0.58, 0.4)
+	var steel := Color(0.66, 0.68, 0.72)
+	var brass := Color("#c9a24a")
+	var front := -0.25
+	Mk.st_box(st, Vector3(0.048, 0.05, 0.3), Vector3(0, 0.0, -0.16), WOOD, "wood_warm")
+	Mk.st_box(st, Vector3(0.058, 0.066, 0.24), Vector3(0, -0.004, 0.1), WOOD, "wood_warm")
+	Mk.st_box(st, Vector3(0.062, 0.13, 0.2), Vector3(0, -0.05, 0.3), walnut, "wood_warm", Vector3(-0.22, 0, 0))
+	Mk.st_box(st, Vector3(0.066, 0.14, 0.024), Vector3(0, -0.075, 0.405), Color(0.25, 0.18, 0.12), "wood_dark", Vector3(-0.22, 0, 0))
+	Mk.st_box(st, Vector3(0.026, 0.008, 0.46), Vector3(0, 0.029, -0.07), Color(0.32, 0.22, 0.14), "wood_dark")
+	Mk.st_box(st, Vector3(0.036, 0.026, 0.032), Vector3(0, 0.038, 0.06), brass, "metal")
+	Mk.st_box(st, Vector3(0.008, 0.034, 0.008), Vector3(0, 0.05, 0.18), steel, "metal")
+	Mk.st_box(st, Vector3(0.044, 0.13, 0.052), Vector3(0, -0.085, 0.16), walnut, "wood_warm", Vector3(0.3, 0, 0))
+	Mk.st_box(st, Vector3(0.008, 0.045, 0.012), Vector3(0, -0.047, 0.085), steel, "metal", Vector3(0.35, 0, 0))
+	Mk.st_box(st, Vector3(0.01, 0.01, 0.1), Vector3(0, -0.09, 0.085), steel, "metal")
+	Mk.st_box(st, Vector3(0.01, 0.055, 0.01), Vector3(0, -0.062, 0.035), steel, "metal")
+	for z: float in [-0.13, -0.09, -0.05]:
+		Mk.st_cyl(st, 0.034, 0.022, Vector3(0, 0.0, z), ROPE, "rope", Vector3(PI / 2.0, 0, 0), 10, 0.6)
+	for z: float in [0.0, 0.2]:
+		for sx: float in [-1.0, 1.0]:
+			Mk.st_box(st, Vector3(0.006, 0.014, 0.014), Vector3(sx * 0.03, 0.0, z), brass, "metal")
+	# The bow: a steel band, then each limb in three pieces sweeping back.
+	Mk.st_box(st, Vector3(0.09, 0.075, 0.06), Vector3(0, 0.012, front), steel, "metal")
 	for sx: float in [-1.0, 1.0]:
-		Mk.st_box(st, Vector3(0.31, 0.026, 0.038), Vector3(sx * 0.15, 0.022, -0.19), WOOD.darkened(0.1), "wood_warm", Vector3(0, sx * 0.28, 0))
-		Mk.st_box(st, Vector3(0.03, 0.03, 0.03), Vector3(sx * 0.29, 0.022, -0.13), iron, "metal")
-		_bar(st, Vector3(sx * 0.29, 0.03, -0.12), Vector3(0, 0.04, 0.06), 0.004, Color(1, 0.97, 0.9), "rope", 4)
-	Mk.st_box(st, Vector3(0.07, 0.07, 0.05), Vector3(0, 0.01, -0.25), iron, "metal")
-	Mk.st_box(st, Vector3(0.09, 0.012, 0.012), Vector3(0, -0.03, -0.37), iron, "metal")
-	for sx: float in [-0.045, 0.045]:
-		Mk.st_box(st, Vector3(0.012, 0.012, 0.11), Vector3(sx, -0.02, -0.32), iron, "metal")
-	for z: float in [-0.12, 0.2]:
-		Mk.st_box(st, Vector3(0.056, 0.066, 0.02), Vector3(0, 0, z), iron, "metal")
+		var p := Vector3(sx * 0.045, 0.022, front)
+		var ang := 0.0
+		for k in 3:
+			var ln := 0.11 - k * 0.01
+			ang += 0.17 + k * 0.08
+			var dir := Vector3(sx * cos(ang), 0, sin(ang))
+			var yaw := atan2(-dir.z, dir.x)
+			var mid := p + dir * ln / 2.0
+			Mk.st_box(st, Vector3(ln + 0.01, 0.03 - k * 0.004, 0.036 - k * 0.004), mid, WOOD.darkened(0.12), "wood_warm", Vector3(0, yaw, 0))
+			Mk.st_box(st, Vector3(ln + 0.01, 0.008, 0.026 - k * 0.004), mid + Vector3(0, 0.017 - k * 0.002, 0), Color(0.3, 0.22, 0.16), "wood_dark", Vector3(0, yaw, 0))
+			p += dir * ln
+		Mk.st_box(st, Vector3(0.03, 0.028, 0.028), p, brass, "metal", Vector3(0, atan2(-sin(ang), sx * cos(ang)), 0))
+		_bar(st, p + Vector3(0, 0.004, 0.0), Vector3(0, 0.044, 0.062), 0.0035, ROPE, "rope", 4)
+	Mk.st_box(st, Vector3(0.11, 0.014, 0.014), Vector3(0, -0.02, front - 0.15), steel, "metal")
+	for sx: float in [-0.055, 0.055]:
+		Mk.st_box(st, Vector3(0.014, 0.014, 0.13), Vector3(sx, -0.01, front - 0.085), steel, "metal", Vector3(0.12, 0, 0))
 
 
 ## A bolt along +Y: a wooden shaft, an iron head, red and white fletching at the back.

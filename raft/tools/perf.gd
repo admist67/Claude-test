@@ -52,6 +52,8 @@ func _run() -> void:
 	var views := [["deck", PI * 0.75, -0.35], ["sea", 0.2, -0.08], ["sun", 1.02, -0.12]]
 	if "--sun" in OS.get_cmdline_user_args():
 		views = [["sun", 1.02, -0.12]]
+	if "--lamp" in OS.get_cmdline_user_args():
+		views = [["lamp", -0.98, -0.45]]
 	for view: Array in views:
 		for tod: Array in [["day", 0.25], ["sunset", 0.47], ["night", 0.72]]:
 			daynight.phase = tod[1]
