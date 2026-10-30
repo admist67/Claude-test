@@ -236,13 +236,9 @@ func _process(delta: float) -> void:
 
 
 ## Every now and then: a new place to sit, a trip over the sea, the bowl. While you look
-## at it, it stays and looks back.
+## at it, it stays where it is and looks back.
 func _idle(delta: float) -> void:
 	if pet.mode == Parrot.Mode.FLY:
-		return
-	if target == pet:
-		_move_t = maxf(_move_t, 4.0)
-		pet.face_to(game.raft.to_local(game.player.global_position))
 		return
 	var perch := _perch()
 	if perch and perch.fish > 0 and satiety < float(cfg["bowl_at"]):
@@ -267,6 +263,10 @@ func _idle(delta: float) -> void:
 			pet.fly_to(game.raft.centroid() + Vector3(cos(a) * 24.0, 6.0, sin(a) * 24.0), 3.0)
 			say("Полетел за добычей!")
 			return
+	if target == pet:
+		_move_t = maxf(_move_t, 4.0)
+		pet.face_to(game.raft.to_local(game.player.global_position))
+		return
 	_move_t -= delta
 	if _move_t <= 0.0:
 		_move_t = _rng.randf_range(float(cfg["move"][0]), float(cfg["move"][1]))
